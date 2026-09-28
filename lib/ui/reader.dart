@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../core/library.dart';
@@ -9,6 +7,7 @@ import '../core/session.dart';
 import '../core/site.dart';
 import 'rich_body.dart';
 import 'media_widgets.dart';
+import 'glass_pager.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -393,132 +392,169 @@ class _ReaderPageState extends State<ReaderPage> {
       ),
       body: SafeArea(
         top: false,
-        child: Column(
+        bottom: false,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            if (widget.demo)
-              Container(
-                width: double.infinity,
-                color: Theme.of(context).colorScheme.primaryContainer,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                child: const Text(
-                  'SAMPLE CONTENT \u00b7 not connected to your account',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
-            if (_loading || _browserOpen)
-              const LinearProgressIndicator(minHeight: 2),
-            if (_failure != null) Expanded(child: _error()),
-            if (_failure == null && page != null)
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    controller: _scroll,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 24),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              page.title,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -.5,
-                                  ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              widget.demo
-                                  ? 'Sample reading space'
-                                  : page.loggedIn
-                                  ? 'Signed in \u00b7 clean view'
-                                  : 'Guest \u00b7 sign in for your account',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+            Column(
+              children: [
+                if (widget.demo)
+                  Container(
+                    width: double.infinity,
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    child: const Text(
+                      'SAMPLE CONTENT \u00b7 not connected to your account',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                if (_loading || _browserOpen)
+                  const LinearProgressIndicator(minHeight: 2),
+                if (_failure != null) Expanded(child: _error()),
+                if (_failure == null && page != null)
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        controller: _scroll,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: EdgeInsets.fromLTRB(
+                          0,
+                          8,
+                          0,
+                          GlassPager.heightOf(context) +
+                              24 +
+                              MediaQuery.paddingOf(context).bottom,
                         ),
-                      ),
-                      if (page.entries.any((entry) => entry.pinned))
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                          child: Material(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainer,
-                            borderRadius: BorderRadius.circular(16),
-                            clipBehavior: Clip.antiAlias,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                for (final entry in page.entries.where(
-                                  (e) => e.pinned,
-                                ))
-                                  ListTile(
-                                    dense: true,
-                                    minTileHeight: 44,
-                                    leading: const Icon(
-                                      Icons.push_pin_outlined,
-                                      size: 16,
-                                    ),
-                                    title: Text(
-                                      entry.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    onTap: () => _navigate(entry.url),
-                                  ),
+                                Text(
+                                  page.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -.5,
+                                      ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  widget.demo
+                                      ? 'Sample reading space'
+                                      : page.loggedIn
+                                      ? 'Signed in \u00b7 clean view'
+                                      : 'Guest \u00b7 sign in for your account',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ],
                             ),
                           ),
-                        ),
-                      for (final entry in page.entries.where(
-                        (e) => !e.pinned,
-                      )) ...[
-                        ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 2,
-                          ),
-                          title: Text(
-                            entry.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          subtitle: entry.subtitle.isEmpty
-                              ? null
-                              : Text(
-                                  entry.subtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                          if (page.entries.any((entry) => entry.pinned))
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                              child: Material(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainer,
+                                borderRadius: BorderRadius.circular(16),
+                                clipBehavior: Clip.antiAlias,
+                                child: Column(
+                                  children: [
+                                    for (final entry in page.entries.where(
+                                      (e) => e.pinned,
+                                    ))
+                                      ListTile(
+                                        dense: true,
+                                        minTileHeight: 44,
+                                        leading: const Icon(
+                                          Icons.push_pin_outlined,
+                                          size: 16,
+                                        ),
+                                        title: Text(
+                                          entry.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        onTap: () => _navigate(entry.url),
+                                      ),
+                                  ],
                                 ),
-                          trailing: const Icon(Icons.chevron_right, size: 19),
-                          onTap: () => _navigate(entry.url),
-                        ),
-                        const Divider(indent: 14, endIndent: 14),
-                      ],
-                      for (final post in page.posts) _postCard(post),
-                      if (page.posts.isEmpty && page.entries.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text('There are no entries on this page.'),
-                        ),
-                    ],
+                              ),
+                            ),
+                          for (final entry in page.entries.where(
+                            (e) => !e.pinned,
+                          )) ...[
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 2,
+                              ),
+                              title: Text(
+                                entry.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              subtitle: entry.subtitle.isEmpty
+                                  ? null
+                                  : Text(
+                                      entry.subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                              trailing: const Icon(
+                                Icons.chevron_right,
+                                size: 19,
+                              ),
+                              onTap: () => _navigate(entry.url),
+                            ),
+                            const Divider(indent: 14, endIndent: 14),
+                          ],
+                          for (final post in page.posts) _postCard(post),
+                          if (page.posts.isEmpty && page.entries.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text('There are no entries on this page.'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (_failure == null && page == null && !_loading)
+                  const Expanded(child: Center(child: Text('Ready to read.'))),
+              ],
+            ),
+            if (page != null && _failure == null)
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.only(bottom: 8),
+                  child: GlassPager(
+                    pageNumber: page.pageNumber,
+                    onPrevious: _loading || page.previous == null
+                        ? null
+                        : () => _load(page.previous),
+                    onRefresh: _loading ? null : _load,
+                    onNext: _loading || page.next == null
+                        ? null
+                        : () => _load(page.next),
                   ),
                 ),
               ),
-            if (_failure == null && page == null && !_loading)
-              const Expanded(child: Center(child: Text('Ready to read.'))),
-            if (page != null && _failure == null) _pager(page),
           ],
         ),
       ),
@@ -619,51 +655,6 @@ class _ReaderPageState extends State<ReaderPage> {
         : '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  Widget _pager(ForumPage page) => Padding(
-    padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer
-                .withValues(alpha: .86),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Theme.of(context).dividerColor),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                tooltip: 'Previous page',
-                onPressed: _loading || page.previous == null
-                    ? null
-                    : () => _load(page.previous),
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Text(
-                'Page ${page.pageNumber}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              IconButton(
-                tooltip: 'Refresh page',
-                onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh, size: 20),
-              ),
-              IconButton(
-                tooltip: 'Next page',
-                onPressed: _loading || page.next == null
-                    ? null
-                    : () => _load(page.next),
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
   Widget _error() {
     final failure = _failure!;
     final message = switch (failure.kind) {

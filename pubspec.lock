@@ -216,6 +216,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
+  real_liquid_glass:
+    dependency: "direct main"
+    description:
+      name: real_liquid_glass
+      sha256: "07f97c760eb1593ff050fd79b58e91e4e1e0d9135c89b1dcf0ee1941e4e22f11"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0"
   shared_preferences:
     dependency: "direct main"
     description:
