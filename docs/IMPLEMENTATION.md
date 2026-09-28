@@ -142,7 +142,7 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 
 交互示例位于本机 http://127.0.0.1:8880/preview.html；该页面包装实际 Flutter Web reader，可切换浅色/深色，使用合成内容。预览包装与截图位于忽略目录，不包含用户页面或媒体。真实 CDN 缩略图和非 turbo 恢复仍待 build 10 真机验收；本次尚未签名安装。
 
-最新界面改动：视频改为左缩略图、右侧独立 Tap to play；普通图片自动加载，支持 loading、失败重试、连续图片自适应排列和点击缩放。当前本地 53 项 Flutter tests、Dart analyze、仓库检查及 Web release build 已通过。具体行为与 turbo 播放限制见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md) 最新一节；新 IPA 的构建和真机验收单独记录。
+最新界面改动：视频改为左缩略图、右侧独立 Tap to play；普通图片自动加载，支持 loading、失败重试、连续图片自适应排列和点击缩放。当前本地 62 项 Flutter tests、Dart analyze、仓库检查及 Web release build 已通过。具体行为与 turbo 播放限制见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md) 最新一节；新 IPA 的构建和真机验收单独记录。
 
 1. 安装后选择 Open forum；可阅读公开页面，受限页面提示登录或打开浏览器。
 2. Sign in 打开网站，由用户本人完成登录和任何验证码。
