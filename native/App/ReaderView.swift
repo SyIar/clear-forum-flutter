@@ -30,6 +30,18 @@ struct ReaderView: View {
               Button("Site browser") { presentation = .browser(current) }.buttonStyle(.bordered)
             }
           } else if let page {
+            if !page.breadcrumbs.isEmpty {
+              ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                  ForEach(Array(page.breadcrumbs.enumerated()), id: \.offset) { index, entry in
+                    if index > 0 { Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
+                    Button(entry.title) { navigate(entry.url) }
+                      .font(.caption.weight(.medium)).buttonStyle(.plain).foregroundStyle(.blue)
+                      .padding(.horizontal, 6).frame(minHeight: 36)
+                  }
+                }
+              }.scrollIndicators(.hidden).accessibilityLabel("Forum navigation")
+            }
             Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
             Text(page.loggedIn ? "Signed in" : "Guest").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
@@ -40,7 +52,11 @@ struct ReaderView: View {
               ForEach(page.entries) { entry in
                 Button { destination = ReaderDestination(url: entry.url) } label: {
                   HStack(spacing: 10) {
-                    Image(systemName: entry.pinned ? "pin.fill" : (page.kind == .forums ? "folder" : "text.bubble")).foregroundStyle(.blue)
+                    if let thumbnail = entry.thumbnail {
+                      ForumThumbnail(url: thumbnail, compact: entry.pinned)
+                    } else {
+                      Image(systemName: entry.pinned ? "pin.fill" : (page.kind == .forums ? "folder" : "text.bubble")).foregroundStyle(.blue)
+                    }
                     VStack(alignment: .leading, spacing: 4) {
                       Text(entry.title).font(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
                       if !entry.pinned && !entry.subtitle.isEmpty { Text(entry.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
@@ -48,7 +64,7 @@ struct ReaderView: View {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                   }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-                }.buttonStyle(.plain)
+                }.buttonStyle(.plain).id(entry.id)
               }
               if page.entries.isEmpty { ContentUnavailableView("No threads yet", systemImage: "tray") }
             }
@@ -86,6 +102,7 @@ struct ReaderView: View {
         guard !Task.isCancelled else { return }
         let anchor = current.fragment ?? "top"
         if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true { proxy.scrollTo(anchor, anchor: .top) }
+        else if let entry = page?.entries.first(where: { $0.sectionAnchor == anchor }) { proxy.scrollTo(entry.id, anchor: .top) }
         else { proxy.scrollTo("top", anchor: .top) }
       }
       .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }

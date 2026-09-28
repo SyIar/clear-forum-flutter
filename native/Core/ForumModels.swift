@@ -21,6 +21,8 @@ struct ForumEntry: Identifiable {
   let url: URL
   var subtitle = ""
   var pinned = false
+  var thumbnail: URL?
+  var sectionAnchor: String?
 }
 struct TextRun {
   var text: String
@@ -59,6 +61,7 @@ struct ForumPage {
   var loggedIn: Bool
   var lastPage: URL?
   var maximumPostNumber: Int?
+  var breadcrumbs: [ForumEntry] = []
 }
 
 extension SitePolicy {

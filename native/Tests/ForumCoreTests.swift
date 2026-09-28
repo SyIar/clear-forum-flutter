@@ -110,12 +110,39 @@ final class ForumCoreTests: XCTestCase {
     library.remember(SavedPage(url: URL(string: "https://simpcity.cr/forums/example.123/")!, title: "Forum"))
     XCTAssertEqual(library.trackedThreads.count, 1)
     XCTAssertNil(library.trackedThreads.first?.fragment)
-    XCTAssertEqual(library.trackedThreads.first?.path, "/threads/new-name.123/")
+    XCTAssertEqual(library.trackedThreads.first?.lastPathComponent, "new-name.123")
     library.recent = []
     library.pruneTracking()
     XCTAssertNotNil(library.threads["123"])
     library.bookmarks = []
     library.pruneTracking()
     XCTAssertTrue(library.threads.isEmpty)
+  }
+  func testDirectoryThumbnailsUseBackgroundInsteadOfTransparentPlaceholderOrLatestAvatar() throws {
+    let source = #"<html data-template="forum_view"><div class="structItem--thread"><div class="structItem-cell--icon"><a class="dcThumbnail"><img style="background-image: url(https://images.example/cover.jpg); background-size: cover" src="data:image/png;base64,placeholder"></a></div><div class="structItem-title"><a href="/threads/example.123/">Example</a></div><div class="structItem-cell--icon structItem-cell--iconEnd"><img src="https://images.example/latest-avatar.jpg"></div></div></html>"#
+    let page = try ForumParser().parse(source, url: URL(string: "https://simpcity.cr/forums/example.12/")!)
+    XCTAssertEqual(page.entries.first?.thumbnail?.absoluteString, "https://images.example/cover.jpg")
+    let fallback = source.replacingOccurrences(of: "background-image: url(https://images.example/cover.jpg); background-size: cover", with: "")
+      .replacingOccurrences(of: "src=\"data:image/png;base64,placeholder\"", with: "data-src=\"/lazy.jpg\" src=\"data:image/png;base64,placeholder\"")
+    XCTAssertEqual(try ForumParser().parse(fallback, url: page.url).entries.first?.thumbnail?.path, "/lazy.jpg")
+    let noCover = source.replacingOccurrences(of: "background-image: url(https://images.example/cover.jpg); background-size: cover", with: "")
+    XCTAssertNil(try ForumParser().parse(noCover, url: page.url).entries.first?.thumbnail)
+  }
+  func testBreadcrumbsPreserveOrderFragmentsAndSafeDestinations() throws {
+    let navigation = "<ul class='p-breadcrumbs'><li><a href='/#category.100'>Category</a></li><li><a href='/forums/example.12/'>Forum</a></li><li><a href='/logout/'>Unsafe</a></li><li><a href='https://outside.example/'>Outside</a></li></ul>"
+    let source = threadHTML([1]) + navigation + navigation
+    let page = try ForumParser().parse(source, url: URL(string: "https://simpcity.cr/threads/example.123/")!)
+    XCTAssertEqual(page.breadcrumbs.map(\.title), ["Category", "Forum"])
+    XCTAssertEqual(page.breadcrumbs.first?.url.fragment, "category.100")
+    XCTAssertEqual(page.breadcrumbs.last?.url.absoluteString, "https://simpcity.cr/forums/example.12/")
+  }
+  func testRootCategoryAnchorAndEncodedThreadNavigation() throws {
+    let source = "<html data-template='forum_list'><div class='block block--category'><span class='u-anchorTarget' id='category.100'></span><div class='block-container'><div class='node'><h3 class='node-title'><a href='/forums/example.12/'>Example</a></h3></div></div></div></html>"
+    let page = try ForumParser().parse(source, url: SitePolicy.base)
+    XCTAssertEqual(page.entries.first?.sectionAnchor, "category.100")
+    let url = URL(string: "https://simpcity.cr/threads/example-%E6%9D%BE.123/page-3#post-9001")!
+    XCTAssertTrue(SitePolicy.readable(url))
+    XCTAssertEqual(SitePolicy.threadKey(url), "123")
+    XCTAssertEqual(SitePolicy.pageRoot(url), SitePolicy.threadRoot(url))
   }
 }

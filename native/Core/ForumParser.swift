@@ -35,13 +35,15 @@ struct ForumParser {
       guard let link = SitePolicy.resolve(try anchor?.attr("href"), from: url, internalOnly: true), seen.insert(link.absoluteString).inserted else { continue }
       threads.append(ForumEntry(title: text(anchor), url: link,
                                 subtitle: text(try row.select(".structItem-minor .username").first()),
-                                pinned: try !row.select(".structItem-status--sticky").isEmpty()))
+                                pinned: try !row.select(".structItem-status--sticky").isEmpty(), thumbnail: thumbnail(row, page: url)))
     }
     var forums: [ForumEntry] = []
     for node in try doc.select(".node") {
       let anchor = try node.select(".node-title a").first()
       guard let link = SitePolicy.resolve(try anchor?.attr("href"), from: url, internalOnly: true), seen.insert(link.absoluteString).inserted else { continue }
-      forums.append(ForumEntry(title: text(anchor), url: link, subtitle: text(try node.select(".node-description").first())))
+      let category = node.parents().first { $0.hasClass("block--category") }
+      let sectionAnchor = try category?.select(".u-anchorTarget[id]").first()?.id()
+      forums.append(ForumEntry(title: text(anchor), url: link, subtitle: text(try node.select(".node-description").first()), sectionAnchor: sectionAnchor))
     }
     let kind: PageKind
     if !posts.isEmpty || template == "thread_view" { kind = .posts }
@@ -56,19 +58,40 @@ struct ForumParser {
     }
     let next = try paging("next")
     let pageNumber = Int(text(try doc.select(".pageNav-page--current").first())) ?? SitePolicy.pageNumber(url)
-    let threadKey = SitePolicy.threadKey(url)
+    let pageRoot = SitePolicy.pageRoot(url)
     let pageLinks = try doc.select(".pageNav-page a[href],.pageNavSimple-el--last,link[rel=last]").array()
       .compactMap { SitePolicy.resolve(try? $0.attr("href"), from: url, internalOnly: true) }
-      .filter { threadKey != nil && SitePolicy.threadKey($0) == threadKey }
+      .filter { SitePolicy.pageRoot($0) == pageRoot }
     let lastPage = (pageLinks + [next].compactMap { $0 }).max { SitePolicy.pageNumber($0) < SitePolicy.pageNumber($1) }
     let hasLaterPage = next != nil || lastPage.map { SitePolicy.pageNumber($0) > pageNumber } == true
     let maximum = kind == .posts && !hasLaterPage ? posts.compactMap { Int($0.number.dropFirst().replacingOccurrences(of: ",", with: "")) }.max() : nil
+    var breadcrumbs: [ForumEntry] = []
+    if let trail = try doc.select(".p-breadcrumbs").first() {
+      for link in try trail.select("a[href]") {
+        guard let target = SitePolicy.resolve(try link.attr("href"), from: url, internalOnly: true), !text(link).isEmpty else { continue }
+        breadcrumbs.append(ForumEntry(title: text(link), url: target))
+      }
+    }
     return ForumPage(url: url, title: title.isEmpty ? "Forums" : title, kind: kind, entries: forums + threads, posts: posts,
                      previous: try paging("prev"), next: next, pageNumber: pageNumber,
                      loggedIn: try doc.select("html").first()?.attr("data-logged-in") == "true",
-                     lastPage: lastPage, maximumPostNumber: maximum)
+                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs)
   }
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
+  private func thumbnail(_ row: Element, page: URL) -> URL? {
+    guard let cell = try? row.select(".structItem-cell--icon:not(.structItem-cell--iconEnd)").first() else { return nil }
+    let nodes = ((try? cell.select(".dcThumbnail img,.dcThumbnail,img").array()) ?? [])
+    for node in nodes {
+      let style = (try? node.attr("style")) ?? ""
+      if let regex = try? NSRegularExpression(pattern: #"(?i)background(?:-image)?\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)"#),
+         let match = regex.firstMatch(in: style, range: NSRange(style.startIndex..., in: style)),
+         let range = Range(match.range(at: 1), in: style), let url = SitePolicy.resolve(String(style[range]), from: page) { return url }
+      for attribute in ["data-src", "src"] {
+        if let url = SitePolicy.resolve(try? node.attr(attribute), from: page) { return url }
+      }
+    }
+    return nil
+  }
   private func ratio(_ node: Element) -> Double? {
     guard let w = Double((try? node.attr("width")) ?? ""), let h = Double((try? node.attr("height")) ?? ""),
           w > 0, h > 0, (w / h).isFinite else { return nil }

@@ -1,6 +1,24 @@
 import SwiftUI
 import ImageIO
 
+struct ForumThumbnail: View {
+  let url: URL
+  var compact = false
+  @State private var image: UIImage?
+  @State private var loading = true
+  var body: some View {
+    ZStack {
+      Color(uiColor: .tertiarySystemFill)
+      if let image { Image(uiImage: image).resizable().scaledToFill() }
+      else if loading { ProgressView().controlSize(.small) }
+      else { Image(systemName: "photo").font(.caption).foregroundStyle(.secondary) }
+    }.frame(width: compact ? 28 : 72, height: compact ? 28 : 50)
+      .clipShape(RoundedRectangle(cornerRadius: compact ? 6 : 9))
+      .accessibilityHidden(true)
+      .task(id: url) { loading = true; image = await ImageStore.shared.load(url); loading = false }
+  }
+}
+
 struct PostCard: View {
   let post: ForumPost
   let posters: PosterStore

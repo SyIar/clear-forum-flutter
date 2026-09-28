@@ -44,6 +44,16 @@ enum SitePolicy {
     if let last = url.path.split(separator: "/").last, last.hasPrefix("page-"), let number = Int(last.dropFirst(5)) { return number }
     return 1
   }
+  static func pageRoot(_ url: URL) -> URL {
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+    var parts = url.path.split(separator: "/").map(String.init)
+    if let last = parts.last, last.range(of: #"^page-\d+$"#, options: .regularExpression) != nil { parts.removeLast() }
+    components.path = parts.isEmpty ? "/" : "/" + parts.joined(separator: "/") + "/"
+    components.fragment = nil
+    components.queryItems = components.queryItems?.filter { $0.name != "page" }
+    if components.queryItems?.isEmpty == true { components.queryItems = nil }
+    return components.url ?? url
+  }
 }
 
 

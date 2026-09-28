@@ -30,3 +30,9 @@ No simulator is used at the user's request. Cloud core tests cover terminal-page
 5. Offline/expired-session checks must retain the previous counters and report failure, never fabricate an update.
 
 Live authenticated counts and touch arbitration remain pending physical-device acceptance.
+
+## Directory thumbnails and breadcrumbs
+
+The user's open directory DOM was inspected on 2026-09-28. Its `.structItem-cell--icon .dcThumbnail img` uses a transparent `data:` placeholder in `src`; the real cover is the inline `background-image` URL. The parser now reads that URL, then lazy/normal image attributes, and excludes `.structItem-cell--iconEnd` (the latest poster's avatar). Native rows load the cover automatically, show progress and preserve the compact pinned-row presentation.
+
+The first `.p-breadcrumbs` trail is rendered as a compact, horizontally scrollable native button row in both forum and thread views. Internal readable destinations retain their category fragments. Root category anchors come from `.block--category .u-anchorTarget[id]`; navigation scrolls to the first forum in that category. The user clarified that this request concerns the hierarchy trail, not the numeric page navigation, whose layout is unchanged. No browser cookies or raw authenticated page dumps are committed.
