@@ -45,6 +45,8 @@ class BodyBlock {
     this.children = const [],
     this.label = '',
     this.url,
+    this.posterUrl,
+    this.aspectRatio,
     this.directMedia = false,
   });
   final BlockKind kind;
@@ -52,6 +54,8 @@ class BodyBlock {
   final List<BodyBlock> children;
   final String label;
   final Uri? url;
+  final Uri? posterUrl;
+  final double? aspectRatio;
   final bool directMedia;
 }
 

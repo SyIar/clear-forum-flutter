@@ -130,3 +130,20 @@ Apple 依据：[AVPlayerViewController](https://developer.apple.com/documentatio
 - 验证 Cookie/Referer 依赖、过期重试、慢网、403/验证页、错误 MIME、重复点击、返回后再次打开等行为。诊断不包含用户会话或完整媒体地址。
 
 当前状态：已完成源码审查、公开方案查证和上述改造设计；尚未执行目标媒体签名/CDN 实测、未改动播放器代码、未生成新 IPA。手机仍运行 build 6。
+
+## 2026-09-28：视频卡片和图片智能排版实现
+
+用户进一步明确：缩略图上不放按钮，左图右侧独立播放框；普通图片自动展示，加载时有动画，“图片只能排版”指“图片智能排版”。本节覆盖前述卡片交互建议：只有右侧播放区触发播放器，缩略图自身不触发播放。
+
+- `BodyBlock.posterUrl` 与播放 `url` 分离。优先使用 HTML 的 `poster` / `data-poster`；对精确匹配的 turbo HTTPS 链接，采用上文原作者脚本提供的 CDN thumbnail 路径候选。没有实际请求用户视频封面验证，也不保证该路径对全部视频可用。
+- `MediaCard` 左侧为 96 高的缩略图区，图片保持比例，右侧为独立边框的 `Tap to play`。封面失败只显示占位图标，不阻止播放入口；没有 poster 的未知 provider 也保留入口，不为每张卡片创建 WebView。
+- 图片与封面在对应楼层 widget 构建时自动请求，不要求点击；加载首帧期间显示 CircularProgressIndicator，系统减少动画时使用静态占位。普通图片失败显示 Retry image，点击后驱逐失败缓存并重新请求。Spoiler 展开前不请求其内部图片。
+- 连续图片分组，遇到文字、引用、视频或 Spoiler 就结束当前组，不调换正文顺序。按可用宽度使用 1/2/3 列；超宽或很长的图片单独成行。优先采用有效 width/height，解码后按实际比例调整，BoxFit.contain 不拉伸、不裁切。
+- 单行预览最高 420 logical pixels，多图行最高 260；点击普通图片进入独立 InteractiveViewer，支持缩放和平移。大图解码有尺寸上限，使用 Flutter 图片缓存，不新增数据库、图片代理或整页视频预下载。
+- 示例资源均为本地生成的抽象图形，不含用户媒体。视频示例的封面明确标为 sample cover art，不冒充视频首帧。
+
+本次没有修改原生 MediaPlayerController 或签名解析链路，因此 turbo 的网页广告与 AVKit 接管问题仍待后续实现与真机验证；不能用封面显示成功代替播放成功。需要 Cookie、Referer 或其他站点限制的图片仍可能失败，不会将论坛 Cookie 转发给外部图片 host。
+
+验证：53 项 Flutter tests、Dart analyze、仓库语言检查和 Web release build 通过。新增测试覆盖自动请求/loading、失败重试、缩放跳转、连续图片与文字顺序、长图高度、Spoiler 按需加载、无效封面 URL、窄屏大字体和缩略图不触发播放。
+
+实现参考：[Flutter frameBuilder](https://api.flutter.dev/flutter/widgets/Image/frameBuilder.html)、[InteractiveViewer](https://api.flutter.dev/flutter/widgets/InteractiveViewer-class.html)、[ImageProvider.evict](https://api.flutter.dev/flutter/painting/ImageProvider/evict.html)。

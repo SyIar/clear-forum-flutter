@@ -7,6 +7,7 @@ import '../core/models.dart';
 import '../core/session.dart';
 import '../core/site.dart';
 import 'rich_body.dart';
+import 'media_widgets.dart';
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -536,6 +537,9 @@ class _ReaderPageState extends State<ReaderPage> {
                                 ),
                               RichBody(
                                 blocks: post.blocks,
+                                imageProvider: widget.demo
+                                    ? sampleImageProvider
+                                    : networkImageProvider,
                                 onLink: _navigate,
                                 onMedia: _openMedia,
                               ),

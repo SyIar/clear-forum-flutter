@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'library_test.dart' show MemoryLibraryStorage;
+import 'sample_images.dart';
 
 void main() {
   testWidgets('reader bookmark appears at home and reopens its URL', (
@@ -19,6 +20,7 @@ void main() {
     );
     await tester.pumpWidget(ClearForumApp(library: library));
     await tester.pumpAndSettle();
+    await preloadSampleImages(tester);
     await tester.tap(find.text('Explore sample reader'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Design & everyday things'));

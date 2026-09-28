@@ -29,7 +29,7 @@ void main() {
     expect(opened, isEmpty);
     await tester.tap(find.text('Spoiler'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Tap to open video player'));
+    await tester.tap(find.text('Tap to play'));
     expect(opened, [media]);
   });
   testWidgets('missing URLs stay explicit and cannot launch a player', (
@@ -49,7 +49,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('No playable URL was found in this page.'));
+    await tester.tap(find.text('Video unavailable'));
     expect(called, false);
   });
 }

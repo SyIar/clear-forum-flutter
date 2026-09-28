@@ -12,7 +12,8 @@ A personal iOS forum reader built with Flutter. Reading pages use native Flutter
 - GET-only HTML requests restricted to known read routes on the configured origin.
 - A visible browser fallback with a user-triggered **Read page** action.
 - Ads and active page scripts are excluded from the native reading tree. Inline promotions may still need site-specific rules.
-- Images and media load only after a tap, without forum cookies. Replies, messages, search forms and push notifications are not native features in this version.
+- Images and available video thumbnails load automatically, with loading and error states and without forum cookies. Adjacent images adapt to the available width; tall previews are capped and can be opened for zooming.
+- Video cards place the thumbnail on the left and a separate framed **Tap to play** action on the right. Media playback starts only after that action. Replies, messages, search forms and push notifications are not native features in this version.
 
 Media cards open an iOS player. Direct HTTPS media uses AVKit. Embedded pages initialize in an isolated, visible WKWebView; a media observer can hand an available HTTPS stream to AVKit. A Web player action remains available when handoff fails. Signed links are kept in memory, never in bookmarks or history. Provider compatibility requires device verification; this is not a guarantee that every embed plays or that every ad is removed. See [media behavior and limits](docs/EMBEDDED_MEDIA.md).
 

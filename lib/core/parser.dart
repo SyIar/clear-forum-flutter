@@ -145,6 +145,37 @@ class ForumParser {
     return ForumSite.resolve(link?.attributes['href'], url, internal: true);
   }
 
+  double? _aspectRatio(Element node) {
+    final width = double.tryParse(node.attributes['width'] ?? '');
+    final height = double.tryParse(node.attributes['height'] ?? '');
+    if (width == null ||
+        height == null ||
+        !width.isFinite ||
+        !height.isFinite ||
+        width <= 0 ||
+        height <= 0) {
+      return null;
+    }
+    final ratio = width / height;
+    return ratio.isFinite && ratio > 0 ? ratio : null;
+  }
+
+  Uri? _poster(Element node, Uri page, Uri? media) {
+    for (final name in ['poster', 'data-poster']) {
+      final poster = ForumSite.resolve(node.attributes[name], page);
+      if (poster != null) return poster;
+    }
+    if (media == null ||
+        media.port != 443 ||
+        !{'turbo.cr', 'www.turbo.cr'}.contains(media.host)) {
+      return null;
+    }
+    final match = RegExp(r'^/(?:embed|v|d)/([A-Za-z0-9_-]+)/?$')
+        .firstMatch(media.path);
+    if (match == null) return null;
+    return Uri.https('cdn.turbo.cr', '/thumbs/${match.group(1)}.jpg');
+  }
+
   List<BodyBlock> parseBody(Element root, Uri page) {
     final blocks = <BodyBlock>[];
     var runs = <TextRun>[];
@@ -206,7 +237,9 @@ class ForumParser {
         }
         flush();
         final link = ForumSite.resolve(
-          node.attributes['data-src'] ?? node.attributes['src'],
+          node.attributes['data-src']?.trim().isNotEmpty == true
+              ? node.attributes['data-src']
+              : node.attributes['src'],
           page,
         );
         if (link != null) {
@@ -215,6 +248,7 @@ class ForumParser {
               BlockKind.image,
               url: link,
               label: alt.isEmpty ? 'Image' : alt,
+              aspectRatio: _aspectRatio(node),
             ),
           );
         }
@@ -240,6 +274,8 @@ class ForumParser {
             BlockKind.embeddedMedia,
             label: source?.host ?? 'Embedded media',
             url: source,
+            posterUrl: _poster(node, page, source),
+            aspectRatio: _aspectRatio(node),
             directMedia: tag != 'iframe',
           ),
         );

@@ -11,6 +11,7 @@ import 'package:clean_forum/core/site.dart';
 import 'package:clean_forum/ui/reader.dart';
 
 import 'library_test.dart' show MemoryLibraryStorage;
+import 'sample_images.dart';
 
 void main() {
   testWidgets('failed pagination retries the requested page', (tester) async {
@@ -44,6 +45,7 @@ void main() {
     );
     await tester.tap(find.text('Explore sample reader'));
     await tester.pumpAndSettle();
+    await preloadSampleImages(tester);
     expect(find.textContaining('SAMPLE CONTENT'), findsOneWidget);
     await tester.tap(find.text('Design & everyday things'));
     await tester.pumpAndSettle();
@@ -90,6 +92,7 @@ void main() {
         ),
       ),
     );
+    await preloadSampleImages(tester);
     await tester.pumpAndSettle();
     expect(tester.takeException(), null);
   });

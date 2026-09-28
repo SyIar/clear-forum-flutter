@@ -4,7 +4,7 @@
 
 首期为纯净阅读器，采用 Cookie 会话、页面 HTML 解析、Flutter 原生阅读界面。登录和网页验证使用可见的 WKWebView。浏览器正常显示目标页面后，用户可以点击 Read page 将当前页面转成原生阅读界面。
 
-Cookie 留在 App 的 WKWebsiteDataStore，原生 URLSession 仅向固定站点的读取路径发送匹配的 Cookie。重定向逐跳验证，未知路径和跨域重定向不会继续携带会话请求。HTML 不落盘、不上传，Flutter 不获得 Cookie 值。外部图片点击后才请求，不附带论坛 Cookie。
+Cookie 留在 App 的 WKWebsiteDataStore，原生 URLSession 仅向固定站点的读取路径发送匹配的 Cookie。重定向逐跳验证，未知路径和跨域重定向不会继续携带会话请求。HTML 不落盘、不上传，Flutter 不获得 Cookie 值。图片及可用封面在楼层构建时自动请求，不附带论坛 Cookie；视频仍需点击独立播放入口。
 
 HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证。Read page 是可见网页的手动阅读模式，不绕过验证，也不代表随后所有 HTTP 分页请求都会成功。
 
@@ -98,6 +98,8 @@ build 5 的视频卡片只有占位提示，确实不能播放。本次将其改
 安装后，用户反馈非 `turbo.cr` 视频能正常打开；`turbo.cr` 能显示封面，点击播放后出现广告。截图上方仍显示 `Opening system player...`，没有证明系统播放器成功播放该来源。非 turbo 来源的完整列表、Apple 示例流和自动续签未单独验收。针对广告与封面卡片的后续调研见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md)。
 
 ## iPhone 验收
+
+最新界面改动：视频改为左缩略图、右侧独立 Tap to play；普通图片自动加载，支持 loading、失败重试、连续图片自适应排列和点击缩放。当前本地 53 项 Flutter tests、Dart analyze、仓库检查及 Web release build 已通过。具体行为与 turbo 播放限制见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md) 最新一节；新 IPA 的构建和真机验收单独记录。
 
 1. 安装后选择 Open forum；可阅读公开页面，受限页面提示登录或打开浏览器。
 2. Sign in 打开网站，由用户本人完成登录和任何验证码。

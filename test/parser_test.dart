@@ -8,6 +8,37 @@ import 'package:clean_forum/core/site.dart';
 void main() {
   final parser = ForumParser();
   final base = ForumSite.base;
+  test(
+    'image metadata preserves lazy sources, dimensions and safe posters',
+    () {
+      final page = parser.parse(
+        '''<html data-template="thread_view"><article class="message--post">
+      <div class="message-body"><div class="bbWrapper">
+        <img data-src="" src="/images/one.png" width="800" height="500">
+        <img data-src="https://images.example/two.png" src="/placeholder.png" width="NaN" height="0">
+        <video src="https://media.example/file.mp4" poster="/images/poster.png"></video>
+        <iframe src="https://turbo.cr/embed/sample123"></iframe>
+        <iframe src="https://turbo.cr.evil.example/embed/sample123"></iframe>
+        <iframe src="https://turbo.cr:8443/embed/sample123"></iframe>
+        <video src="https://media.example/file.mp4" poster="javascript:bad()"></video>
+      </div></div></article></html>''',
+        base,
+      );
+      final blocks = page.posts.single.blocks;
+      expect(blocks[0].url, base.resolve('/images/one.png'));
+      expect(blocks[0].aspectRatio, 1.6);
+      expect(blocks[1].url?.host, 'images.example');
+      expect(blocks[1].aspectRatio, null);
+      expect(blocks[2].posterUrl, base.resolve('/images/poster.png'));
+      expect(
+        blocks[3].posterUrl,
+        Uri.parse('https://cdn.turbo.cr/thumbs/sample123.jpg'),
+      );
+      expect(blocks[4].posterUrl, null);
+      expect(blocks[5].posterUrl, null);
+      expect(blocks[6].posterUrl, null);
+    },
+  );
   test('embed URLs are preserved without executing markup or keeping ads', () {
     final page = parser.parse('''<html data-template="thread_view"><article class="message--post" id="post-1">
       <div class="message-body"><div class="bbWrapper">
