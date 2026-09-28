@@ -5,15 +5,16 @@
   const scan = () => {
     scheduled = false;
     if (stopped) return;
-    const nodes = Array.from(document.querySelectorAll('video,audio'))
+    let nodes = Array.from(document.querySelectorAll('video,audio'))
       .filter(node => !node.closest('.advertisement,.ad-container,.adContainer,.adsbygoogle,[data-ad-slot]'));
-    nodes.sort((a, b) => Number(b.id === 'main-video') - Number(a.id === 'main-video'));
+    const primary = nodes.filter(node => node.id === 'main-video');
+    if (primary.length) nodes = primary;
     for (const node of nodes) {
       const value = node.currentSrc || node.src;
-      if (!value || seen.has(value)) continue;
+      if (!value || seen.has(value) || seen.size >= 8) continue;
       let url;
       try { url = new URL(value, document.baseURI); } catch (_) { continue; }
-      if (url.protocol !== 'https:' || url.username || url.password || url.href.length > 8192) continue;
+      if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') || url.href.length > 8192) continue;
       seen.add(value);
       window.webkit.messageHandlers.mediaCandidate.postMessage({ url: url.href });
       break;

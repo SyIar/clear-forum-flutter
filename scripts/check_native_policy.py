@@ -3,8 +3,9 @@ import tempfile
 from pathlib import Path
 
 source = Path('ios/Runner/AppDelegate.swift').read_text()
-media_source = Path('ios/Runner/MediaPlayerController.swift').read_text()
-media_policy = 'enum MediaPolicy {' + media_source.split('enum MediaPolicy {', 1)[1].split('final class MediaPlayerController', 1)[0]
+media_source = Path('ios/Runner/MediaSupport.swift').read_text()
+media_policy = 'enum MediaPolicy {' + media_source.split('enum MediaPolicy {', 1)[1].split('// Only controlled labels', 1)[0]
+media_policy += '\nstruct MediaFailure: Error { let reason: String }\n'
 policy = source.split('private enum SitePolicy {', 1)[1].split('private final class ForumSessionBridge', 1)[0]
 checks = r'''
 let allowed = ["https://simpcity.cr/", "https://simpcity.cr/forums/news.6/", "https://simpcity.cr/threads/topic.123/page-2", "https://simpcity.cr/threads/%E6%B5%8B%E8%AF%95.123/"]

@@ -147,3 +147,20 @@ Apple 依据：[AVPlayerViewController](https://developer.apple.com/documentatio
 验证：53 项 Flutter tests、Dart analyze、仓库语言检查和 Web release build 通过。新增测试覆盖自动请求/loading、失败重试、缩放跳转、连续图片与文字顺序、长图高度、Spoiler 按需加载、无效封面 URL、窄屏大字体和缩略图不触发播放。
 
 实现参考：[Flutter frameBuilder](https://api.flutter.dev/flutter/widgets/Image/frameBuilder.html)、[InteractiveViewer](https://api.flutter.dev/flutter/widgets/InteractiveViewer-class.html)、[ImageProvider.evict](https://api.flutter.dev/flutter/painting/ImageProvider/evict.html)。
+
+## 2026-09-28：turbo 专用解析和播放诊断
+
+用户要求继续推进验证后，重新只读检查了其已打开的页面结构，没有打开新媒体、点击网页播放、下载视频或导出会话。论坛主文档有 9 个 turbo iframe；所检查子页面有 main-video，src 已存在，来源 host 属于 turbocdn，状态为 paused / readyState 0，不能视为已经播放。封面位于 data-poster，不是 poster 属性。内联脚本明确执行 fetch('/api/sign?v=' + vvid)，检查 data.success 和 data.url 后更新 video.src。仅记录结构与协议事实，未保存完整签名地址、媒体 ID、正文或 Cookie。
+
+本次实现：
+
+1. MediaSupport.swift 识别精确的 turbo HTTPS host 与 embed/v/d 路径。点击播放后，在内存会话先 GET provider 页面，再 GET /api/sign，使用同一请求环境和页面 Referer。要求成功 HTTP、JSON MIME、success: true、有效 HTTPS URL。页面响应限制 2 MiB，JSON 限制 64 KiB；超时、验证 HTML、重定向、无效 JSON 等均明确失败，不继续循环请求。
+2. provider Cookie 从本播放器独立 WKWebsiteDataStore 读取，绝不使用论坛会话。HTTP 会话关闭共享 Cookie/credential storage，按域名、路径和有效期过滤，再在内存中处理匹配的 Set-Cookie。重定向不继续发送凭据。交给 AVKit 的 Cookie 再按媒体 URL 过滤；签名地址不落盘。
+3. turbo 的正常解析路径不初始化网页播放器、广告脚本或广告覆盖层。它仍可能因站点验证、Referer/UA、短期签名或 CDN 权限而失败；代码未使用私有 AVURLAsset header key，不伪造验证。
+4. 所有来源使用原生等待/错误界面。AVKit 准备和缓冲阶段不露出可点击网页；失败保留 Retry / Details / Web player，不自动切到网页。Web player 仅在用户选择后打开，可能仍显示站点广告或验证；完成验证后 Reload 会带本播放器自己的匹配 Cookie 重试。
+5. Details 显示当前 build、iOS 版本、相对耗时、处理阶段、HTTP 状态、白名单 MIME、AVPlayerItem.error 及有限层数的 underlying error domain/code、媒体 error log domain/code。readyToPlay 与真正 playing 分开记录。报告最多 40 条，不收集 URL/query、Cookie、错误描述、服务器 IP、响应正文、视频 ID 或账户信息。Copy 由用户显式点击，剪贴板限本机并设五分钟过期。
+6. generic embed 保持现有 DOM 观察方式；存在 main-video 时不再降级扫描其他 video，避免候选地址重复扫描后选中次要/广告播放器。失败后由 Retry 重新初始化，不引入无限自动重试。重载、关闭和切换 Web player 取消旧请求/观察器，并以 generation 和当前 WKNavigation 排除旧结果。
+
+验证分界：本地 Node observer 检查与仓库语言检查已通过。新增 macOS Swift 检查使用 URLProtocol 的合成响应，覆盖 GET 顺序、Cookie 隔离、Referer、拒绝异常响应/不安全地址、响应体上限、取消和诊断脱敏；真实 Swift 执行、Xcode 编译和 IPA 状态记录在 IMPLEMENTATION.md。当前没有真实 iPhone 的新链路播放结果，不能声称 turbo 已经无广告播放。
+
+依据：[gallery-dl 原作者 turbo 协议实现](https://github.com/mikf/gallery-dl/blob/master/gallery_dl/extractor/turbo.py)（仅借鉴协议，不移植代码）、[Apple ephemeral session](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/ephemeral)、[Apple AVPlayerItemErrorLogEvent](https://developer.apple.com/documentation/avfoundation/avplayeritemerrorlogevent/errordomain)。errorStatusCode 不总是 HTTP 状态，报告使用 media-error 标记，不将所有负数错误码解释为网络响应状态。

@@ -40,6 +40,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: xcodebuild -version
       - run: python3 scripts/check_native_policy.py
+      - run: python3 scripts/check_media_support.py
       - run: flutter config --no-enable-swift-package-manager
       - run: flutter build ios --release --no-codesign --no-pub --build-number "$GITHUB_RUN_NUMBER"
       - run: bash scripts/package_ios.sh

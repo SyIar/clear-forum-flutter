@@ -46,4 +46,10 @@ const unsafe = fixture([node('blob:https://player.example/id'), node('javascript
 assert.equal(unsafe.messages.length, 0);
 const priority = fixture([node('https://media.example/secondary.mp4'), node('https://media.example/main.mp4', 'main-video')]);
 assert.equal(priority.messages[0].url, 'https://media.example/main.mp4');
-console.log('Media observer checks passed: delayed source, deduplication, cleanup, unsafe URLs and preferred video.');
+priority.tick();
+assert.equal(priority.messages.length, 1, 'Do not promote a secondary player after the main source was seen');
+const primaryPending = fixture([node('https://media.example/secondary.mp4'), node('', 'main-video')]);
+assert.equal(primaryPending.messages.length, 0, 'Wait for the main player instead of using another video');
+const port = fixture([node('https://media.example:8443/file.mp4')]);
+assert.equal(port.messages.length, 0, 'The observer must match the native HTTPS port policy');
+console.log('Media observer checks passed: delayed source, deduplication, cleanup, URL policy and main-video isolation.');
