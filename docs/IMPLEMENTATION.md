@@ -95,7 +95,7 @@ build 5 的视频卡片只有占位提示，确实不能播放。本次将其改
 
 2026-09-28，用户连接 USB 并授权安装。安装前重新核对 build 6 IPA 的 SHA-256；Sideloadly 文件选择框确认 `SimpcityUltimate-0.1.0-6-unsigned.ipa`，使用原签名账户及 `@USB` 设备开始安装，从 0% 进入 `Done. / 100%`。build 6 已完成签名和 USB 安装。
 
-build 6 的 App 启动、Apple 示例流和实际媒体站真机播放等待用户验证。安装成功不代表外部媒体站已能播放，也不代表已完全去除媒体页广告；本次未单独验收自动续签。
+安装后，用户反馈非 `turbo.cr` 视频能正常打开；`turbo.cr` 能显示封面，点击播放后出现广告。截图上方仍显示 `Opening system player...`，没有证明系统播放器成功播放该来源。非 turbo 来源的完整列表、Apple 示例流和自动续签未单独验收。针对广告与封面卡片的后续调研见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md)。
 
 ## iPhone 验收
 

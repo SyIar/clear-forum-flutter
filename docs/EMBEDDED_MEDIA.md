@@ -71,3 +71,62 @@ build 5 的 `Read page` 导出和 Dart parser 不再一律丢弃 iframe。渲染
 通过编译和这些检查不等于目标媒体站已能播放。`turbo.cr`、`cyberdrop.cr` 的真机初始化、CDN 请求及最终播放尚未验收。先在手机用示例流确认系统播放器，再区分媒体页加载失败、未找到地址、AVKit 接管失败等状态。
 
 Apple 依据：[AVPlayerViewController](https://developer.apple.com/documentation/avkit/avplayerviewcontroller)、[WKUserScript 的 content world](https://developer.apple.com/documentation/webkit/wkuserscript/init(source:injectiontime:formainframeonly:in:))、[WKScriptMessage.frameInfo](https://developer.apple.com/documentation/webkit/wkscriptmessage/frameinfo)、[AVURLAssetHTTPCookiesKey](https://developer.apple.com/documentation/avfoundation/avurlassethttpcookieskey)。
+
+## 2026-09-28：build 6 真机反馈后的广告与封面调研
+
+本节是后续改造方案，尚未实现在 build 6。依据为用户截图、当前仓库源码和公开原作者代码；没有播放、下载用户媒体，没有抓取封面图片，没有调用用户视频对应的签名接口。
+
+### 当前证据和可确认的问题
+
+用户报告非 turbo 视频能正常打开；turbo 能先显示封面，点击网页播放按钮会出现广告。截图同时显示 App 的 `Opening system player...` 和网页的 `Ad` / `Close Ad` / `OK`。
+
+1. `MediaPlayerController.startPlayer` 设置 `Opening system player...`，说明已经收到并接受一个候选媒体 URL，不能再把本例一概归为“没有解析出地址”。也不能因此认定该 URL 是正确、未过期且可由 AVKit 播放的正片。
+2. `reload()` 对 iframe 保持 `webView.isHidden = false`；直到 `AVPlayerItem.status == .readyToPlay` 才隐藏它。因此系统播放器准备期间，用户仍能点击原网页里的控件，从而触发网页广告。这是可从本地代码确认的交互缺口。
+3. `createWebViewWith` 拒绝新窗口、`decidePolicyFor` 限制跨站主页面导航，只能覆盖相应的导航行为；无法据此阻止同一个文档里的广告覆盖层。当前 CSS 只匹配少数通用 class，不能从截图反推出此广告层的 DOM selector。
+4. `MediaProbe.js` 优先 `main-video`，但仍扫描其他 `video/audio`；Swift 设置 `attempted = true` 后会忽略后续候选。若先读到预览、过期或错误 URL，后来出现的有效 URL 不会自动接替。这是应在测试中覆盖的风险，尚未证明是截图中无法接管的原因。
+5. 目前没有 iPhone 上 AVPlayerItem 的错误码、HTTP 状态、响应 MIME 或 Cookie/Referer 对照结果。不能把接管未完成直接诊断为某一种鉴权、解码或广告脚本依赖问题。
+
+### 公开方案核对
+
+| 来源 | 查证结果 | 对本项目的意义和局限 |
+|---|---|---|
+| [gallery-dl turbo.py](https://github.com/mikf/gallery-dl/blob/master/gallery_dl/extractor/turbo.py) | `TurboMediaExtractor` 先请求媒体页面，再在同一请求环境中调用站点的 `/api/sign`，从 JSON 读取 `url`，并保留媒体页 Referer 信息。2026-09-28 查询该文件最近提交为 `a2ac90ae36d6793309ab73fbf1e03da6f7820848`，日期 2026-01-19。 | 有比通用网页监听更明确的 provider resolver 参考。它是下载工具的代码，不能据此宣布今天的 iOS AVKit 一定兼容，也不是站点官方稳定 API 承诺。只借鉴协议流程，不复制 GPL 源码。 |
+| [HeapLeach 原作者 README](https://github.com/JohanLindvall/HeapLeach) | 记录 turbo 使用签名接口发放短期地址，并在实际使用时才解析。 | 支持“封面先显示，点击时才取得播放地址”的时机选择；不把签名 URL 存入收藏或当永久直链。 |
+| [FreeInternet-Media 原作者脚本](https://sleazyfork.org/it/scripts/580775-freeinternet-media-simpcity-goonbox-bunkr-downloader/code) | 代码独立构造 turbo CDN 的缩略图路径，点击后再解析媒体地址；有加载失败处理。 | 证明社区已有“缩略图与媒体解析分离”的实现。路径规则只作为待验证候选，不能承诺所有资源都有封面，或封面必定是第 0 帧。无需安装、执行或整体移植这个脚本。 |
+| [Brave #56163](https://github.com/brave/brave-browser/issues/56163) / [uAssets #33212](https://github.com/uBlockOrigin/uAssets/issues/33212) | 描述广告脚本被阻断后的报错，但属于用户报告。uAssets issue 标为 `unable to reproduce`、`geo specific`、`account required`，关闭为 not planned；评论要求新浏览器配置仅使用默认 uBO 重试。 | 不能升级为“官方证明所有拦截器都无解”。可作为避免盲目阻断全部初始化脚本的线索，不能替代本机媒体错误诊断。 |
+| [Webcompat #223961](https://github.com/webcompat/web-bugs/issues/223961) | 同一报告者提出 Cookie partitioning 假说，该 issue 位于 `invalid` milestone。 | 不把相似报告当作多个独立确认，也不据此关闭全局隐私保护或修改用户 VPN。 |
+
+结论：值得优先验证 provider resolver 加系统播放器，而非围绕网页播放按钮堆积广告规则。此结论是结合源码和用户目标的工程取舍，不是已验证的 turbo 无广告播放结果。
+
+### 建议的最小改造
+
+1. 修正播放器等待态：点击 App 的播放入口后显示原生封面和 loading；AVKit 正常播放后显示播放器。失败则显示错误、Retry 和显式的 Web player 按钮，避免自动将带广告网页放回可点击区域。确实需要网页验证时由用户打开可见页面处理。
+2. 为 turbo 增加小型 provider resolver：只针对明确识别的 provider/媒体链接，按照正常媒体页面及签名请求流程取得本次播放 URL；响应校验 HTTPS、类型和必要字段。不要移植整套下载器、增加远程中转或依赖全局广告拦截器。
+3. 使用同一媒体请求会话处理该 provider 的 Cookie，仅对匹配域名/路径使用；论坛 Cookie 继续隔离。请求需要验证时回到可见验证流程，不伪造验证码结果或循环请求。
+4. 有效地址交给现有 AVKit。若媒体响应依赖不能直接移交的 Referer、UA、Cookie 或其他请求上下文，需要先定位真实原因；JSON 返回 `url` 并不是播放验收。不要使用未公开的 AVURLAsset header key，先验证支持的 Cookie 路线；不能接管时明确报告，保留手动网页播放。
+5. 补充本地且脱敏的诊断状态：解析阶段、耗时、AVPlayerItem status、错误 domain/code、媒体响应状态和 MIME。不给日志写完整 URL、query、Cookie、页面正文或图片；第一条候选失败后只对不同的新候选做有界重试。
+
+如果仍需 WebKit 初始化，脚本正常运行与广告可见性应分别处理：可以用原生等待界面阻止用户误点网页广告，但这不代表广告网络请求为零。隐藏页面也不能修复不可播放的媒体响应。
+
+### 封面图卡片方案
+
+可以实现用户要求的“帖子里先看封面，点击图片或链接后进入播放器”。封面字段和媒体 URL 分开：
+
+- `BodyBlock` 增加可空的 `posterUrl`；`url` 保持媒体页面或直接媒体地址，`directMedia` 保持现有分流含义。
+- 优先解析 `<video poster>`，必要时在已初始化媒体页读取 `video.poster`。MDN 明确该字段表示尚无视频数据时展示的图片 URL，并不保证是视频第 0 帧：[HTMLVideoElement.poster](https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/poster)。
+- 对 turbo 使用经验证的 provider 缩略图规则或实际元数据。论坛外层 HTML 的 iframe 不会自动附带子页面的 poster；不能只修改 Flutter 图片 widget 就宣称解决所有来源。
+- 卡片进入可视区域时懒加载图片，显示原生播放按钮和来源；点击图片与链接执行同一播放动作。图片失败、未知 provider 或无封面时保留占位和播放入口，不影响现有可播来源。
+- 不在列表中启动每个 iframe、不提前请求整页视频的签名地址，也不为了生成封面预下载全部视频。封面可由平台图片缓存复用，首期不增加数据库或后台任务。
+- 竖屏封面限制高度并保持比例，避免单张封面占满多屏。进入播放器后按视频本身的比例显示。
+
+严格截取“第 0 帧”需要先有可读的媒体资源，再通过 [AVAssetImageGenerator](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator) 获取图像；这会增加媒体请求与解码开销，而且第 0 帧可能为黑屏。因此本需求优先实现 poster/thumbnail，不默认给每个帖子做远程视频抽帧。
+
+### 改造后的验收标准
+
+- 非 turbo 的已可播放来源不回归；帖子加载期间不开始播放任何视频。
+- 有封面时在帖子内显示，点击进入独立播放器；封面失败仍能点播放。
+- 加载和失败阶段不会自动露出可点击广告网页；网页模式由用户明确选择。
+- 签名 URL 新鲜有效且真正开始播放、可暂停/拖动、Done 返回，才算该来源接管成功。不能以“封面显示”“有 URL”“readyToPlay”单独判定完成。
+- 验证 Cookie/Referer 依赖、过期重试、慢网、403/验证页、错误 MIME、重复点击、返回后再次打开等行为。诊断不包含用户会话或完整媒体地址。
+
+当前状态：已完成源码审查、公开方案查证和上述改造设计；尚未执行目标媒体签名/CDN 实测、未改动播放器代码、未生成新 IPA。手机仍运行 build 6。
