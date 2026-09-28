@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../core/library.dart';
 import '../core/models.dart';
 import '../core/session.dart';
 import '../core/site.dart';
@@ -28,15 +29,60 @@ class _ReaderPageState extends State<ReaderPage> {
   ReaderFailure? _failure;
   bool _loading = false;
   bool _browserOpen = false;
+  bool _savingBookmark = false;
+  ForumPage? _recordedPage;
+  ReadingLibrary? _library;
   int _request = 0;
   late Uri _url;
   final _scroll = ScrollController();
   @override
   void initState() {
     super.initState();
-    _url = widget.url ?? ForumSite.base;
+    _url = widget.url ?? widget.initial?.url ?? ForumSite.base;
     _page = widget.initial;
     if (_page == null) _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final library = LibraryScope.maybeOf(context);
+    _library = library?.sample == widget.demo ? library : null;
+    if (_page != null) _remember(_page!);
+  }
+
+  Future<void> _remember(ForumPage page) async {
+    final library = _library;
+    if (library == null || identical(_recordedPage, page)) return;
+    _recordedPage = page;
+    try {
+      await library.remember(page);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save recent reading.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _bookmark() async {
+    final library = _library;
+    if (library == null || _savingBookmark || _page == null) return;
+    setState(() => _savingBookmark = true);
+    try {
+      await library.toggleBookmark(_url, _page!.title);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save bookmark. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingBookmark = false);
+    }
   }
 
   @override
@@ -63,6 +109,7 @@ class _ReaderPageState extends State<ReaderPage> {
         _loading = false;
       });
       if (_scroll.hasClients) _scroll.jumpTo(0);
+      _remember(page);
     } catch (error) {
       if (!mounted || request != _request) return;
       setState(() {
@@ -237,8 +284,33 @@ class _ReaderPageState extends State<ReaderPage> {
     final page = _page;
     return Scaffold(
       appBar: AppBar(
-        title: Text(page?.kind == PageKind.posts ? 'Thread' : 'Clear Forum'),
+        title: Text(page?.kind == PageKind.posts ? 'Thread' : 'Forums'),
         actions: [
+          IconButton(
+            tooltip: 'Home',
+            onPressed: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: const Icon(Icons.home_outlined),
+          ),
+          if (_library != null)
+            IconButton(
+              tooltip: _library!.isBookmarked(_url)
+                  ? 'Remove bookmark'
+                  : 'Bookmark page',
+              onPressed:
+                  _loading ||
+                      _failure != null ||
+                      page == null ||
+                      _savingBookmark ||
+                      !_library!.loaded
+                  ? null
+                  : _bookmark,
+              icon: Icon(
+                _library!.isBookmarked(_url)
+                    ? Icons.bookmark
+                    : Icons.bookmark_border,
+              ),
+            ),
           IconButton(
             tooltip: 'Open link',
             onPressed: _openAddress,

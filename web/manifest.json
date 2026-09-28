@@ -1,11 +1,11 @@
 {
-    "name": "Clear Forum Sample",
-    "short_name": "Clear Forum",
+    "name": "simpcity ultimate Sample",
+    "short_name": "simpcity ultimate",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A sample preview of the Clear Forum reader.",
+    "description": "A sample preview of the simpcity ultimate reader.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -8,6 +8,20 @@ import 'package:clean_forum/core/site.dart';
 void main() {
   final parser = ForumParser();
   final base = ForumSite.base;
+  test('embeds become inert placeholders; marked ad iframes stay excluded', () {
+    final page = parser.parse('''<html data-template="thread_view"><article class="message--post" id="post-1">
+      <div class="message-body"><div class="bbWrapper">
+        <iframe src="https://player.example/embed/sample" onload="untrusted()"></iframe>
+        <div class="advertisement"><iframe src="https://ads.example/"></iframe></div>
+        <div class="bbCodeSpoiler"><div class="bbCodeSpoiler-content"><iframe src="https://player.example/embed/second"></iframe></div></div>
+      </div></div></article></html>''', base);
+    final body = page.posts.single.blocks;
+    expect(body.length, 2);
+    expect(body.first.kind, BlockKind.embeddedMedia);
+    expect(body.first.label, 'player.example');
+    expect(body.first.url, null);
+    expect(body.last.children.single.kind, BlockKind.embeddedMedia);
+  });
   String fixture(String name) =>
       File('assets/demo/$name.html').readAsStringSync();
   Matcher failure(FailureKind kind) =>
@@ -49,6 +63,41 @@ void main() {
       true,
     );
   });
+  test('forum list keeps twenty unread threads alongside its pinned thread', () {
+    final rows = List.generate(
+      21,
+      (i) =>
+          '''
+<div class="structItem structItem--thread ${i == 0 ? '' : 'is-unread'}">
+  ${i == 0 ? '<i class="structItem-status--sticky"></i>' : ''}
+  <div class="structItem-title">
+    <a class="labelLink" href="/forums/sample.12/?prefix_id[0]=7">Category</a>
+    <a data-tp-primary="on" href="/threads/sample.${100 + i}/${i == 0 ? '' : 'unread?new=1'}">Thread $i</a>
+  </div>
+</div>''',
+    ).join();
+    final page = parser.parse(
+      '<html data-template="forum_view"><h1 class="p-title-value">Sample</h1>$rows<a class="pageNav-jump--next" href="page-2">Next</a></html>',
+      base.resolve('/forums/sample.12/'),
+    );
+    expect(page.entries.length, 21);
+    expect(page.entries.where((entry) => entry.pinned).length, 1);
+    expect(page.entries[1].url, base.resolve('/threads/sample.101/'));
+    expect(page.entries.last.url, base.resolve('/threads/sample.120/'));
+    expect(page.next, base.resolve('/forums/sample.12/page-2'));
+  });
+  test(
+    'unrecognized thread links fail instead of displaying an empty forum',
+    () {
+      expect(
+        () => parser.parse(
+          '<html data-template="forum_view"><div class="structItem--thread"><div class="structItem-title"><a href="/unrecognized/">A thread</a></div></div></html>',
+          base.resolve('/forums/sample.12/'),
+        ),
+        throwsA(failure(FailureKind.unsupported)),
+      );
+    },
+  );
   test('pagination resolves relative links without mixing origins', () {
     final source = fixture('thread').replaceFirst(
       '</body>',

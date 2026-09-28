@@ -6,7 +6,7 @@ import 'site.dart';
 
 class ForumParser {
   static const _unwanted =
-      'script,style,iframe,object,embed,input,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]';
+      'script,style,object,embed,input,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]';
   ForumPage parse(String source, Uri url, {int status = 200}) {
     final doc = html.parse(source);
     final title = _text(doc.querySelector('h1.p-title-value'));
@@ -67,7 +67,8 @@ class ForumParser {
     }
     final threads = <ForumEntry>[];
     final seen = <String>{};
-    for (final item in doc.querySelectorAll('.structItem--thread')) {
+    final threadRows = doc.querySelectorAll('.structItem--thread');
+    for (final item in threadRows) {
       final anchor = item
           .querySelectorAll('.structItem-title a')
           .where((a) => !a.classes.contains('labelLink'))
@@ -120,6 +121,9 @@ class ForumParser {
     if (kind == PageKind.posts && posts.isEmpty) {
       throw const ReaderFailure(FailureKind.unsupported);
     }
+    if (kind == PageKind.threads && threadRows.isNotEmpty && threads.isEmpty) {
+      throw const ReaderFailure(FailureKind.unsupported);
+    }
     return ForumPage(
       url: url,
       title: title.isEmpty ? 'Forums' : title,
@@ -168,7 +172,6 @@ class ForumParser {
       if (const {
         'script',
         'style',
-        'iframe',
         'object',
         'embed',
         'form',
@@ -217,14 +220,16 @@ class ForumParser {
         }
         return;
       }
-      if (tag == 'video' || tag == 'audio') {
+      if (tag == 'iframe' || tag == 'video' || tag == 'audio') {
         flush();
+        final source = ForumSite.resolve(
+          node.attributes['src'] ?? node.attributes['data-src'],
+          page,
+        );
         blocks.add(
-          const BodyBlock(
-            BlockKind.paragraph,
-            runs: [
-              TextRun('Embedded media is available on the original page.'),
-            ],
+          BodyBlock(
+            BlockKind.embeddedMedia,
+            label: source?.host ?? 'Embedded media',
           ),
         );
         return;

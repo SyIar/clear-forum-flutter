@@ -3,6 +3,7 @@ class ForumSite {
   static final _pagePath = RegExp(
     r'^/(?:(?:forums|threads)/[^/]+\.\d+(?:/(?:page-\d+/?)?)?|posts/\d+/?|search-forums/[^/]+(?:/(?:page-\d+/?)?)?|whats-new/(?:posts/)?|watched/threads/?)$',
   );
+  static final _unreadThreadPath = RegExp(r'^(/threads/[^/]+\.\d+/)unread/?$');
   static bool sameOrigin(Uri url) =>
       url.scheme == 'https' &&
       url.host == base.host &&
@@ -42,11 +43,23 @@ class ForumSite {
     if (value == null || value.trim().isEmpty) return null;
     final candidate = Uri.tryParse(value.trim());
     if (candidate == null) return null;
-    final resolved = page.resolveUri(candidate);
+    var resolved = page.resolveUri(candidate);
     if (resolved.scheme != 'https' ||
         resolved.userInfo.isNotEmpty ||
         resolved.host.isEmpty) {
       return null;
+    }
+    if (sameOrigin(resolved)) {
+      final unread = _unreadThreadPath.firstMatch(resolved.path);
+      final query = resolved.queryParametersAll;
+      if (unread != null &&
+          (query.isEmpty ||
+              (query.length == 1 &&
+                  query['new']?.length == 1 &&
+                  query['new']?.single == '1'))) {
+        final canonical = base.resolve(unread.group(1)!);
+        if (readable(canonical)) resolved = canonical;
+      }
     }
     if (internal && !readable(resolved)) return null;
     return resolved;

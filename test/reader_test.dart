@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clean_forum/main.dart';
+import 'package:clean_forum/core/library.dart';
 import 'package:clean_forum/core/models.dart';
 import 'package:clean_forum/core/parser.dart';
 import 'package:clean_forum/core/session.dart';
 import 'package:clean_forum/core/site.dart';
 import 'package:clean_forum/ui/reader.dart';
+
+import 'library_test.dart' show MemoryLibraryStorage;
 
 void main() {
   testWidgets('failed pagination retries the requested page', (tester) async {
@@ -34,7 +37,11 @@ void main() {
   testWidgets('sample navigation shows native posts without ad content', (
     tester,
   ) async {
-    await tester.pumpWidget(const ClearForumApp());
+    await tester.pumpWidget(
+      ClearForumApp(
+        library: ReadingLibrary(sample: true, storage: MemoryLibraryStorage()),
+      ),
+    );
     await tester.tap(find.text('Explore sample reader'));
     await tester.pumpAndSettle();
     expect(find.textContaining('SAMPLE CONTENT'), findsOneWidget);

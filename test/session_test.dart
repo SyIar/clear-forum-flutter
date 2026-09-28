@@ -12,6 +12,24 @@ void main() {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   final calls = <MethodCall>[];
+  test(
+    'post anchors survive reading but are never sent in HTTP requests',
+    () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return {
+          'status': 200,
+          'html': File('assets/demo/thread.html').readAsStringSync(),
+        };
+      });
+      final target = ForumSite.base.resolve(
+        '/threads/sample.1/page-5#post-123',
+      );
+      final page = await DeviceSession(channel: channel).load(target);
+      expect(page.url, target);
+      expect(calls.single.arguments, target.removeFragment().toString());
+    },
+  );
   tearDown(() {
     messenger.setMockMethodCallHandler(channel, null);
     calls.clear();

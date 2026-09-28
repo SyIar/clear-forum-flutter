@@ -45,4 +45,46 @@ void main() {
       'example.com',
     );
   });
+  test('unread links resolve to canonical read routes', () {
+    final page = ForumSite.base.resolve('/forums/sample.12/');
+    for (final suffix in ['unread', 'unread/', 'unread?new=1']) {
+      final link = ForumSite.resolve(
+        '/threads/sample.42/$suffix',
+        page,
+        internal: true,
+      );
+      expect(link, ForumSite.base.resolve('/threads/sample.42/'));
+      expect(ForumSite.readable(link!), true);
+    }
+    expect(
+      ForumSite.resolve(
+        '/threads/caf%C3%A9-%F0%9F%87%AC%F0%9F%87%A7.42/unread?new=1',
+        page,
+        internal: true,
+      ),
+      ForumSite.base.resolve('/threads/caf%C3%A9-%F0%9F%87%AC%F0%9F%87%A7.42/'),
+    );
+    expect(
+      ForumSite.readable(page.resolve('/threads/sample.42/unread?new=1')),
+      false,
+    );
+  });
+  test('unread normalization does not broaden origin or action access', () {
+    for (final path in [
+      'https://outside.example/threads/sample.42/unread?new=1',
+      'http://simpcity.cr/threads/sample.42/unread?new=1',
+      'https://user:secret@simpcity.cr/threads/sample.42/unread?new=1',
+      '/threads/sample.42/unread?new=1&new=1',
+      '/threads/sample.42/unread?new=1&_xfToken=secret',
+      '/threads/sample.42/unread?new=2',
+      '/threads/sample.42/watch?new=1',
+      '/threads/sample%252fwatch.42/unread?new=1',
+    ]) {
+      expect(
+        ForumSite.resolve(path, ForumSite.base, internal: true),
+        null,
+        reason: path,
+      );
+    }
+  });
 }

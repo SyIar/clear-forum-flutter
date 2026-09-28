@@ -36,7 +36,7 @@ class TextRun {
   final Uri? url;
 }
 
-enum BlockKind { paragraph, quote, spoiler, code, image, link }
+enum BlockKind { paragraph, quote, spoiler, code, image, link, embeddedMedia }
 
 class BodyBlock {
   const BodyBlock(

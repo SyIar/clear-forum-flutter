@@ -206,7 +206,7 @@ private final class ForumBrowserController: UIViewController, WKNavigationDelega
   @objc private func readPage() {
     guard !capturing, let url = webView.url, SitePolicy.readable(url) else { notice("Open a forum or thread before choosing Read page."); return }
     capturing = true
-    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,iframe,object,embed,input,textarea,select,svg,noscript,.p-nav,.p-header,.p-footer,.p-body-sidebar').forEach(e=>e.remove());root.querySelectorAll('form').forEach(e=>e.replaceWith(...e.childNodes));return {url:location.href,html:root.outerHTML};})()"#
+    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,input,textarea,select,svg,noscript,.p-nav,.p-header,.p-footer,.p-body-sidebar').forEach(e=>e.remove());root.querySelectorAll('form').forEach(e=>e.replaceWith(...e.childNodes));return {url:location.href,html:root.outerHTML};})()"#
     webView.evaluateJavaScript(script) { [weak self] value, error in
       guard let self = self else { return }
       self.capturing = false

@@ -1,13 +1,10 @@
 import json
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image
 
-# A code-drawn reading mark; no external artwork or font files.
-image = Image.new('RGB', (1024, 1024), '#087FF5')
-draw = ImageDraw.Draw(image)
-draw.rounded_rectangle((220, 220, 804, 804), radius=120, fill='white')
-for y, width in [(355, 330), (475, 330), (595, 210)]:
-    draw.rounded_rectangle((345, y, 345 + width, y + 55), radius=27, fill='#087FF5')
+# Resize the checked-in opaque master; see docs/BRANDING.md for provenance.
+image = Image.open('assets/branding/app-icon.png').convert('RGB')
+assert image.width == image.height, 'The icon master must be square'
 folder = Path('ios/Runner/Assets.xcassets/AppIcon.appiconset')
 for entry in json.loads((folder / 'Contents.json').read_text())['images']:
     size = round(float(entry['size'].split('x')[0]) * float(entry['scale'].rstrip('x')))

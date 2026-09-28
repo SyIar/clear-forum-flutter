@@ -33,9 +33,32 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 | 本地安装包 | `D:\workspace\sideloadly-setup\ClearForum-unsigned.ipa` |
 | SHA-256 | `96d867830442521eca9e11290f13998b11d6ab4fef09d5a794377a9aa929bb06` |
 
-下载后已再次验证 ZIP 完整性、App 必要文件、Bundle ID、版本与校验值。CI 额外确认 device 平台和 arm64。没有执行手机安装。
+下载后已再次验证 ZIP 完整性、App 必要文件、Bundle ID、版本与校验值。CI 额外确认 device 平台和 arm64。
+
+2026-09-28，用户授权后通过 Sideloadly USB 安装 `0.1.0 (3)`，主窗口显示 `Done. / 100%`。13:12:58 daemon 设备扫描确认 Clear Forum build `3`，自动刷新记录与 IPA 缓存均已生成，缓存大小为 `7,446,442` bytes。用户确认可以正常打开 App。本次没有验证无线安装、接近到期时的后台刷新或开机自启动。
 
 真实 iPhone 登录、Cookie 持久化、站点分页和外部图片加载尚未验收。当前未把桌面浏览器 Cookie 导入 App，也没有修改现有 Tieba Lite。
+
+## 2026-09-28：论坛列表缺少主题的修复
+
+用户报告 `/forums/instagram.12/` 在客户端没有正常显示列表。通过桌面浏览器只读检查 DOM，页面具有 21 个 `.structItem--thread`：1 条置顶使用标准帖子链接，20 条普通主题使用 `/threads/<slug>.<id>/unread?new=1`。原 `ForumSite.readable` 拒绝后者，`ForumParser` 因而漏掉普通主题。没有导出 Cookie、token 或账号数据。
+
+`ForumSite.resolve` 现在将本站已核实的 unread 链接转为标准帖子地址，进入帖子第一页。实际 HTTP 请求仍使用原有的读取路径约束，没有开放互动接口或跨站会话请求。页面存在主题行却全部解析失败时，改为明确提示无法解析，不再冒充空论坛。示例列表也包含 unread 链接，避免桌面预览再次遗漏这一场景。
+
+本地 Dart analyze、29 项 Flutter tests 和仓库语言检查已通过。回归覆盖 1 条置顶加 20 条 unread 主题、分页、Unicode slug、非法链接和原生阅读导航。电脑调试入口为 `http://127.0.0.1:8879/`，使用同一 Flutter 界面及解析器，但展示明确标记的示例数据。此修复尚未构建新 IPA，也未更新手机上的 build 3。
+
+## 2026-09-28：本地收藏与最近阅读
+
+- App display name 改为 `simpcity ultimate`，使用青色、黑色、白色的方形生成图标。保持 `dev.sylar.clearforum`，便于覆盖升级；图标生成记录在 `BRANDING.md`。
+- 首页增加 Bookmarks 和 Recent reading。首页右上角 Add bookmark 可填写本站 URL 和可选标题；阅读页右上角可以收藏/取消收藏当前页面，Home 按钮直接返回首页。
+- 收藏保存完整 URL（包含页码和 `#post-...`）。最近阅读仅在页面加载成功后记录，最近在前、最多 10 项；同一帖子各分页去重，保存最近打开的页码。暂不恢复精确滚动位置。
+- 使用 Flutter 官方 `shared_preferences` 的 Async API 保存本地 JSON，iOS 使用 NSUserDefaults，Web 示例使用浏览器存储。写入串行化并在成功后更新可见状态；写失败提示，不伪装已保存。真实库与示例库使用不同 key。
+- 仅保存标题和本站读取 URL，不同步到云端，不存 HTML、Cookie 或媒体签名。Clear recent reading 不删除收藏；Clear session 仅清理登录会话，收藏和历史仍保留。App 卸载会丢失本地库。
+- 真实 HTML 结构检查：18 个楼层、10 个嵌入占位、0 个空楼层，详见 `EMBEDDED_MEDIA.md`。原生视频播放仍未实现。
+
+本地 `flutter analyze`、41 项 Flutter tests 和 `flutter build web --release --no-pub` 已通过。新增回归覆盖存储重启、最近 10 项、跨分页去重、并发保存、失败重试、URL 校验、首页收藏重开、示例数据隔离和窄屏大字体。
+
+资料：[Flutter shared_preferences](https://pub.dev/packages/shared_preferences)。这里只保存少量个人阅读偏好，无需增加数据库或服务器同步。
 
 ## iPhone 验收
 

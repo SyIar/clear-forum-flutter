@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
 import 'core/session.dart';
-import 'ui/reader.dart';
+import 'core/library.dart';
+import 'ui/home.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,8 +13,29 @@ void main() {
   runApp(const ClearForumApp());
 }
 
-class ClearForumApp extends StatelessWidget {
-  const ClearForumApp({super.key});
+class ClearForumApp extends StatefulWidget {
+  const ClearForumApp({super.key, this.library});
+  final ReadingLibrary? library;
+  @override
+  State<ClearForumApp> createState() => _ClearForumAppState();
+}
+
+class _ClearForumAppState extends State<ClearForumApp> {
+  late final ReadingLibrary _library;
+  @override
+  void initState() {
+    super.initState();
+    _library =
+        widget.library ?? ReadingLibrary(sample: !DeviceSession.supported);
+    _library.load().catchError((Object _) {});
+  }
+
+  @override
+  void dispose() {
+    if (widget.library == null) _library.dispose();
+    super.dispose();
+  }
+
   ThemeData _theme(Brightness brightness) {
     final dark = brightness == Brightness.dark;
     final scheme =
@@ -52,91 +74,15 @@ class ClearForumApp extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Clear Forum',
-    debugShowCheckedModeBanner: false,
-    theme: _theme(Brightness.light),
-    darkTheme: _theme(Brightness.dark),
-    themeMode: ThemeMode.system,
-    home: const WelcomePage(),
-  );
-}
-
-class WelcomePage extends StatelessWidget {
-  const WelcomePage({super.key});
-  void _open(BuildContext context, bool demo) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) =>
-          ReaderPage(source: demo ? DemoSource() : DeviceSession(), demo: demo),
-    ),
-  );
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.chrome_reader_mode_outlined,
-                  size: 54,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  'A little less noise.',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -.8,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Clear Forum',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Your forum. A clean, compact reading space.\nYour sign-in stays on this device.',
-                  style: TextStyle(fontSize: 16, height: 1.5),
-                ),
-                const SizedBox(height: 32),
-                if (DeviceSession.supported)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => _open(context, false),
-                      icon: const Icon(Icons.arrow_forward_rounded),
-                      label: const Text('Open forum'),
-                    ),
-                  ),
-                if (!DeviceSession.supported)
-                  const Text(
-                    'Live sign-in is available in the iPhone app. This preview uses sample content.',
-                  ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => _open(context, true),
-                    child: const Text('Explore sample reader'),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  'No account is needed for the sample.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  Widget build(BuildContext context) => LibraryScope(
+    library: _library,
+    child: MaterialApp(
+      title: 'simpcity ultimate',
+      debugShowCheckedModeBanner: false,
+      theme: _theme(Brightness.light),
+      darkTheme: _theme(Brightness.dark),
+      themeMode: ThemeMode.system,
+      home: const HomePage(),
     ),
   );
 }

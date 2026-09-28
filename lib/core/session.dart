@@ -48,7 +48,7 @@ class DeviceSession implements PageSource {
       }
       return _parser.parse(
         reply['html'] as String? ?? '',
-        current,
+        current.replace(fragment: url.fragment),
         status: status,
       );
     }

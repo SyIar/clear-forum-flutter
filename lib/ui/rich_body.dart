@@ -65,6 +65,34 @@ class RichBody extends StatelessWidget {
               key: ValueKey(block.url),
               block: block,
             ),
+            BlockKind.embeddedMedia => Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.video_library_outlined, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          block.label,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const Text(
+                          'Playback is not supported in this reader.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             BlockKind.link => TextButton(
               onPressed: block.url == null ? null : () => onLink(block.url!),
               child: Text(block.label),
