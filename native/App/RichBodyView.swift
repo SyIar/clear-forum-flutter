@@ -232,7 +232,7 @@ struct RemoteImageView: View {
               ToolbarItem(placement: .topBarTrailing) { ShareLink(item: Image(uiImage: image), preview: SharePreview("Image", image: Image(uiImage: image))) }
             }
           }
-        }.preferredColorScheme(.dark)
+        }.background(MediaEdgeBack { showing = false }).preferredColorScheme(.dark)
       }
   }
 }

@@ -57,6 +57,8 @@ struct ForumPage {
   var next: URL?
   var pageNumber: Int
   var loggedIn: Bool
+  var lastPage: URL?
+  var maximumPostNumber: Int?
 }
 
 extension SitePolicy {

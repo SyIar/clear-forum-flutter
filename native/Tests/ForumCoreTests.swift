@@ -57,4 +57,65 @@ final class ForumCoreTests: XCTestCase {
     XCTAssertThrowsError(try LibraryDocument.load(from: defaults))
     XCTAssertEqual(defaults.string(forKey: LibraryDocument.key), "invalid")
   }
+  private func threadHTML(_ numbers: [Int], navigation: String = "") -> String {
+    let posts = numbers.map { number in
+      "<article id='post-\(9000 + number)' class='message--post'><div class='message-attribution-opposite'><a>#\(number)</a></div><div class='message-body'><div class='bbWrapper'>Post</div></div></article>"
+    }.joined()
+    return "<html data-template='thread_view'><h1 class='p-title-value'>Example</h1>\(posts)\(navigation)</html>"
+  }
+  func testMaximumFloorRequiresLastPageAndDoesNotUsePostID() throws {
+    let navigation = "<ul class='pageNav-main'><li class='pageNav-page pageNav-page--current'><a href='/threads/example.123/'>1</a></li><li class='pageNav-page'><a href='/threads/example.123/page-6'>6</a></li></ul><a class='pageNavSimple-el--next' href='/threads/example.123/page-2'>Next</a>"
+    let first = try ForumParser().parse(threadHTML([1, 20], navigation: navigation), url: URL(string: "https://simpcity.cr/threads/example.123/")!)
+    XCTAssertNil(first.maximumPostNumber)
+    XCTAssertEqual(first.lastPage?.lastPathComponent, "page-6")
+    let last = try ForumParser().parse(threadHTML([101, 108]), url: URL(string: "https://simpcity.cr/threads/example.123/page-6")!)
+    XCTAssertEqual(last.pageNumber, 6)
+    XCTAssertEqual(last.maximumPostNumber, 108)
+  }
+  func testLastPageWithoutNextStillPreventsFalseMaximum() throws {
+    let navigation = "<a class='pageNavSimple-el--last' href='/threads/example.123/page-7'>Last</a><li class='pageNav-page'><a href='/threads/foreign.456/page-200'>200</a></li>"
+    let page = try ForumParser().parse(threadHTML([80], navigation: navigation), url: URL(string: "https://simpcity.cr/threads/example.123/page-4")!)
+    XCTAssertNil(page.maximumPostNumber)
+    XCTAssertEqual(page.lastPage?.lastPathComponent, "page-7")
+    let unknown = try ForumParser().parse("<html data-template='thread_view'><article class='message--post'><div class='message-body'><div class='bbWrapper'>Post</div></div></article></html>", url: URL(string: "https://simpcity.cr/threads/example.123/")!)
+    XCTAssertNil(unknown.maximumPostNumber)
+  }
+  func testThreadUpdateLifecycleAndPersistence() throws {
+    let defaults = UserDefaults(suiteName: "ForumCoreTests.\(UUID())")!
+    var library = LibraryDocument()
+    let page = SavedPage(url: URL(string: "https://simpcity.cr/threads/example.123/page-2#post-8")!, title: "Example")
+    library.remember(page)
+    library.threads["123", default: ThreadReadState()].opened(maximum: 100)
+    library.threads["123", default: ThreadReadState()].checked(maximum: 108)
+    XCTAssertTrue(library.threads["123"]!.updated)
+    XCTAssertEqual(library.threads["123"]?.seenMaximum, 100)
+    try library.save(to: defaults)
+    library = try LibraryDocument.load(from: defaults)
+    XCTAssertTrue(library.threads["123"]!.updated)
+    library.threads["123"]!.opened(maximum: 108)
+    XCTAssertFalse(library.threads["123"]!.updated)
+    library.threads["123"]!.checked(maximum: 106)
+    XCTAssertFalse(library.threads["123"]!.updated)
+    XCTAssertEqual(library.recent.first?.url, page.url)
+  }
+  func testLegacyRefreshDoesNotInventReadBaselineAndTrackingDeduplicatesThreads() throws {
+    let defaults = UserDefaults(suiteName: "ForumCoreTests.\(UUID())")!
+    defaults.set(#"{"version":1,"bookmarks":[{"url":"https://simpcity.cr/threads/old-name.123/page-3","title":"Saved"}],"recent":[]}"#, forKey: LibraryDocument.key)
+    var library = try LibraryDocument.load(from: defaults)
+    XCTAssertTrue(library.threads.isEmpty)
+    library.threads["123", default: ThreadReadState()].checked(maximum: 108)
+    XCTAssertNil(library.threads["123"]?.seenMaximum)
+    XCTAssertFalse(library.threads["123"]!.updated)
+    library.remember(SavedPage(url: URL(string: "https://simpcity.cr/threads/new-name.123/page-6#post-9")!, title: "Renamed"))
+    library.remember(SavedPage(url: URL(string: "https://simpcity.cr/forums/example.123/")!, title: "Forum"))
+    XCTAssertEqual(library.trackedThreads.count, 1)
+    XCTAssertNil(library.trackedThreads.first?.fragment)
+    XCTAssertEqual(library.trackedThreads.first?.path, "/threads/new-name.123/")
+    library.recent = []
+    library.pruneTracking()
+    XCTAssertNotNil(library.threads["123"])
+    library.bookmarks = []
+    library.pruneTracking()
+    XCTAssertTrue(library.threads.isEmpty)
+  }
 }

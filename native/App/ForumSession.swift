@@ -70,6 +70,22 @@ final class ForumSession: ObservableObject {
     guard let (response, data) = try? await request(query, maxBytes: 2 * 1024 * 1024, htmlOnly: true), (200..<300).contains(response.statusCode) else { return nil }
     return String(data: data, encoding: .utf8)
   }
+  func maximumPostNumber(from initial: ForumPage) async throws -> Int {
+    guard let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }
+    var page = initial
+    if URLComponents(url: page.url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "order" }) == true,
+       let root = SitePolicy.threadRoot(page.url) { page = try await load(root) }
+    // Follow the last-page link, including a page added while this request is in flight.
+    for attempt in 0..<3 {
+      try Task.checkCancellation()
+      guard SitePolicy.threadKey(page.url) == key, page.kind == .posts else { throw ReaderFailure.unsupported }
+      if let maximum = page.maximumPostNumber, maximum > 0 { return maximum }
+      guard attempt < 2, let last = page.lastPage ?? page.next,
+            SitePolicy.threadKey(last) == key, SitePolicy.pageNumber(last) > page.pageNumber else { throw ReaderFailure.unsupported }
+      page = try await load(last)
+    }
+    throw ReaderFailure.unsupported
+  }
   func clear() async {
     generation += 1
     let active = Array(operations.values)

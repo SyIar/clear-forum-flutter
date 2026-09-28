@@ -27,6 +27,23 @@ enum SitePolicy {
     let path = url.path.isEmpty ? "/" : url.path
     return path == cookie.path || (path.hasPrefix(cookie.path) && (cookie.path.hasSuffix("/") || path.dropFirst(cookie.path.count).hasPrefix("/")))
   }
+  static func threadKey(_ url: URL) -> String? {
+    guard readable(url) else { return nil }
+    let parts = url.path.split(separator: "/")
+    guard parts.count >= 2, parts[0] == "threads", let id = parts[1].split(separator: ".").last,
+          !id.isEmpty, id.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+    return String(id)
+  }
+  static func threadRoot(_ url: URL) -> URL? {
+    guard threadKey(url) != nil else { return nil }
+    return base.appendingPathComponent("threads/\(url.path.split(separator: "/")[1])/")
+  }
+  static func pageNumber(_ url: URL) -> Int {
+    if let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "page" })?.value,
+       let number = Int(value) { return number }
+    if let last = url.path.split(separator: "/").last, last.hasPrefix("page-"), let number = Int(last.dropFirst(5)) { return number }
+    return 1
+  }
 }
 
 

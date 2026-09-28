@@ -383,7 +383,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     statusLabel.text = "Web player. Refresh retries system playback."
     loadWebPage()
   }
-  @objc private func close() {
+  @objc func close() {
     guard !closed else { return }
     closed = true
     generation += 1

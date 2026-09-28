@@ -94,7 +94,7 @@ struct ReaderView: View {
           presentation = nil
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              SitePolicy.readable(target), let html = captured["html"] as? String {
-            do { let parsed = try ForumParser().parse(html, url: target); page = parsed; url = target; error = nil; library.remember(parsed); proxy.scrollTo("top", anchor: .top) }
+            do { let parsed = try ForumParser().parse(html, url: target); page = parsed; url = target; error = nil; library.remember(parsed, session: session); proxy.scrollTo("top", anchor: .top) }
             catch { self.error = error.localizedDescription }
           } else if case .browser = item { reload() }
         }.ignoresSafeArea()
@@ -124,7 +124,7 @@ struct ReaderView: View {
       let parsed = try await session.load(current)
       guard !Task.isCancelled, requestID == expected else { return }
       posters.cancel()
-      page = parsed; url = parsed.url; library.remember(parsed)
+      page = parsed; url = parsed.url; library.remember(parsed, session: session)
     } catch {
       guard !Task.isCancelled, requestID == expected else { return }
       self.error = error.localizedDescription
@@ -145,12 +145,12 @@ struct ReaderController: UIViewControllerRepresentable {
   let store: WKWebsiteDataStore
   let completion: ([String: Any]?) -> Void
   func makeUIViewController(context: Context) -> UINavigationController {
-    let controller: UIViewController
     switch presentation {
-    case .browser(let url): controller = ForumBrowserController(url: url, store: store, completion: completion)
-    case .media(let url, let direct): controller = MediaPlayerController(url: url, direct: direct) { completion(nil) }
+    case .browser(let url):
+      return UINavigationController(rootViewController: ForumBrowserController(url: url, store: store, completion: completion))
+    case .media(let url, let direct):
+      return MediaNavigationController(player: MediaPlayerController(url: url, direct: direct) { completion(nil) })
     }
-    return UINavigationController(rootViewController: controller)
   }
   func updateUIViewController(_ controller: UINavigationController, context: Context) {}
 }
