@@ -94,8 +94,12 @@ verification. Source: `40953f9d44b4dd8954695fd7f6c6b45ee6af3ac7`.
 - Downloaded ZIP, required components, identity, device platform, build number,
   source/run metadata and checksum were verified. The install-directory copy was
   checked against the same checksum.
-- Unsigned artifact, for the existing Sideloadly signing workflow. Build 12 has
-  not been installed or visually accepted on the iPhone in this turn.
+- The downloaded artifact is unsigned. On 2026-09-28, after the user's explicit
+  USB install request, its checksum and selected build 12 filename were checked.
+  Sideloadly used the existing signing account with the device selected as @USB.
+  Start reset progress to 0%; the subsequent state showed Done / 100%, confirming
+  signing and installation completed. Native glass appearance, launch behavior
+  and the updated controls still await the user's on-device acceptance.
 
 ## Sources
 

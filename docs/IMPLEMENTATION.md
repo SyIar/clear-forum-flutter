@@ -166,7 +166,9 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 - 播放器使用 UIKit 原生导航按钮：左侧 `chevron.backward` 返回帖子，右侧仅保留 `arrow.clockwise` 刷新；移除 `Details` 入口、弹窗及提示文案。
 - 本地 IPA：`D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-12-unsigned.ipa`，9,773,475 bytes。
 - SHA-256：`3a15fb2fa35cdc07a40d192761f5f507448355b22ad3f7406b70617a17a940d7`。下载和复制后均完成核对。
-- build 11 因追加播放器需求取消；build 12 本轮未安装，真实 Liquid Glass 光学效果仍需手机验收。
+- build 11 因追加播放器需求取消。
+
+2026-09-28，用户明确要求 USB 安装后，重新核对 build 12 文件 SHA-256，在 Sideloadly 选中 `@USB` 设备和原签名账号。文件选择窗口确认名称为 `SimpcityUltimate-0.1.0-12-unsigned.ipa`，点击 Start 后进度重置为 0%，随后显示 `Done. / 100%`，签名和 USB 安装完成。App 启动、Liquid Glass 实际外观及返回/刷新按钮的真机验收仍待用户确认；本次未额外验证自动续签。
 
 ## 资料
 
