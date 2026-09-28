@@ -1,0 +1,113 @@
+import Foundation
+import WebKit
+
+@MainActor
+final class ForumSession: ObservableObject {
+  let store = WKWebsiteDataStore.default()
+  private var operations: [UUID: PageRequest] = [:]
+  private var generation = 0
+  private func request(_ request: URLRequest, maxBytes: Int = 8 * 1024 * 1024, htmlOnly: Bool = false) async throws -> (HTTPURLResponse, Data) {
+    let id = UUID()
+    let epoch = generation
+    return try await withCheckedThrowingContinuation { continuation in
+      let operation = PageRequest(request: request, maxBytes: maxBytes, htmlOnly: htmlOnly) { [weak self] response, data, error in
+        Task { @MainActor in
+          guard let self else { continuation.resume(throwing: CancellationError()); return }
+          self.operations.removeValue(forKey: id)
+          guard epoch == self.generation else { continuation.resume(throwing: CancellationError()); return }
+          guard error == nil, let response else { continuation.resume(throwing: ReaderFailure.network); return }
+          continuation.resume(returning: (response, data))
+        }
+      }
+      operations[id] = operation
+      operation.start()
+    }
+  }
+  func load(_ url: URL) async throws -> ForumPage {
+    guard SitePolicy.readable(url) else { throw ReaderFailure.unsupported }
+    let epoch = generation
+    var current = SitePolicy.withoutFragment(url)
+    for _ in 0..<6 {
+      try Task.checkCancellation()
+      guard generation == epoch else { throw CancellationError() }
+      let cookies = await store.httpCookieStore.allCookies()
+      var query = URLRequest(url: current, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
+      query.httpShouldHandleCookies = false
+      query.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+      query.setValue("ClearForum/0.1", forHTTPHeaderField: "User-Agent")
+      let applicable = cookies.filter { SitePolicy.matches($0, url: current) }.sorted { $0.path.count > $1.path.count }
+      for (key, value) in HTTPCookie.requestHeaderFields(with: applicable) { query.setValue(value, forHTTPHeaderField: key) }
+      let (response, data) = try await request(query)
+      var headers: [String: String] = [:]
+      for (key, value) in response.allHeaderFields { headers[String(describing: key)] = String(describing: value) }
+      for cookie in HTTPCookie.cookies(withResponseHeaderFields: headers, for: current).filter({ SitePolicy.domainMatches($0) }) {
+        if cookie.expiresDate.map({ $0 <= Date() }) ?? false { await store.httpCookieStore.deleteCookie(cookie) }
+        else { await store.httpCookieStore.saveCookie(cookie) }
+      }
+      guard generation == epoch else { throw CancellationError() }
+      if (300..<400).contains(response.statusCode) {
+        guard let next = SitePolicy.resolve(response.value(forHTTPHeaderField: "Location"), from: current) else { throw ReaderFailure.unsupported }
+        if SitePolicy.sameOrigin(next), next.path.hasPrefix("/login") { throw ReaderFailure.login }
+        guard SitePolicy.readable(next) else { throw ReaderFailure.unsupported }
+        current = SitePolicy.withoutFragment(next)
+        continue
+      }
+      var final = URLComponents(url: current, resolvingAgainstBaseURL: false)!
+      final.fragment = url.fragment
+      let source = String(decoding: data, as: UTF8.self)
+      let finalURL = final.url ?? current
+      let status = response.statusCode
+      return try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
+    }
+    throw ReaderFailure.network
+  }
+  func posterHTML(_ url: URL) async -> String? {
+    guard MediaPolicy.posterPage(url) else { return nil }
+    var query = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 15)
+    query.httpShouldHandleCookies = false
+    query.setValue("text/html", forHTTPHeaderField: "Accept")
+    query.setValue(SitePolicy.base.absoluteString, forHTTPHeaderField: "Referer")
+    guard let (response, data) = try? await request(query, maxBytes: 2 * 1024 * 1024, htmlOnly: true), (200..<300).contains(response.statusCode) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+  func clear() async {
+    generation += 1
+    let active = Array(operations.values)
+    operations.removeAll()
+    active.forEach { $0.cancel() }
+    await withCheckedContinuation { continuation in
+      store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { continuation.resume() }
+    }
+  }
+}
+extension WKHTTPCookieStore {
+  func allCookies() async -> [HTTPCookie] { await withCheckedContinuation { continuation in getAllCookies { continuation.resume(returning: $0) } } }
+  func saveCookie(_ cookie: HTTPCookie) async { await withCheckedContinuation { continuation in setCookie(cookie) { continuation.resume() } } }
+  func deleteCookie(_ cookie: HTTPCookie) async { await withCheckedContinuation { continuation in delete(cookie) { continuation.resume() } } }
+}
+
+@MainActor
+final class PosterStore: ObservableObject {
+  private var tasks: [URL: Task<URL?, Never>] = [:]
+  private var active = 0
+  func resolve(_ block: BodyBlock, session: ForumSession) async -> URL? {
+    if let poster = block.poster { return poster }
+    guard !block.direct, let url = block.url, MediaPolicy.posterPage(url) else { return nil }
+    if let task = tasks[url] { return await task.value }
+    guard tasks.count < 128 else { return nil }
+    let task = Task { [weak self] () -> URL? in
+      guard let self else { return nil }
+      while self.active >= 2 {
+        do { try await Task.sleep(nanoseconds: 100_000_000) } catch { return nil }
+      }
+      guard !Task.isCancelled else { return nil }
+      self.active += 1
+      defer { self.active -= 1 }
+      guard let source = await session.posterHTML(url) else { return nil }
+      return ForumParser.poster(source, page: url)
+    }
+    tasks[url] = task
+    return await task.value
+  }
+  func cancel() { tasks.values.forEach { $0.cancel() }; tasks.removeAll() }
+}

@@ -91,7 +91,7 @@ class _ClearForumAppState extends State<ClearForumApp> {
   Widget build(BuildContext context) => LibraryScope(
     library: _library,
     child: MaterialApp(
-      title: 'simpcity ultimate',
+      title: 'simp lite',
       debugShowCheckedModeBanner: false,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),

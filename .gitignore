@@ -56,3 +56,5 @@ artifacts/
 *.cookies
 *session-dump*
 screenshots/
+native/build/
+native/*.xcodeproj/

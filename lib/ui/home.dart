@@ -89,7 +89,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'simpcity ultimate',
+          'simp lite',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
         ),
         actions: [

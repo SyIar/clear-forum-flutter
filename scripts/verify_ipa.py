@@ -9,5 +9,5 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     info = plistlib.loads(archive.read('Payload/Runner.app/Info.plist'))
     assert info['CFBundleIdentifier'] == 'dev.sylar.clearforum', 'Unexpected app identity'
     assert info.get('DTPlatformName') == 'iphoneos', 'Not a device build'
-    assert info['CFBundleDisplayName'] == 'simpcity ultimate', 'Unexpected app name'
-    print(f"Verified simpcity ultimate {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})")
+    assert info['CFBundleDisplayName'] == 'simp lite', 'Unexpected app name'
+    print(f"Verified simp lite {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})")

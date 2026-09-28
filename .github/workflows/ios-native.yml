@@ -1,0 +1,34 @@
+name: Build native Swift iOS app
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - run: xcodebuild -version
+      - run: python3 scripts/check_repository.py
+      - run: swift test --package-path native
+      - run: node scripts/check_media_probe.mjs
+      - run: python3 scripts/check_media_support.py
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec native/project.yml
+      - name: Compile native device app
+        run: xcodebuild -project native/SimpLite.xcodeproj -scheme SimpLite -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath native/build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=$((1000 + GITHUB_RUN_NUMBER)) build
+      - run: python3 scripts/package_native.py
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: SimpLite-native-unsigned-${{ github.run_number }}
+          path: artifacts/native/
+          if-no-files-found: error
+          retention-days: 14
