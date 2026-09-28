@@ -22,7 +22,17 @@ separate. No claim of measured frame rate or completed device A/B is made.
 
 Local verification: Dart analysis and all 65 Flutter tests passed, including the
 updated native bridge lifecycle/state test and the existing floating-reader
-large-text/scrolling test. Cloud device compilation is pending at this entry.
+large-text/scrolling test. [Actions 36421049370](https://github.com/SyIar/clear-forum-flutter/actions/runs/36421049370)
+completed successfully with Xcode 26.3, native policy/resolver checks, web
+release and device IPA validation.
+
+Delivered candidate: 0.1.0 (13), source `e44935cb04a22b7df46c76cbaa15f3f3742ff067`.
+The local IPA is `D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-13-unsigned.ipa`
+(9,792,307 bytes), SHA-256
+`f72547283855cee3a69c79f005969729707b5c9c68dbdacb95574190ffeed024`.
+The artifact and installation-directory copy match the workflow checksum; source
+and run metadata were also checked. This candidate has not yet been signed or
+installed. Build 12 remains available for device comparison.
 
 ## Scope and decision
 
