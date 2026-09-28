@@ -11,7 +11,7 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 ## 功能边界
 
 - 原生支持分类、主题列表、单行置顶、帖子楼层、分页、引用、Spoiler 和基本文本格式。
-- 首期不原生实现写操作、私信、搜索表单、视频播放器、后台推送和批量下载。
+- 不原生实现写操作、私信、搜索表单、后台推送和批量下载。视频入口与 iOS 播放器的本次新增实现见下文。
 - App 使用英文控件文案和系统字体；来源内容按原文呈现。
 - 去广告采用内容区域提取和已知广告容器过滤，不能保证识别正文中的所有推广。
 - WebView 基础过滤仅覆盖已核实的广告来源与容器；正常登录与验证码仍由用户操作。
@@ -60,7 +60,7 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 
 资料：[Flutter shared_preferences](https://pub.dev/packages/shared_preferences)。这里只保存少量个人阅读偏好，无需增加数据库或服务器同步。
 
-## 最新安装包：simpcity ultimate 0.1.0 (5)
+## 已验收安装包：simpcity ultimate 0.1.0 (5)
 
 [Actions 36383244723](https://github.com/SyIar/clear-forum-flutter/actions/runs/36383244723) 全部成功：仓库检查、Dart analyze、42 项 Flutter tests、Web release build、原生 URL/Cookie policy 检查、Xcode unsigned iOS build 与 IPA 校验。构建源码为 `ff0d15ff3d6cbbf18ad3195c45d4eea9b7c13d9b`。其中新增的最后一项回归确保不含锚点的 URL 不会多出空 `#`，避免首页手动收藏与阅读页收藏状态不一致。
 
@@ -72,7 +72,15 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 - 已在下载后校验 ZIP 完整性、device 平台、Bundle ID、display name、版本、构建源码和 SHA-256。
 - 浏览器实际验证收藏完成态、回首页显示、刷新后持久化；截图只含示例内容，保存在本地 `artifacts/simpcity-ultimate-home.png`。
 
-这份 IPA 仍是 unsigned，尚未通过 Sideloadly 安装本轮版本。手机已验收版本仍是 Clear Forum build 3；新增收藏的 iPhone 冷启动验收、真实账户阅读和嵌入视频播放不因为 CI 成功而视为通过。此次未修改自动续签缓存或桌面浏览器的登录 Cookie。
+下载制品为 unsigned。2026-09-28，用户授权后通过 Sideloadly 对该制品签名并通过 `@Wi-Fi` 安装，主窗口显示 `Done. / 100%`。用户确认 `simpcity ultimate` 能正常打开，新图标和首页 Bookmarks、Recent reading 显示正常。手机已验收版本更新为 build 5。
+
+新增收藏的 iPhone 冷启动持久化、真实账户阅读、嵌入视频播放和本次安装后的自动续签尚未单独验收；桌面浏览器登录 Cookie 未改动。
+
+## 2026-09-28：视频入口修复
+
+build 5 的视频卡片只有占位提示，确实不能播放。本次将其改为可点击入口，增加原生 `AVPlayerViewController` 和独立 WKWebView 媒体页。网页正常初始化后，观察已提供的 HTTPS 媒体地址并尝试系统播放；失败时保留 `Web player`，`Reload` 可以重新初始化。细节、Cookie 隔离及兼容性边界见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md)。
+
+本地 `flutter analyze`、46 项 Flutter tests、Node 媒体 observer 检查、仓库语言检查和 Web release build 已通过。Xcode 编译、IPA 及手机播放状态待后续记录；目标媒体站不能因单元测试通过而视为播放成功。Demo 的第二楼提供 Apple 官方 BipBop 测试流，便于手机端先验证系统播放器。
 
 ## iPhone 验收
 
@@ -82,6 +90,8 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 4. 检查普通帖子分页、引用、Spoiler 和单行置顶；验证广告容器不出现在原生界面。
 5. 冷启动后验证会话恢复。点击 Clear session 后应移除 App 自己的浏览器数据并关闭已打开阅读页面。
 6. 记录哪些路径只支持浏览器手动读取，以及哪些外部资源无法直接加载。
+7. 从首页进入示例帖子，在第二楼点击 Apple HLS 卡片；确认出现系统播放器、播放/暂停可用，Done 返回原阅读页。
+8. 对合法可访问的嵌入测试页检查初始化、系统播放、Web player 切换、Reload 和 Done。网络或媒体源失败应显示原因，不能卡在占位或无限重试。
 
 ## 资料
 

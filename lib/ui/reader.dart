@@ -29,6 +29,7 @@ class _ReaderPageState extends State<ReaderPage> {
   ReaderFailure? _failure;
   bool _loading = false;
   bool _browserOpen = false;
+  bool _mediaOpen = false;
   bool _savingBookmark = false;
   ForumPage? _recordedPage;
   ReadingLibrary? _library;
@@ -201,6 +202,35 @@ class _ReaderPageState extends State<ReaderPage> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _openMedia(BodyBlock block) async {
+    if (_mediaOpen) return;
+    if (!DeviceSession.supported) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Video playback is available in the iPhone app.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _mediaOpen = true);
+    try {
+      await (widget.source is DeviceSession
+              ? widget.source as DeviceSession
+              : DeviceSession())
+          .playMedia(block);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open this video. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _mediaOpen = false);
     }
   }
 
@@ -504,7 +534,11 @@ class _ReaderPageState extends State<ReaderPage> {
                                         .bodySmall,
                                   ),
                                 ),
-                              RichBody(blocks: post.blocks, onLink: _navigate),
+                              RichBody(
+                                blocks: post.blocks,
+                                onLink: _navigate,
+                                onMedia: _openMedia,
+                              ),
                             ],
                           ),
                         ),

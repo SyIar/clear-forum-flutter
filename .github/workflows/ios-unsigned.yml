@@ -22,6 +22,7 @@ jobs:
       - run: bash scripts/install_flutter_ci.sh
       - run: flutter pub get --enforce-lockfile
       - run: python3 scripts/check_repository.py
+      - run: node scripts/check_media_probe.mjs
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
       - run: flutter build web --release --no-pub

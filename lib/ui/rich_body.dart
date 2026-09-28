@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 
 class RichBody extends StatelessWidget {
-  const RichBody({super.key, required this.blocks, required this.onLink});
+  const RichBody({
+    super.key,
+    required this.blocks,
+    required this.onLink,
+    this.onMedia,
+  });
   final List<BodyBlock> blocks;
   final ValueChanged<Uri> onLink;
+  final ValueChanged<BodyBlock>? onMedia;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -38,7 +44,11 @@ class RichBody extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  RichBody(blocks: block.children, onLink: onLink),
+                  RichBody(
+                    blocks: block.children,
+                    onLink: onLink,
+                    onMedia: onMedia,
+                  ),
                 ],
               ),
             ),
@@ -49,7 +59,11 @@ class RichBody extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(10),
-                  child: RichBody(blocks: block.children, onLink: onLink),
+                  child: RichBody(
+                    blocks: block.children,
+                    onLink: onLink,
+                    onMedia: onMedia,
+                  ),
                 ),
               ],
             ),
@@ -65,32 +79,42 @@ class RichBody extends StatelessWidget {
               key: ValueKey(block.url),
               block: block,
             ),
-            BlockKind.embeddedMedia => Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.video_library_outlined, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          block.label,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+            BlockKind.embeddedMedia => Material(
+              color: Theme.of(context).colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: block.url == null || onMedia == null
+                    ? null
+                    : () => onMedia!(block),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.play_circle_outline, size: 28),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              block.label,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              block.url == null
+                                  ? 'No playable URL was found in this page.'
+                                  : 'Tap to open video player',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
                         ),
-                        const Text(
-                          'Playback is not supported in this reader.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
             BlockKind.link => TextButton(

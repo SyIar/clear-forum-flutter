@@ -53,6 +53,7 @@ private final class ForumSessionBridge {
   private let store = WKWebsiteDataStore.default()
   private var requests: [UUID: PageRequest] = [:]
   private var browser: ForumBrowserController?
+  private var media: MediaPlayerController?
   private var generation = 0
   init(messenger: FlutterBinaryMessenger) {
     channel = FlutterMethodChannel(name: "dev.sylar.clearforum/session", binaryMessenger: messenger)
@@ -62,6 +63,7 @@ private final class ForumSessionBridge {
       case "loadPage": self.load(call.arguments, result: result)
       case "openBrowser": self.openBrowser(call.arguments, result: result)
       case "clearSession": self.clear(result: result)
+      case "playMedia": self.playMedia(call.arguments, result: result)
       case "openExternal":
         guard let value = call.arguments as? String, let url = URL(string: value), url.scheme == "https", url.host != nil, url.user == nil, url.password == nil else { self.fail(result); return }
         UIApplication.shared.open(url, options: [:]) { opened in result(opened ? nil : FlutterError(code: "open_failed", message: "Could not open link.", details: nil)) }
@@ -119,8 +121,20 @@ private final class ForumSessionBridge {
     navigation.modalPresentationStyle = .fullScreen
     root.present(navigation, animated: true)
   }
+  private func playMedia(_ argument: Any?, result: @escaping FlutterResult) {
+    guard browser == nil, media == nil, let data = argument as? [String: Any], let value = data["url"] as? String, let url = URL(string: value), MediaPolicy.allowed(url), let direct = data["direct"] as? Bool else { fail(result); return }
+    guard let root = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows }).first(where: { $0.isKeyWindow })?.rootViewController, root.presentedViewController == nil else { fail(result); return }
+    let controller = MediaPlayerController(url: url, direct: direct) { [weak self] in
+      self?.media = nil
+      result(nil)
+    }
+    media = controller
+    let navigation = UINavigationController(rootViewController: controller)
+    navigation.modalPresentationStyle = .fullScreen
+    root.present(navigation, animated: true)
+  }
   private func clear(result: @escaping FlutterResult) {
-    guard browser == nil else { fail(result); return }
+    guard browser == nil, media == nil else { fail(result); return }
     generation += 1
     let active = Array(requests.values)
     requests.removeAll()

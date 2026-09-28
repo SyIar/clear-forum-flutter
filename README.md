@@ -12,9 +12,9 @@ A personal iOS forum reader built with Flutter. Reading pages use native Flutter
 - GET-only HTML requests restricted to known read routes on the configured origin.
 - A visible browser fallback with a user-triggered **Read page** action.
 - Ads and active page scripts are excluded from the native reading tree. Inline promotions may still need site-specific rules.
-- Images load only after a tap, without forum cookies. Video embeds, replies, messages, search forms and push notifications are not native features in this first version.
+- Images and media load only after a tap, without forum cookies. Replies, messages, search forms and push notifications are not native features in this version.
 
-Embedded frames have inert host-labelled placeholders rather than disappearing from posts. They do not execute page scripts or resolve media URLs. Native embedded-video playback remains unsupported.
+Media cards open an iOS player. Direct HTTPS media uses AVKit. Embedded pages initialize in an isolated, visible WKWebView; a media observer can hand an available HTTPS stream to AVKit. A Web player action remains available when handoff fails. Signed links are kept in memory, never in bookmarks or history. Provider compatibility requires device verification; this is not a guarantee that every embed plays or that every ad is removed. See [media behavior and limits](docs/EMBEDDED_MEDIA.md).
 
 The iOS display name and generated icon are updated; the bundle identifier remains `dev.sylar.clearforum` so a correctly re-signed update can replace the existing installation. See [branding](docs/BRANDING.md) for the icon source and generation prompt.
 

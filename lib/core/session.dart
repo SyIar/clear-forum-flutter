@@ -78,6 +78,22 @@ class DeviceSession implements PageSource {
 
   @override
   Future<void> clearSession() => _channel.invokeMethod('clearSession');
+  Future<void> playMedia(BodyBlock block) async {
+    final url = block.url;
+    if (block.kind != BlockKind.embeddedMedia ||
+        url == null ||
+        url.scheme != 'https' ||
+        url.userInfo.isNotEmpty ||
+        url.host.isEmpty ||
+        url.port != 443) {
+      throw const ReaderFailure(FailureKind.unsupported);
+    }
+    await _channel.invokeMethod('playMedia', {
+      'url': url.toString(),
+      'direct': block.directMedia,
+    });
+  }
+
   Future<void> openExternal(Uri url) async {
     if (url.scheme != 'https' || url.userInfo.isNotEmpty) return;
     await _channel.invokeMethod('openExternal', url.toString());

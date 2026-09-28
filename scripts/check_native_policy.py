@@ -3,6 +3,8 @@ import tempfile
 from pathlib import Path
 
 source = Path('ios/Runner/AppDelegate.swift').read_text()
+media_source = Path('ios/Runner/MediaPlayerController.swift').read_text()
+media_policy = 'enum MediaPolicy {' + media_source.split('enum MediaPolicy {', 1)[1].split('final class MediaPlayerController', 1)[0]
 policy = source.split('private enum SitePolicy {', 1)[1].split('private final class ForumSessionBridge', 1)[0]
 checks = r'''
 let allowed = ["https://simpcity.cr/", "https://simpcity.cr/forums/news.6/", "https://simpcity.cr/threads/topic.123/page-2", "https://simpcity.cr/threads/%E6%B5%8B%E8%AF%95.123/"]
@@ -14,8 +16,16 @@ precondition(SitePolicy.matches(cookie, url: URL(string: "https://simpcity.cr/fo
 precondition(!SitePolicy.matches(cookie, url: URL(string: "https://simpcity.cr/forums-other/")!))
 precondition(!SitePolicy.matches(cookie, url: URL(string: "https://outside.example/forums/")!))
 print("Native URL and cookie policy checks passed")
+precondition(MediaPolicy.allowed(URL(string: "https://media.example/sample.m3u8?token=synthetic")!))
+for address in ["file:///private/file", "http://media.example/a.mp4", "https://user:secret@media.example/a.mp4", "https://media.example:9443/a.mp4"] { precondition(!MediaPolicy.allowed(URL(string: address)!)) }
+precondition(!MediaPolicy.sameOrigin(URL(string: "https://ads.example/embed/")!, URL(string: "https://player.example/embed/")!))
+let mediaCookie = HTTPCookie(properties: [.name: "media", .value: "synthetic", .domain: ".media.example", .path: "/assets", .secure: "TRUE"])!
+precondition(MediaPolicy.cookieMatches(mediaCookie, URL(string: "https://cdn.media.example/assets/a.mp4")!))
+precondition(!MediaPolicy.cookieMatches(mediaCookie, URL(string: "https://media.example/assets-other/a.mp4")!))
+precondition(!MediaPolicy.cookieMatches(cookie, URL(string: "https://media.example/assets/a.mp4")!))
+print("Native media URL and cookie isolation checks passed")
 '''
 with tempfile.TemporaryDirectory(prefix='clear-forum-policy-') as directory:
     script = Path(directory) / 'policy.swift'
-    script.write_text('import Foundation\nprivate enum SitePolicy {' + policy + checks)
+    script.write_text('import Foundation\nprivate enum SitePolicy {' + policy + media_policy + checks)
     subprocess.run(['swift', str(script)], check=True)

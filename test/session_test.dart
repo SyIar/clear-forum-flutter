@@ -13,6 +13,44 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   final calls = <MethodCall>[];
   test(
+    'playback passes only the media URL and mode; unsafe URLs never reach iOS',
+    () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        return null;
+      });
+      final session = DeviceSession(channel: channel);
+      await session.playMedia(
+        BodyBlock(
+          BlockKind.embeddedMedia,
+          url: Uri.parse('https://player.example/embed/sample'),
+        ),
+      );
+      expect(calls.single.method, 'playMedia');
+      expect(calls.single.arguments, {
+        'url': 'https://player.example/embed/sample',
+        'direct': false,
+      });
+      for (final address in [
+        'http://media.example/video.mp4',
+        'https://user:secret@media.example/video.mp4',
+        'https://media.example:9443/video.mp4',
+      ]) {
+        await expectLater(
+          session.playMedia(
+            BodyBlock(
+              BlockKind.embeddedMedia,
+              url: Uri.parse(address),
+              directMedia: true,
+            ),
+          ),
+          throwsA(isA<ReaderFailure>()),
+        );
+      }
+      expect(calls.length, 1);
+    },
+  );
+  test(
     'plain saved URLs do not acquire an empty fragment when reopened',
     () async {
       messenger.setMockMethodCallHandler(

@@ -8,7 +8,7 @@ import 'package:clean_forum/core/site.dart';
 void main() {
   final parser = ForumParser();
   final base = ForumSite.base;
-  test('embeds become inert placeholders; marked ad iframes stay excluded', () {
+  test('embed URLs are preserved without executing markup or keeping ads', () {
     final page = parser.parse('''<html data-template="thread_view"><article class="message--post" id="post-1">
       <div class="message-body"><div class="bbWrapper">
         <iframe src="https://player.example/embed/sample" onload="untrusted()"></iframe>
@@ -19,9 +19,27 @@ void main() {
     expect(body.length, 2);
     expect(body.first.kind, BlockKind.embeddedMedia);
     expect(body.first.label, 'player.example');
-    expect(body.first.url, null);
+    expect(body.first.url, Uri.parse('https://player.example/embed/sample'));
+    expect(body.first.directMedia, false);
     expect(body.last.children.single.kind, BlockKind.embeddedMedia);
   });
+  test(
+    'video source children resolve and remain distinct from iframe pages',
+    () {
+      final page = parser.parse(
+        '''<html data-template="thread_view"><article class="message--post">
+      <div class="message-body"><div class="bbWrapper"><video><source src="https://media.example/sample.m3u8"></video><iframe src="" data-src="https://player.example/embed/sample"></iframe><video src="javascript:bad()"></video></div></div>
+      </article></html>''',
+        base,
+      );
+      final blocks = page.posts.single.blocks;
+      expect(blocks[0].directMedia, true);
+      expect(blocks[0].url, Uri.parse('https://media.example/sample.m3u8'));
+      expect(blocks[1].directMedia, false);
+      expect(blocks[1].url?.host, 'player.example');
+      expect(blocks[2].url, null);
+    },
+  );
   String fixture(String name) =>
       File('assets/demo/$name.html').readAsStringSync();
   Matcher failure(FailureKind kind) =>

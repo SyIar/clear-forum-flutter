@@ -222,14 +222,25 @@ class ForumParser {
       }
       if (tag == 'iframe' || tag == 'video' || tag == 'audio') {
         flush();
+        final candidates = [
+          node.attributes['src'],
+          node.attributes['data-src'],
+          if (tag != 'iframe')
+            node.querySelector('source[src]')?.attributes['src'],
+        ];
         final source = ForumSite.resolve(
-          node.attributes['src'] ?? node.attributes['data-src'],
+          candidates
+              .whereType<String>()
+              .where((value) => value.trim().isNotEmpty)
+              .firstOrNull,
           page,
         );
         blocks.add(
           BodyBlock(
             BlockKind.embeddedMedia,
             label: source?.host ?? 'Embedded media',
+            url: source,
+            directMedia: tag != 'iframe',
           ),
         );
         return;

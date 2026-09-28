@@ -45,12 +45,14 @@ class BodyBlock {
     this.children = const [],
     this.label = '',
     this.url,
+    this.directMedia = false,
   });
   final BlockKind kind;
   final List<TextRun> runs;
   final List<BodyBlock> children;
   final String label;
   final Uri? url;
+  final bool directMedia;
 }
 
 class ForumPost {
