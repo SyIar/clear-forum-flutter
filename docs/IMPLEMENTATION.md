@@ -112,6 +112,21 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 
 ## iPhone 验收
 
+## 最新诊断包：simpcity ultimate 0.1.0 (8)
+
+[Actions 36390947988](https://github.com/SyIar/clear-forum-flutter/actions/runs/36390947988) 全部成功：53 项 Flutter tests、Dart analyze、Node observer 检查、Web release build、原生 URL/Cookie policy、新增 Swift resolver/diagnostic 检查、Xcode build 和 IPA 校验。
+
+- 构建源码：b5bebd7c3367e744d7dea87b34dbb9a6a818931d。
+- Xcode：26.3 / 17C529；Bundle ID 保持 dev.sylar.clearforum。
+- 本地安装包：D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-8-unsigned.ipa。
+- 大小：9,699,845 bytes。
+- SHA-256：9aec62ee4cc56516fc8f15f886c8464937f23cec3e2d70d36757e91b61b269dc。
+- 下载后核对 ZIP、必要资源、App identity、device 平台、版本、source commit 和校验值；复制到安装目录后再次核对 hash。
+
+此版本加入 turbo 专用解析、原生等待/失败界面和 Details 诊断。真实 iPhone 播放尚未验收。Sideloadly 已识别同一手机的 USB/Wi-Fi 接口及原签名账号；文件弹窗的自动填写失败，已请求用户选好 build 8，再继续签名安装。尚不能标记已安装或已播放成功。
+
+## iPhone 验收步骤
+
 最新界面改动：视频改为左缩略图、右侧独立 Tap to play；普通图片自动加载，支持 loading、失败重试、连续图片自适应排列和点击缩放。当前本地 53 项 Flutter tests、Dart analyze、仓库检查及 Web release build 已通过。具体行为与 turbo 播放限制见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md) 最新一节；新 IPA 的构建和真机验收单独记录。
 
 1. 安装后选择 Open forum；可阅读公开页面，受限页面提示登录或打开浏览器。
@@ -122,6 +137,7 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 6. 记录哪些路径只支持浏览器手动读取，以及哪些外部资源无法直接加载。
 7. 从首页进入示例帖子，在第二楼点击 Apple HLS 卡片；确认出现系统播放器、播放/暂停可用，Done 返回原阅读页。
 8. 对合法可访问的嵌入测试页检查初始化、系统播放、Web player 切换、Reload 和 Done。网络或媒体源失败应显示原因，不能卡在占位或无限重试。
+9. build 8 首先用正常播放入口检查 turbo。失败时打开 Details → Copy，核对 build=8、provider-page/sign 的 HTTP/MIME、avkit 与 media-error 的 domain/code；不要把 readyToPlay 当作已播放。Web player 是显式的人工验证/兼容入口，仍可能出现站点广告。
 
 ## 资料
 
