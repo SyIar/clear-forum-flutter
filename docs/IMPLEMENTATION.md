@@ -97,6 +97,19 @@ build 5 的视频卡片只有占位提示，确实不能播放。本次将其改
 
 安装后，用户反馈非 `turbo.cr` 视频能正常打开；`turbo.cr` 能显示封面，点击播放后出现广告。截图上方仍显示 `Opening system player...`，没有证明系统播放器成功播放该来源。非 turbo 来源的完整列表、Apple 示例流和自动续签未单独验收。针对广告与封面卡片的后续调研见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md)。
 
+## 最新安装包：simpcity ultimate 0.1.0 (7)
+
+[Actions 36389099446](https://github.com/SyIar/clear-forum-flutter/actions/runs/36389099446) 全部成功：Dart analyze、53 项 Flutter tests、Node observer 检查、Web release build、原生 URL/Cookie policy 检查、Xcode unsigned iOS build 和 IPA 校验。
+
+- 构建源码：`afba30e288cd5b63b7134499de852d2f45690e27`。
+- Xcode：26.3 / 17C529；Bundle ID 保持 `dev.sylar.clearforum`。
+- 本地安装包：`D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-7-unsigned.ipa`。
+- SHA-256：`abb4853533ead485a3575e8cb1294b44fc07a0d8034f408757a4421182a28812`。
+- 下载后验证 ZIP、必要资源、Bundle ID、display name、device 平台、版本、source commit 与 SHA-256；复制到安装目录后再次核对 hash。
+- Chrome 390 × 844 深色示例页确认卡片左右布局、普通图片自动展示、双图并排、长图上限和正文顺序，console 无 error/warn。截图仅含本地抽象示例，保存于被 Git 忽略的 `artifacts/media-layout-phone.png`；测试中的窄屏大字体、加载、重试和缩放也已通过。
+
+build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机体验仍需安装后验收；本版没有宣称修复 turbo 广告或原生接管问题。
+
 ## iPhone 验收
 
 最新界面改动：视频改为左缩略图、右侧独立 Tap to play；普通图片自动加载，支持 loading、失败重试、连续图片自适应排列和点击缩放。当前本地 53 项 Flutter tests、Dart analyze、仓库检查及 Web release build 已通过。具体行为与 turbo 播放限制见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md) 最新一节；新 IPA 的构建和真机验收单独记录。
