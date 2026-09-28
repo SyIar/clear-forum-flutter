@@ -21,7 +21,19 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 
 初始版本已通过本地 Dart analyze、23 项 Flutter tests 和 Web release build。Chrome 390 x 844 预览检查了分类、单行置顶和紧凑楼层。后续补充了分页失败重试及示例菜单的回归检查，并补齐 iOS 导航图标字体。
 
-首轮 [Actions 36379442764](https://github.com/SyIar/clear-forum-flutter/actions/runs/36379442764) 已通过 Linux 验证和 macOS unsigned iOS 构建，包括原生 URL/Cookie policy 检查。最终交付构建与校验值在完成后另行记录。
+最终交付 [Actions 36379932292](https://github.com/SyIar/clear-forum-flutter/actions/runs/36379932292) 已成功：Dart analyze、25 项 Flutter tests、Web release build、原生 URL/Cookie policy 检查、Xcode unsigned iOS build 和 IPA 校验全部通过。
+
+| 项目 | 结果 |
+|---|---|
+| App | Clear Forum 0.1.0 (3) |
+| Bundle ID | `dev.sylar.clearforum` |
+| 构建源码 | `cb57b8976a21bd91411499057091776e81ca8c86` |
+| Xcode | 26.3，Build 17C529 |
+| 签名状态 | unsigned，需要在本地签名后安装 |
+| 本地安装包 | `D:\workspace\sideloadly-setup\ClearForum-unsigned.ipa` |
+| SHA-256 | `96d867830442521eca9e11290f13998b11d6ab4fef09d5a794377a9aa929bb06` |
+
+下载后已再次验证 ZIP 完整性、App 必要文件、Bundle ID、版本与校验值。CI 额外确认 device 平台和 arm64。没有执行手机安装。
 
 真实 iPhone 登录、Cookie 持久化、站点分页和外部图片加载尚未验收。当前未把桌面浏览器 Cookie 导入 App，也没有修改现有 Tieba Lite。
 
