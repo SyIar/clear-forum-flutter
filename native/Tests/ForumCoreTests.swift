@@ -122,6 +122,10 @@ final class ForumCoreTests: XCTestCase {
     let source = #"<html data-template="forum_view"><div class="structItem--thread"><div class="structItem-cell--icon"><a class="dcThumbnail"><img style="background-image: url(https://images.example/cover.jpg); background-size: cover" src="data:image/png;base64,placeholder"></a></div><div class="structItem-title"><a href="/threads/example.123/">Example</a></div><div class="structItem-cell--icon structItem-cell--iconEnd"><img src="https://images.example/latest-avatar.jpg"></div></div></html>"#
     let page = try ForumParser().parse(source, url: URL(string: "https://simpcity.cr/forums/example.12/")!)
     XCTAssertEqual(page.entries.first?.thumbnail?.absoluteString, "https://images.example/cover.jpg")
+    let legacyHTTP = source.replacingOccurrences(of: "https://images.example/cover.jpg", with: "http://images.example:80/cover.jpg?v=1")
+    XCTAssertEqual(try ForumParser().parse(legacyHTTP, url: page.url).entries.first?.thumbnail?.absoluteString, "https://images.example/cover.jpg?v=1")
+    let credentialURL = source.replacingOccurrences(of: "https://images.example/cover.jpg", with: "http://user:pass@images.example/cover.jpg")
+    XCTAssertNil(try ForumParser().parse(credentialURL, url: page.url).entries.first?.thumbnail)
     let fallback = source.replacingOccurrences(of: "background-image: url(https://images.example/cover.jpg); background-size: cover", with: "")
       .replacingOccurrences(of: "src=\"data:image/png;base64,placeholder\"", with: "data-src=\"/lazy.jpg\" src=\"data:image/png;base64,placeholder\"")
     XCTAssertEqual(try ForumParser().parse(fallback, url: page.url).entries.first?.thumbnail?.path, "/lazy.jpg")

@@ -35,4 +35,8 @@ Live authenticated counts and touch arbitration remain pending physical-device a
 
 The user's open directory DOM was inspected on 2026-09-28. Its `.structItem-cell--icon .dcThumbnail img` uses a transparent `data:` placeholder in `src`; the real cover is the inline `background-image` URL. The parser now reads that URL, then lazy/normal image attributes, and excludes `.structItem-cell--iconEnd` (the latest poster's avatar). Native rows load the cover automatically, show progress and preserve the compact pinned-row presentation.
 
+Six of the inspected 21 rows contained legacy HTTP cover URLs. Thumbnail resolution upgrades these URLs to HTTPS, retaining their path/query and rejecting credentials or nonstandard HTTP ports. The app does not disable App Transport Security or fall back to insecure image requests.
+
+A representative legacy CDN URL returned HTTP 200 with `Content-Type: image/jpeg` to an HTTPS HEAD request with the forum Referer and a browser-compatible User-Agent. Directory thumbnail requests use those headers without cookies; media posters and body-image requests retain their previous defaults. This verifies URL/header compatibility, not rendering on the iPhone.
+
 The first `.p-breadcrumbs` trail is rendered as a compact, horizontally scrollable native button row in both forum and thread views. Internal readable destinations retain their category fragments. Root category anchors come from `.block--category .u-anchorTarget[id]`; navigation scrolls to the first forum in that category. The user clarified that this request concerns the hierarchy trail, not the numeric page navigation, whose layout is unchanged. No browser cookies or raw authenticated page dumps are committed.

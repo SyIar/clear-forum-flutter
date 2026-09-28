@@ -15,7 +15,7 @@ struct ForumThumbnail: View {
     }.frame(width: compact ? 28 : 72, height: compact ? 28 : 50)
       .clipShape(RoundedRectangle(cornerRadius: compact ? 6 : 9))
       .accessibilityHidden(true)
-      .task(id: url) { loading = true; image = await ImageStore.shared.load(url); loading = false }
+      .task(id: url) { loading = true; image = await ImageStore.shared.load(url, referer: SitePolicy.base); loading = false }
   }
 }
 
@@ -180,14 +180,15 @@ final class ImageStore {
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
   init() { cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80 }
-  func load(_ url: URL) async -> UIImage? {
+  func load(_ url: URL, referer: URL? = nil) async -> UIImage? {
     if let image = cache.object(forKey: url as NSURL) { return image }
     if let task = tasks[url] { return await task.value }
     let task = Task { () -> UIImage? in
       guard MediaPolicy.allowed(url) else { return nil }
       var request = URLRequest(url: url, timeoutInterval: 25)
       request.httpShouldHandleCookies = false
-      request.setValue(url.deletingLastPathComponent().absoluteString, forHTTPHeaderField: "Referer")
+      request.setValue((referer ?? url.deletingLastPathComponent()).absoluteString, forHTTPHeaderField: "Referer")
+      if referer != nil { request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent") }
       let config = URLSessionConfiguration.ephemeral
       config.httpCookieStorage = nil
       config.urlCredentialStorage = nil

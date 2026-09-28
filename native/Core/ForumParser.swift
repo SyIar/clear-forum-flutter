@@ -85,12 +85,24 @@ struct ForumParser {
       let style = (try? node.attr("style")) ?? ""
       if let regex = try? NSRegularExpression(pattern: #"(?i)background(?:-image)?\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)"#),
          let match = regex.firstMatch(in: style, range: NSRange(style.startIndex..., in: style)),
-         let range = Range(match.range(at: 1), in: style), let url = SitePolicy.resolve(String(style[range]), from: page) { return url }
+         let range = Range(match.range(at: 1), in: style), let url = thumbnailURL(String(style[range]), page: page) { return url }
       for attribute in ["data-src", "src"] {
-        if let url = SitePolicy.resolve(try? node.attr(attribute), from: page) { return url }
+        if let url = thumbnailURL(try? node.attr(attribute), page: page) { return url }
       }
     }
     return nil
+  }
+  private func thumbnailURL(_ value: String?, page: URL) -> URL? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
+          let candidate = URL(string: value, relativeTo: page)?.absoluteURL else { return nil }
+    if candidate.scheme == "http" {
+      guard candidate.port == nil || candidate.port == 80 else { return nil }
+      var parts = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!
+      parts.scheme = "https"
+      parts.port = nil
+      return SitePolicy.resolve(parts.url?.absoluteString, from: page)
+    }
+    return SitePolicy.resolve(candidate.absoluteString, from: page)
   }
   private func ratio(_ node: Element) -> Double? {
     guard let w = Double((try? node.attr("width")) ?? ""), let h = Double((try? node.attr("height")) ?? ""),
