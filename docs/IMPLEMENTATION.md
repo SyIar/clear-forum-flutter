@@ -93,7 +93,9 @@ build 5 的视频卡片只有占位提示，确实不能播放。本次将其改
 - SHA-256：`e59c467f08fd3dc8fa5a6cdfa092653f9d284ebc0693c326adcc56cf89df9dfd`。
 - 下载后再次核对 ZIP、Bundle ID、display name、device 平台、版本、构建源码、SHA-256 与 `MediaProbe.js` 资源存在；复制到安装目录后再次核对文件 hash。
 
-build 6 尚未签名安装。手机已验收版本仍是 build 5；Apple 示例流和实际媒体站的真机播放均待验证。通过编译不代表任何外部媒体站已能播放，也不代表已完全去除媒体页广告。
+2026-09-28，用户连接 USB 并授权安装。安装前重新核对 build 6 IPA 的 SHA-256；Sideloadly 文件选择框确认 `SimpcityUltimate-0.1.0-6-unsigned.ipa`，使用原签名账户及 `@USB` 设备开始安装，从 0% 进入 `Done. / 100%`。build 6 已完成签名和 USB 安装。
+
+build 6 的 App 启动、Apple 示例流和实际媒体站真机播放等待用户验证。安装成功不代表外部媒体站已能播放，也不代表已完全去除媒体页广告；本次未单独验收自动续签。
 
 ## iPhone 验收
 
