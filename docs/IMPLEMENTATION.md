@@ -80,7 +80,20 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 
 build 5 的视频卡片只有占位提示，确实不能播放。本次将其改为可点击入口，增加原生 `AVPlayerViewController` 和独立 WKWebView 媒体页。网页正常初始化后，观察已提供的 HTTPS 媒体地址并尝试系统播放；失败时保留 `Web player`，`Reload` 可以重新初始化。细节、Cookie 隔离及兼容性边界见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md)。
 
-本地 `flutter analyze`、46 项 Flutter tests、Node 媒体 observer 检查、仓库语言检查和 Web release build 已通过。Xcode 编译、IPA 及手机播放状态待后续记录；目标媒体站不能因单元测试通过而视为播放成功。Demo 的第二楼提供 Apple 官方 BipBop 测试流，便于手机端先验证系统播放器。
+本地 `flutter analyze`、46 项 Flutter tests、Node 媒体 observer 检查、仓库语言检查和 Web release build 已通过。电脑浏览器已检查示例帖新增卡片显示，桌面预览不运行 iOS 播放器。Demo 的第二楼提供 Apple 官方 BipBop 测试流，便于手机端先验证系统播放器。
+
+## 最新安装包：simpcity ultimate 0.1.0 (6)
+
+[Actions 36386143295](https://github.com/SyIar/clear-forum-flutter/actions/runs/36386143295) 全部成功：Dart analyze、46 项 Flutter tests、Node observer 检查、Web release build、原生 URL/Cookie policy 检查、Xcode unsigned iOS build 和 IPA 校验。
+
+- 构建源码：`20795bc6d77b70b1c0e542ec6ef29838ab4b4dcb`。
+- Xcode：26.3 / 17C529。
+- 安装包：`D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-6-unsigned.ipa`。
+- 大小：9,628,187 bytes。
+- SHA-256：`e59c467f08fd3dc8fa5a6cdfa092653f9d284ebc0693c326adcc56cf89df9dfd`。
+- 下载后再次核对 ZIP、Bundle ID、display name、device 平台、版本、构建源码、SHA-256 与 `MediaProbe.js` 资源存在；复制到安装目录后再次核对文件 hash。
+
+build 6 尚未签名安装。手机已验收版本仍是 build 5；Apple 示例流和实际媒体站的真机播放均待验证。通过编译不代表任何外部媒体站已能播放，也不代表已完全去除媒体页广告。
 
 ## iPhone 验收
 
