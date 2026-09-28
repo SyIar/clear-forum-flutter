@@ -71,13 +71,31 @@ regressions remain in the suite.
 
 Local checks on 2026-09-28 passed: Dart analysis, all 65 Flutter tests, media
 observer checks, repository policy scan (104 files), and diff whitespace checks.
-Native compilation and device visual acceptance are still pending at this point.
+The web release build and light/dark fallback preview also passed. The preview
+does not show native UIKit optical rendering.
 Build 11 was cancelled when the user added the player toolbar changes, before
 delivery. The next build contains both the reader pager and player toolbar.
 
 The user reports manually installing the previous IPA and accepting non-Turbo
 playback and the other page changes. The installed build number was not read.
 That acceptance does not yet cover the new Liquid Glass surfaces.
+
+## Build 12 delivery
+
+[Actions 36416967331](https://github.com/SyIar/clear-forum-flutter/actions/runs/36416967331)
+completed successfully, including all 65 Flutter tests, Dart analysis, repository
+checks, web release, native policy/resolver checks, Xcode 26.3 compilation and IPA
+verification. Source: `40953f9d44b4dd8954695fd7f6c6b45ee6af3ac7`.
+
+- App: `simpcity ultimate` 0.1.0 (12), `dev.sylar.clearforum`.
+- IPA: `D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-12-unsigned.ipa`.
+- Size: 9,773,475 bytes.
+- SHA-256: `3a15fb2fa35cdc07a40d192761f5f507448355b22ad3f7406b70617a17a940d7`.
+- Downloaded ZIP, required components, identity, device platform, build number,
+  source/run metadata and checksum were verified. The install-directory copy was
+  checked against the same checksum.
+- Unsigned artifact, for the existing Sideloadly signing workflow. Build 12 has
+  not been installed or visually accepted on the iPhone in this turn.
 
 ## Sources
 

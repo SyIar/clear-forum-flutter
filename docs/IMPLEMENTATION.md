@@ -150,9 +150,23 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 4. 检查普通帖子分页、引用、Spoiler 和单行置顶；验证广告容器不出现在原生界面。
 5. 冷启动后验证会话恢复。点击 Clear session 后应移除 App 自己的浏览器数据并关闭已打开阅读页面。
 6. 记录哪些路径只支持浏览器手动读取，以及哪些外部资源无法直接加载。
-7. 从首页进入示例帖子，在第二楼点击 Apple HLS 卡片；确认出现系统播放器、播放/暂停可用，Done 返回原阅读页。
-8. 对合法可访问的嵌入测试页检查初始化、系统播放、Web player 切换、Reload 和 Done。网络或媒体源失败应显示原因，不能卡在占位或无限重试。
-9. build 8 首先用正常播放入口检查 turbo。失败时打开 Details → Copy，核对 build=8、provider-page/sign 的 HTTP/MIME、avkit 与 media-error 的 domain/code；不要把 readyToPlay 当作已播放。Web player 是显式的人工验证/兼容入口，仍可能出现站点广告。
+7. 从首页进入示例帖子，在第二楼点击 Apple HLS 卡片；确认出现系统播放器、播放/暂停可用，左侧返回图标回到原阅读页。
+8. 对合法可访问的嵌入测试页检查初始化、系统播放、Web player 切换、右侧刷新图标和左侧返回图标。网络或媒体源失败应显示原因，不能卡在占位或无限重试。
+9. 旧 build 8 的 Details → Copy 仅用于历史诊断；新的玻璃版已移除该入口。正常播放不能只以 readyToPlay 为准。Web player 是显式的人工验证/兼容入口，仍可能出现站点广告。
+
+## 2026-09-28：用户自行安装旧包并验收
+
+用户明确报告已经手动安装旧版，非 turbo 视频与其他页面效果验收成功。本轮没有读取手机上的 build number，也没有再次安装旧包。前面的“待安装/验收”是构建交付时的历史状态。原生 Liquid Glass 分页栏与播放器返回/刷新按钮属于后续新改动，详见 [NATIVE_GLASS.md](NATIVE_GLASS.md)，需单独构建和验收。
+
+## 当前候选包：simpcity ultimate 0.1.0 (12)
+
+原生玻璃版已由 [Actions 36416967331](https://github.com/SyIar/clear-forum-flutter/actions/runs/36416967331) 构建成功，源码 `40953f9d44b4dd8954695fd7f6c6b45ee6af3ac7`。65 项 Flutter tests、Dart analyze、Web release、Swift policy/resolver 检查、Xcode 26.3 编译及 IPA 校验全部通过。
+
+- `real_liquid_glass 0.3.0` 为悬浮分页栏提供 iOS 26+ 的 `UIGlassEffect`，兼容旧 iOS 和网页降级；按钮由 Flutter 处理，底部留出安全区和滚动空间。
+- 播放器使用 UIKit 原生导航按钮：左侧 `chevron.backward` 返回帖子，右侧仅保留 `arrow.clockwise` 刷新；移除 `Details` 入口、弹窗及提示文案。
+- 本地 IPA：`D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-12-unsigned.ipa`，9,773,475 bytes。
+- SHA-256：`3a15fb2fa35cdc07a40d192761f5f507448355b22ad3f7406b70617a17a940d7`。下载和复制后均完成核对。
+- build 11 因追加播放器需求取消；build 12 本轮未安装，真实 Liquid Glass 光学效果仍需手机验收。
 
 ## 资料
 
