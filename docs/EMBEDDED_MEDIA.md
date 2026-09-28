@@ -46,4 +46,6 @@
 
 使用 `tool/inspect_html.dart` 对该快照实际运行同一 `ForumParser`，输出仅包含结构计数：18 个原始楼层解析为 18 个楼层，10 个正文 iframe 转为 10 个 `embeddedMedia` 占位，73 个图片块，0 个空楼层，页码 5。没有下载或播放媒体。
 
+额外结构检查：这份外层 HTML 有 10 个 iframe，但 `video` 和 `source` 元素均为 0。子 frame 的 `currentSrc` 不会自动包含在论坛外层 `outerHTML` 中，因此仅解析当前这份 HTML 无法完成用户脚本所做的地址读取。
+
 `Read page` 导出和 Dart parser 不再一律丢弃 iframe。渲染仅显示来源 host 及未支持播放的提示，不加载 iframe 或执行脚本，已知广告容器仍剔除。完整签名媒体地址不会保存在模型或收藏夹。这修复了内容静默消失，但不代表原生视频播放已完成。

@@ -13,6 +13,22 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   final calls = <MethodCall>[];
   test(
+    'plain saved URLs do not acquire an empty fragment when reopened',
+    () async {
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => {
+          'status': 200,
+          'html': File('assets/demo/thread.html').readAsStringSync(),
+        },
+      );
+      final target = ForumSite.base.resolve('/threads/sample.1/');
+      final page = await DeviceSession(channel: channel).load(target);
+      expect(page.url, target);
+      expect(page.url.hasFragment, false);
+    },
+  );
+  test(
     'post anchors survive reading but are never sent in HTTP requests',
     () async {
       messenger.setMockMethodCallHandler(channel, (call) async {
