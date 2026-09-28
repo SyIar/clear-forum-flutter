@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import 'core/session.dart';
 import 'ui/reader.dart';
 
-void main() => runApp(const ClearForumApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    WidgetsBinding.instance.ensureSemantics();
+  }
+  runApp(const ClearForumApp());
+}
 
 class ClearForumApp extends StatelessWidget {
   const ClearForumApp({super.key});
