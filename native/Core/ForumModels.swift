@@ -23,6 +23,12 @@ struct ForumEntry: Identifiable {
   var pinned = false
   var thumbnail: URL?
   var sectionAnchor: String?
+  var tags: [ForumTag] = []
+}
+struct ForumTag: Identifiable {
+  var id: String { url.absoluteString + ":" + title }
+  let title: String
+  let url: URL
 }
 struct TextRun {
   var text: String
@@ -62,6 +68,7 @@ struct ForumPage {
   var lastPage: URL?
   var maximumPostNumber: Int?
   var breadcrumbs: [ForumEntry] = []
+  var tags: [ForumTag] = []
 }
 
 extension SitePolicy {

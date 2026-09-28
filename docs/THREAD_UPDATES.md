@@ -40,3 +40,11 @@ Six of the inspected 21 rows contained legacy HTTP cover URLs. Thumbnail resolut
 A representative legacy CDN URL returned HTTP 200 with `Content-Type: image/jpeg` to an HTTPS HEAD request with the forum Referer and a browser-compatible User-Agent. Directory thumbnail requests use those headers without cookies; media posters and body-image requests retain their previous defaults. This verifies URL/header compatibility, not rendering on the iPhone.
 
 The first `.p-breadcrumbs` trail is rendered as a compact, horizontally scrollable native button row in both forum and thread views. Internal readable destinations retain their category fragments. Root category anchors come from `.block--category .u-anchorTarget[id]`; navigation scrolls to the first forum in that category. The user clarified that this request concerns the hierarchy trail, not the numeric page navigation, whose layout is unchanged. No browser cookies or raw authenticated page dumps are committed.
+
+## Clickable title tags
+
+Directory `.structItem-title .labelLink` and thread `h1.p-title-value .labelLink` are preserved as compact clickable tag strips before the title. Tags have independent buttons rather than nesting buttons in a thread-row button. Header tags are removed from the plain title to avoid duplicate text in the title, bookmarks and history.
+
+Live DOM verification showed `?prefix_id[0]=N` in directory links and `?prefix_id=N` in thread-heading links. These are XenForo forum prefix filters, not arbitrary text searches. Both forms are accepted only on read-only forum routes with bounded numeric values; existing rejection of mutations, foreign origins and duplicate query keys remains. A live `News` prefix link returned the expected one-thread `forum_view`, so the result remains in the native reader. Pagination retains the filter query.
+
+Additional device acceptance: tap a tag in each view, verify the filtered native directory, navigate its pages if present, and use Back to return to the original thread/list. Long tag lists scroll horizontally without widening the page.

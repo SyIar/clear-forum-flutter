@@ -42,6 +42,7 @@ struct ReaderView: View {
                 }
               }.scrollIndicators(.hidden).accessibilityLabel("Forum navigation")
             }
+            if !page.tags.isEmpty { ForumTagStrip(tags: page.tags, navigate: navigate) }
             Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
             Text(page.loggedIn ? "Signed in" : "Guest").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
@@ -50,21 +51,7 @@ struct ReaderView: View {
               }
             } else {
               ForEach(page.entries) { entry in
-                Button { destination = ReaderDestination(url: entry.url) } label: {
-                  HStack(spacing: 10) {
-                    if let thumbnail = entry.thumbnail {
-                      ForumThumbnail(url: thumbnail, compact: entry.pinned)
-                    } else {
-                      Image(systemName: entry.pinned ? "pin.fill" : (page.kind == .forums ? "folder" : "text.bubble")).foregroundStyle(.blue)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                      Text(entry.title).font(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
-                      if !entry.pinned && !entry.subtitle.isEmpty { Text(entry.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                  }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-                }.buttonStyle(.plain).id(entry.id)
+                ForumEntryCard(entry: entry, isForum: page.kind == .forums, navigate: navigate).id(entry.id)
               }
               if page.entries.isEmpty { ContentUnavailableView("No threads yet", systemImage: "tray") }
             }

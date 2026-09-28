@@ -1,6 +1,47 @@
 import SwiftUI
 import ImageIO
 
+struct ForumTagStrip: View {
+  let tags: [ForumTag]
+  let navigate: (URL) -> Void
+  var body: some View {
+    ScrollView(.horizontal) {
+      HStack(spacing: 5) {
+        ForEach(tags) { tag in
+          Button { navigate(tag.url) } label: {
+            Text(tag.title).font(.caption2.weight(.semibold)).lineLimit(1)
+              .padding(.horizontal, 7).padding(.vertical, 5)
+              .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+          }.buttonStyle(.plain).foregroundStyle(.blue).accessibilityLabel("Filter by \(tag.title)")
+        }
+      }.padding(.vertical, 2)
+    }.scrollIndicators(.hidden)
+  }
+}
+
+struct ForumEntryCard: View {
+  let entry: ForumEntry
+  let isForum: Bool
+  let navigate: (URL) -> Void
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if !entry.tags.isEmpty { ForumTagStrip(tags: entry.tags, navigate: navigate) }
+      Button { navigate(entry.url) } label: {
+        HStack(spacing: 10) {
+          if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
+          else { Image(systemName: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
+          VStack(alignment: .leading, spacing: 4) {
+            Text(entry.title).font(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
+            if !entry.pinned && !entry.subtitle.isEmpty { Text(entry.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+          }
+          Spacer(minLength: 0)
+          Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+      }.buttonStyle(.plain)
+    }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+  }
+}
+
 struct ForumThumbnail: View {
   let url: URL
   var compact = false

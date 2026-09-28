@@ -5,7 +5,10 @@ struct ForumParser {
   private let unwanted = "script,style,object,embed,input,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]"
   func parse(_ source: String, url: URL, status: Int = 200) throws -> ForumPage {
     let doc = try SwiftSoup.parse(source)
-    let title = text(try doc.select("h1.p-title-value").first())
+    let heading = try doc.select("h1.p-title-value").first()
+    let headingTags = try tags(heading, page: url)
+    try heading?.select(".labelLink,.label-append").remove()
+    let title = text(heading)
     let template = try doc.select("html").first()?.attr("data-template") ?? ""
     let pageTitle = text(try doc.select("title").first()).lowercased()
     if status == 429 { throw ReaderFailure.rateLimit }
@@ -35,7 +38,8 @@ struct ForumParser {
       guard let link = SitePolicy.resolve(try anchor?.attr("href"), from: url, internalOnly: true), seen.insert(link.absoluteString).inserted else { continue }
       threads.append(ForumEntry(title: text(anchor), url: link,
                                 subtitle: text(try row.select(".structItem-minor .username").first()),
-                                pinned: try !row.select(".structItem-status--sticky").isEmpty(), thumbnail: thumbnail(row, page: url)))
+                                pinned: try !row.select(".structItem-status--sticky").isEmpty(), thumbnail: thumbnail(row, page: url),
+                                tags: try tags(row.select(".structItem-title").first(), page: url)))
     }
     var forums: [ForumEntry] = []
     for node in try doc.select(".node") {
@@ -75,9 +79,19 @@ struct ForumParser {
     return ForumPage(url: url, title: title.isEmpty ? "Forums" : title, kind: kind, entries: forums + threads, posts: posts,
                      previous: try paging("prev"), next: next, pageNumber: pageNumber,
                      loggedIn: try doc.select("html").first()?.attr("data-logged-in") == "true",
-                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs)
+                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs, tags: headingTags)
   }
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
+  private func tags(_ node: Element?, page: URL) throws -> [ForumTag] {
+    guard let node else { return [] }
+    var seen = Set<String>()
+    return try node.select(".labelLink[href]").array().compactMap { link in
+      let title = text(link)
+      guard !title.isEmpty, let url = SitePolicy.resolve(try link.attr("href"), from: page, internalOnly: true),
+            seen.insert(url.absoluteString + ":" + title).inserted else { return nil }
+      return ForumTag(title: title, url: url)
+    }
+  }
   private func thumbnail(_ row: Element, page: URL) -> URL? {
     guard let cell = try? row.select(".structItem-cell--icon:not(.structItem-cell--iconEnd)").first() else { return nil }
     let nodes = ((try? cell.select(".dcThumbnail img,.dcThumbnail,img").array()) ?? [])

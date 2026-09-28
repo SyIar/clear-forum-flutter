@@ -149,4 +149,28 @@ final class ForumCoreTests: XCTestCase {
     XCTAssertEqual(SitePolicy.threadKey(url), "123")
     XCTAssertEqual(SitePolicy.pageRoot(url), SitePolicy.threadRoot(url))
   }
+  func testClickableTagsInDirectoriesAndThreadHeadings() throws {
+    let forumURL = URL(string: "https://simpcity.cr/forums/example.12/")!
+    let row = #"<div class="structItem--thread"><div class="structItem-title"><a class="labelLink" href="/forums/example.12/?prefix_id[0]=3"><span class="label">Photo</span></a><a class="labelLink" href="/forums/example.12/?prefix_id[0]=18">Travel</a><a href="/threads/example.123/">Example</a></div></div>"#
+    let directory = try ForumParser().parse("<html data-template='forum_view'>\(row)</html>", url: forumURL)
+    XCTAssertEqual(directory.entries.first?.title, "Example")
+    XCTAssertEqual(directory.entries.first?.tags.map(\.title), ["Photo", "Travel"])
+    XCTAssertEqual(URLComponents(url: directory.entries[0].tags[0].url, resolvingAgainstBaseURL: false)?.queryItems?.first?.name, "prefix_id[0]")
+    let source = threadHTML([1]).replacingOccurrences(of: "<h1 class='p-title-value'>Example</h1>", with: "<h1 class='p-title-value'><a class='labelLink' href='/forums/example.12/?prefix_id=3'><span class='label'>Photo</span></a><span class='label-append'>&nbsp;</span>Example</h1>")
+    let thread = try ForumParser().parse(source, url: URL(string: "https://simpcity.cr/threads/example.123/")!)
+    XCTAssertEqual(thread.title, "Example")
+    XCTAssertEqual(thread.tags.map(\.title), ["Photo"])
+    XCTAssertEqual(thread.tags.first?.url.query, "prefix_id=3")
+  }
+  func testPrefixFilterAllowsReadOnlyForumQueriesAndPreservesPagination() {
+    let root = URL(string: "https://simpcity.cr/forums/example.12/?prefix_id%5B0%5D=3")!
+    let next = URL(string: "https://simpcity.cr/forums/example.12/page-2?prefix_id%5B0%5D=3")!
+    XCTAssertTrue(SitePolicy.readable(root))
+    XCTAssertTrue(SitePolicy.readable(next))
+    XCTAssertEqual(SitePolicy.pageRoot(next), root)
+    for suffix in ["prefix_id=all", "prefix_id=-1", "prefix_id[99]=3", "prefix_id[0]=3&prefix_id[0]=4", "prefix_id=3&delete=1"] {
+      XCTAssertFalse(SitePolicy.readable(URL(string: "https://simpcity.cr/forums/example.12/?\(suffix)")!))
+    }
+    XCTAssertFalse(SitePolicy.readable(URL(string: "https://simpcity.cr/threads/example.123/?prefix_id=3")!))
+  }
 }

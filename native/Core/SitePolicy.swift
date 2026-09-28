@@ -15,6 +15,8 @@ enum SitePolicy {
         guard value.range(of: #"^[1-9]\d{0,4}$"#, options: .regularExpression) != nil else { return false }
       } else if item.name == "order" {
         guard ["post_date", "last_post_date", "reaction_score"].contains(value) else { return false }
+      } else if item.name == "prefix_id" || item.name.range(of: #"^prefix_id\[(?:[0-9]|1[0-5])\]$"#, options: .regularExpression) != nil {
+        guard url.path.hasPrefix("/forums/"), value.range(of: #"^[1-9]\d{0,7}$"#, options: .regularExpression) != nil else { return false }
       } else { return false }
     }
     return true
