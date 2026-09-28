@@ -22,9 +22,10 @@ targets:
       - Core
       - ../ios/Runner/MediaSupport.swift
       - ../ios/Runner/MediaPlayerController.swift
-    resources:
-      - ../ios/Runner/Assets.xcassets
-      - ../ios/Runner/MediaProbe.js
+      - path: ../ios/Runner/Assets.xcassets
+        buildPhase: resources
+      - path: ../ios/Runner/MediaProbe.js
+        buildPhase: resources
     dependencies:
       - package: SwiftSoup
     settings:
