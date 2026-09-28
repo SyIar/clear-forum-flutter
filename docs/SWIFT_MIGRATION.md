@@ -13,6 +13,17 @@
 
 ## Execution
 
-迁移中。旧 Flutter 源码暂留作功能对照和回退依据；原生构建不能引用旧界面或启动 Flutter engine。
+`simp lite` 的首个纯原生 Swift IPA 已完成。旧 Flutter 源码暂留作功能对照和回退依据；原生构建不引用旧界面或启动 Flutter engine。
 
-先完成 simpcity ultimate，再完成 Tieba Lite 的协议、账户、数据及界面迁移。
+显示名称改为 `simp lite`，图标沿用上半部分 SIMP，下半部分改为 LITE。
+
+## Verified build
+
+- Version: `0.2.0 (1003)`.
+- Source: `a76f80b75f36c796b80c4fb16e5e11a0a0507f2b`.
+- [macOS CI](https://github.com/SyIar/clear-forum-flutter/actions/runs/36425771541): success.
+- 7 Swift core tests, media probe checks, media support checks and iPhone arm64 compilation passed.
+- Downloaded IPA SHA-256: `1635a00f7b8d2b15bb5c2e9620b52a3089d74a4a99e7e2e9b61164cd68bc441c`.
+- Local package: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1003-unsigned.ipa`.
+- Package verified: `CFBundleDisplayName=simp lite`, original bundle identifier, compiled AppIcon assets, MediaProbe.js present, no Flutter.framework/App.framework/flutter_assets, intact ZIP.
+- 尚未安装这版原生 IPA；保留的数据、登录会话、滚动和两类播放器需要真机升级验收。之前 Flutter 版本的验收不等同于此版本验收。

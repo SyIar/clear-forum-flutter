@@ -1,6 +1,6 @@
-# simpcity ultimate
+# simp lite
 
-A personal iOS forum reader built with Flutter. Reading pages use native Flutter widgets; a visible WKWebView handles sign-in and pages requiring browser interaction.
+A personal iOS forum reader built with SwiftUI, UIKit, WebKit and AVKit. The production target is `native/SimpLite.xcodeproj`, generated from `native/project.yml`; it does not load Flutter. A visible WKWebView handles sign-in and pages requiring browser interaction.
 
 ## Scope
 
@@ -8,7 +8,7 @@ A personal iOS forum reader built with Flutter. Reading pages use native Flutter
 - A local bookmark library, an add-URL action, and the ten most recently read forums or threads.
 - Thread history keeps the latest visited page. Bookmarks preserve the exact page URL and post fragment.
 - System light/dark appearance, system font, compact layout and a translucent page bar.
-- On-device WebKit session. No credentials in Dart, source control, analytics or a remote proxy.
+- On-device WebKit session. No credentials in source control, analytics or a remote proxy.
 - GET-only HTML requests restricted to known read routes on the configured origin.
 - A visible browser fallback with a user-triggered **Read page** action.
 - Ads and active page scripts are excluded from the native reading tree. Inline promotions may still need site-specific rules.
@@ -23,7 +23,9 @@ The sample mode is clearly marked and contains only invented, non-account conten
 
 ## Run and build
 
-Use Flutter 3.47.5. Run `flutter pub get`, `flutter analyze`, `flutter test`, and `flutter build web` for shared UI checks. The web build is a sample preview; live sessions run on iOS only.
+Use Xcode 26 or newer on macOS. Run `swift test --package-path native`, generate the project with `xcodegen generate --spec native/project.yml`, then build the `SimpLite` scheme. The `ios-native.yml` workflow builds and validates an unsigned device IPA. See [native migration](docs/SWIFT_MIGRATION.md) for the delivered build and device acceptance status.
+
+The old Flutter source and its workflows remain for comparison and rollback. They are not dependencies of the native target. The old web sample preview is still available through the Flutter toolchain.
 
 The manually triggered GitHub Actions workflow builds an unsigned device IPA on a standard macOS runner. Apple credentials are never used in CI. Sign the IPA locally before installing it.
 
