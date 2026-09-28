@@ -14,7 +14,7 @@ struct ForumParser {
     if status == 401 || template == "login" || url.path.hasPrefix("/login") { throw ReaderFailure.login }
     if status == 403 { throw ReaderFailure.forbidden }
     guard (200..<300).contains(status) else { throw ReaderFailure.network }
-    if template == "error" || (try !doc.select(".blockMessage--error").isEmpty()) {
+    if try template == "error" || !doc.select(".blockMessage--error").isEmpty() {
       throw try doc.select("form[action*=login]").isEmpty() ? ReaderFailure.forbidden : ReaderFailure.login
     }
     try doc.select(unwanted).remove()
@@ -107,7 +107,7 @@ struct ForumParser {
         var candidates = [try node.attr("src"), try node.attr("data-src")]
         if tag != "iframe" { candidates.append(try node.select("source[src]").first()?.attr("src") ?? "") }
         let url = SitePolicy.resolve(candidates.first { !$0.isEmpty }, from: page)
-        let poster = SitePolicy.resolve(try node.attr("poster"), from: page) ?? SitePolicy.resolve(try node.attr("data-poster"), from: page)
+        let poster = try SitePolicy.resolve(node.attr("poster"), from: page) ?? SitePolicy.resolve(node.attr("data-poster"), from: page)
         blocks.append(BodyBlock(kind: .media, label: url?.host ?? "Embedded media", url: url, poster: poster, aspectRatio: ratio(node), direct: tag != "iframe"))
         return
       }
@@ -143,7 +143,7 @@ struct ForumParser {
   }
   static func poster(_ source: String, page: URL) -> URL? {
     guard let doc = try? SwiftSoup.parse(source) else { return nil }
-    try? doc.select(".advertisement,.ad-container,.adContainer,.adsbygoogle,[data-ad-slot]").remove()
+    _ = try? doc.select(".advertisement,.ad-container,.adContainer,.adsbygoogle,[data-ad-slot]").remove()
     let primary = (try? doc.select("video#main-video").array()) ?? []
     let videos = primary.isEmpty ? ((try? doc.select("video").array()) ?? []) : primary
     var candidates: [String] = []
