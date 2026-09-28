@@ -47,13 +47,16 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     super.viewDidLoad()
     title = initialURL.host
     view.backgroundColor = .systemBackground
-    navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(close))
+    // Standard bar items receive UIKit's native Liquid Glass on iOS 26+.
+    // Keep the navigation bar's system background and touch handling intact.
+    let backButton = UIBarButtonItem(image: UIImage(systemName: "chevron.backward"), style: .plain, target: self, action: #selector(close))
+    backButton.accessibilityLabel = "Back to thread"
+    backButton.tintColor = .label
+    navigationItem.leftBarButtonItem = backButton
     let reloadButton = UIBarButtonItem(image: UIImage(systemName: "arrow.clockwise"), style: .plain, target: self, action: #selector(reload))
-    reloadButton.accessibilityLabel = "Reload"
-    navigationItem.rightBarButtonItems = [
-      UIBarButtonItem(title: "Details", style: .plain, target: self, action: #selector(showDetails)),
-      reloadButton,
-    ]
+    reloadButton.accessibilityLabel = "Refresh video"
+    reloadButton.tintColor = .label
+    navigationItem.rightBarButtonItem = reloadButton
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = store
     configuration.allowsInlineMediaPlayback = true
@@ -202,7 +205,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     playerController.view.isHidden = true
     webView.isHidden = false
     diagnostics.record("attempt", "Reload")
-    waiting("Preparing video", hint: "Please wait. Details shows playback progress.", busy: true)
+    waiting("Preparing video", hint: "Please wait for the video to load.", busy: true)
     if direct {
       startPlayer(initialURL, cookies: [])
     } else if let id = MediaPolicy.turboID(initialURL) {
@@ -220,7 +223,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private func resolveTurbo(_ id: String) {
     let epoch = generation
     waiting("Resolving video", hint: "Connecting to the video provider.", busy: true)
-    scheduleTimeout("The provider did not finish responding. Check Details and retry.", stage: "resolver")
+    scheduleTimeout("The provider did not finish responding. Please refresh to try again.", stage: "resolver")
     store.httpCookieStore.getAllCookies { [weak self] cookies in
       DispatchQueue.main.async {
         guard let self = self, self.active(epoch) else { return }
@@ -272,7 +275,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     } else {
       waiting("Opening system player", hint: "Waiting for the video to start.", busy: true)
     }
-    scheduleTimeout("The stream did not start. Check Details for the error and retry.", stage: "avkit")
+    scheduleTimeout("The stream did not start. Please refresh to try again.", stage: "avkit")
     let applicable = cookies.filter { MediaPolicy.cookieMatches($0, url) }
     let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPCookiesKey: applicable])
     let item = AVPlayerItem(asset: asset)
@@ -286,7 +289,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       guard let self = self, self.active(epoch) else { return }
       self.diagnostics.error("playback", note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? NSError)
       self.recordPlayerErrors()
-      self.fail("Playback stopped with an error. Check Details and retry.", stage: "playback")
+      self.fail("Playback stopped with an error. Please refresh to try again.", stage: "playback")
     })
     statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
       DispatchQueue.main.async {
@@ -294,7 +297,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
         if item.status == .failed {
           self.diagnostics.error("avkit", item.error as NSError?)
           self.recordPlayerErrors()
-          self.fail("The system player could not load this stream. Check Details and retry.", stage: "avkit")
+          self.fail("The system player could not load this stream. Please refresh to try again.", stage: "avkit")
         } else if item.status == .readyToPlay {
           self.diagnostics.record("avkit", "readyToPlay")
           if let frame = self.candidateFrame {
@@ -326,7 +329,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
         } else if player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
           self.statusLabel.text = "Buffering video"
           self.diagnostics.record("playback", "waitingToPlay")
-          self.scheduleTimeout("Playback stalled. Check Details and retry.", stage: "buffering")
+          self.scheduleTimeout("Playback stalled. Please refresh to try again.", stage: "buffering")
         } else if self.hasPlayed {
           self.timeout?.invalidate()
           self.statusLabel.text = "Paused"
@@ -355,7 +358,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       playerController.view.isHidden = true
       webView.isHidden = false
       webView.isUserInteractionEnabled = true
-      statusLabel.text = "Tap Play in the web player. Reload retries system playback."
+      statusLabel.text = "Tap Play in the web player. Refresh retries system playback."
       return
     }
     generation += 1
@@ -377,34 +380,8 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     playerController.view.isHidden = true
     webView.isHidden = false
     webView.isUserInteractionEnabled = true
-    statusLabel.text = "Web player. Reload retries system playback."
+    statusLabel.text = "Web player. Refresh retries system playback."
     loadWebPage()
-  }
-  @objc private func showDetails() {
-    let controller = UIViewController()
-    controller.title = "Playback details"
-    controller.view.backgroundColor = .systemBackground
-    let text = UITextView()
-    text.text = diagnostics.report
-    text.isEditable = false
-    text.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-    text.adjustsFontForContentSizeCategory = true
-    text.translatesAutoresizingMaskIntoConstraints = false
-    controller.view.addSubview(text)
-    NSLayoutConstraint.activate([
-      text.topAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.topAnchor),
-      text.bottomAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.bottomAnchor),
-      text.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 12),
-      text.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -12),
-    ])
-    controller.navigationItem.leftBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak controller] _ in
-      controller?.dismiss(animated: true)
-    })
-    controller.navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Copy", primaryAction: UIAction { [weak controller, weak text] _ in
-      UIPasteboard.general.setItems([["public.utf8-plain-text": text?.text ?? ""]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)])
-      controller?.navigationItem.rightBarButtonItem?.title = "Copied"
-    })
-    present(UINavigationController(rootViewController: controller), animated: true)
   }
   @objc private func close() {
     guard !closed else { return }
@@ -455,9 +432,9 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     guard !closed, error.code != NSURLErrorCancelled else { return }
     diagnostics.error("web", error)
     if useWeb {
-      statusLabel.text = "Web page failed to load. Check Details or Reload."
+      statusLabel.text = "Web page failed to load. Please refresh to try again."
     } else {
-      fail("Could not load the media page. Check Details and retry.", stage: "web")
+      fail("Could not load the media page. Please refresh to try again.", stage: "web")
     }
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

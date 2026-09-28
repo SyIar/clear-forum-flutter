@@ -207,7 +207,7 @@ final class TurboResolver: NSObject, URLSessionDataDelegate {
   func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
     guard !finished else { return }
     if let failure = failure { finish(.failure(failure)); return }
-    if let error = error { finish(.failure(MediaFailure(reason: "The provider request failed. Check Details and retry.", underlying: error as NSError))); return }
+    if let error = error { finish(.failure(MediaFailure(reason: "The provider request failed. Please refresh to try again.", underlying: error as NSError))); return }
     guard responseReceived else { finish(.failure(MediaFailure(reason: "No provider response was received."))); return }
     if !signing {
       signing = true

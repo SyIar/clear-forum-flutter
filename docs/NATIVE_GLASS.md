@@ -41,6 +41,22 @@ public iOS 26 `UIGlassEffect` code path, not every claimed iOS 27 setting. Actua
 refraction, Reduce Transparency, Increase Contrast, frame rate and touch behavior
 need validation on the user's iPhone. A Windows/web screenshot cannot prove them.
 
+## Native player toolbar
+
+The player remains a native `UINavigationController` and `MediaPlayerController`.
+Its leading item is now the SF Symbol `chevron.backward`, with the accessibility
+label `Back to thread`. Its only trailing item is `arrow.clockwise`, labeled
+`Refresh video`. Both are standard `.plain` UIBarButtonItems: UIKit supplies their
+Liquid Glass background and interaction on iOS 26+. Only the symbol tint is set
+to the adaptive `.label` color. No custom navigation background, manual blur,
+extra platform view or competing glass layer is introduced.
+
+The former `Done` item dismissed the modal player. The new back item calls the
+same `close()` action, including cancellation, player cleanup and completion.
+Refresh still calls `reload()`. The `Details` item and diagnostic sheet are
+removed, including their copy action; error hints now point to refresh instead.
+The bounded internal diagnostic collector and playback pipelines are unchanged.
+
 ## Validation
 
 Automated coverage checks button callbacks and disabled states, a narrow dark
@@ -56,11 +72,19 @@ regressions remain in the suite.
 Local checks on 2026-09-28 passed: Dart analysis, all 65 Flutter tests, media
 observer checks, repository policy scan (104 files), and diff whitespace checks.
 Native compilation and device visual acceptance are still pending at this point.
+Build 11 was cancelled when the user added the player toolbar changes, before
+delivery. The next build contains both the reader pager and player toolbar.
+
+The user reports manually installing the previous IPA and accepting non-Turbo
+playback and the other page changes. The installed build number was not read.
+That acceptance does not yet cover the new Liquid Glass surfaces.
 
 ## Sources
 
 - [Apple UIGlassEffect](https://developer.apple.com/documentation/uikit/uiglasseffect)
-- [Apple: adopting Liquid Glass in UIKit](https://developer.apple.com/documentation/uikit/adopting-liquid-glass)
+- [Apple: UIKit and the new design](https://developer.apple.com/videos/play/wwdc2025/284/)
+- [Apple navigation bar](https://developer.apple.com/documentation/uikit/uinavigationbar)
+- [Apple navigation controller](https://developer.apple.com/documentation/uikit/uinavigationcontroller)
 - [Flutter iOS platform views](https://docs.flutter.dev/platform-integration/ios/platform-views)
 - [real_liquid_glass package](https://pub.dev/packages/real_liquid_glass)
 - [real_liquid_glass source](https://github.com/kiddo4/real_liquid_glass)
