@@ -10,6 +10,27 @@ import 'package:clean_forum/core/site.dart';
 import 'package:clean_forum/ui/reader.dart';
 
 void main() {
+  testWidgets('failed pagination retries the requested page', (tester) async {
+    final source = _RetrySource();
+    await tester.pumpWidget(
+      MaterialApp(home: ReaderPage(source: source, demo: true)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Next page'));
+    await tester.pumpAndSettle();
+    expect(find.text('Try again'), findsOneWidget);
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(source.visited, [ForumSite.base, source.next, source.next]);
+    expect(find.text('Page 2'), findsOneWidget);
+  });
+  testWidgets('sample mode has no empty account menu', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: ReaderPage(source: _LimitedSource(), demo: true)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+  });
   testWidgets('sample navigation shows native posts without ad content', (
     tester,
   ) async {
@@ -71,6 +92,28 @@ class _LimitedSource implements PageSource {
   @override
   Future<ForumPage> load(Uri url) async =>
       throw const ReaderFailure(FailureKind.rateLimit);
+  @override
+  Future<ForumPage?> openBrowser(Uri url) async => null;
+  @override
+  Future<void> clearSession() async {}
+}
+
+class _RetrySource implements PageSource {
+  final next = ForumSite.base.resolve('/forums/sample.1/page-2');
+  final visited = <Uri>[];
+  @override
+  Future<ForumPage> load(Uri url) async {
+    visited.add(url);
+    if (visited.length == 2) throw const ReaderFailure(FailureKind.network);
+    return ForumPage(
+      url: url,
+      title: 'Sample',
+      kind: PageKind.threads,
+      next: url == next ? null : next,
+      pageNumber: url == next ? 2 : 1,
+    );
+  }
+
   @override
   Future<ForumPage?> openBrowser(Uri url) async => null;
   @override

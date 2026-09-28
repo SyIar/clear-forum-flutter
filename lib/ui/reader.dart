@@ -50,6 +50,7 @@ class _ReaderPageState extends State<ReaderPage> {
     final request = ++_request;
     final destination = target ?? _url;
     setState(() {
+      _url = destination;
       _loading = true;
       _failure = null;
     });
@@ -243,32 +244,33 @@ class _ReaderPageState extends State<ReaderPage> {
             onPressed: _openAddress,
             icon: const Icon(Icons.link),
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              switch (value) {
-                case 'login':
-                  _browser(login: true);
-                case 'site':
-                  _browser();
-                case 'clear':
-                  _signOut();
-              }
-            },
-            itemBuilder: (_) => [
-              if (!widget.demo)
-                const PopupMenuItem(value: 'login', child: Text('Sign in')),
-              if (!widget.demo)
-                const PopupMenuItem(
-                  value: 'site',
-                  child: Text('Open original page'),
-                ),
-              if (!widget.demo)
-                const PopupMenuItem(
-                  value: 'clear',
-                  child: Text('Clear session'),
-                ),
-            ],
-          ),
+          if (!widget.demo)
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                switch (value) {
+                  case 'login':
+                    _browser(login: true);
+                  case 'site':
+                    _browser();
+                  case 'clear':
+                    _signOut();
+                }
+              },
+              itemBuilder: (_) => [
+                if (!widget.demo)
+                  const PopupMenuItem(value: 'login', child: Text('Sign in')),
+                if (!widget.demo)
+                  const PopupMenuItem(
+                    value: 'site',
+                    child: Text('Open original page'),
+                  ),
+                if (!widget.demo)
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Text('Clear session'),
+                  ),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
@@ -447,7 +449,7 @@ class _ReaderPageState extends State<ReaderPage> {
               ),
             if (_failure == null && page == null && !_loading)
               const Expanded(child: Center(child: Text('Ready to read.'))),
-            if (page != null) _pager(page),
+            if (page != null && _failure == null) _pager(page),
           ],
         ),
       ),

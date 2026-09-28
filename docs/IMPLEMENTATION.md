@@ -19,7 +19,11 @@ HTTP 与 WebView 是不同的请求环境，HTTP 读取可能遇到独立验证�
 
 ## 验证状态
 
-开发中。完成检查后记录本地与 CI 结果，不提前声称 iPhone 接入成功。
+初始版本已通过本地 Dart analyze、23 项 Flutter tests 和 Web release build。Chrome 390 x 844 预览检查了分类、单行置顶和紧凑楼层。后续补充了分页失败重试及示例菜单的回归检查，并补齐 iOS 导航图标字体。
+
+首轮 [Actions 36379442764](https://github.com/SyIar/clear-forum-flutter/actions/runs/36379442764) 已通过 Linux 验证和 macOS unsigned iOS 构建，包括原生 URL/Cookie policy 检查。最终交付构建与校验值在完成后另行记录。
+
+真实 iPhone 登录、Cookie 持久化、站点分页和外部图片加载尚未验收。当前未把桌面浏览器 Cookie 导入 App，也没有修改现有 Tieba Lite。
 
 ## iPhone 验收
 
