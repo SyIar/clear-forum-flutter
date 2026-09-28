@@ -1,0 +1,83 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:clean_forum/core/models.dart';
+import 'package:clean_forum/core/session.dart';
+import 'package:clean_forum/core/site.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const channel = MethodChannel('test-session');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  final calls = <MethodCall>[];
+  tearDown(() {
+    messenger.setMockMethodCallHandler(channel, null);
+    calls.clear();
+  });
+  test('redirect to another origin never becomes a second request', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return {
+        'status': 302,
+        'location': 'https://external.example/',
+        'html': '',
+      };
+    });
+    await expectLater(
+      DeviceSession(channel: channel).load(ForumSite.base),
+      throwsA(isA<ReaderFailure>()),
+    );
+    expect(calls.length, 1);
+    expect(calls.single.arguments, 'https://simpcity.cr/');
+  });
+  test('same-origin pagination redirects are followed', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return calls.length == 1
+          ? {'status': 302, 'location': '/forums/design-notes.10/', 'html': ''}
+          : {
+              'status': 200,
+              'html': File('assets/demo/forum.html').readAsStringSync(),
+            };
+    });
+    final page = await DeviceSession(channel: channel).load(ForumSite.base);
+    expect(page.entries.length, 3);
+    expect(calls.length, 2);
+  });
+  test('login redirects result in a login prompt', () async {
+    messenger.setMockMethodCallHandler(
+      channel,
+      (_) async => {'status': 303, 'location': '/login/'},
+    );
+    await expectLater(
+      DeviceSession(channel: channel).load(ForumSite.base),
+      throwsA(
+        isA<ReaderFailure>().having((e) => e.kind, 'kind', FailureKind.login),
+      ),
+    );
+  });
+  test('redirect loops are bounded', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return {'status': 302, 'location': '/'};
+    });
+    await expectLater(
+      DeviceSession(channel: channel).load(ForumSite.base),
+      throwsA(isA<ReaderFailure>()),
+    );
+    expect(calls.length, 6);
+  });
+  test('write routes never reach the native bridge', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return null;
+    });
+    await expectLater(
+      DeviceSession(channel: channel).load(ForumSite.base.resolve('/logout/')),
+      throwsA(isA<ReaderFailure>()),
+    );
+    expect(calls, isEmpty);
+  });
+}

@@ -1,0 +1,50 @@
+name: Build unsigned iOS app
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  FLUTTER_VERSION: '3.47.5'
+  FLUTTER_REVISION: 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  CI: 'true'
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - run: bash scripts/install_flutter_ci.sh
+      - run: flutter pub get --enforce-lockfile
+      - run: python3 scripts/check_repository.py
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+      - run: flutter build web --release --no-pub
+  ios:
+    needs: verify
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - run: bash scripts/install_flutter_ci.sh
+      - run: flutter pub get --enforce-lockfile
+      - run: xcodebuild -version
+      - run: python3 scripts/check_native_policy.py
+      - run: flutter config --no-enable-swift-package-manager
+      - run: flutter build ios --release --no-codesign --no-pub --build-number "$GITHUB_RUN_NUMBER"
+      - run: bash scripts/package_ios.sh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ClearForum-iOS-unsigned-${{ github.run_number }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
