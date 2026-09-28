@@ -52,6 +52,7 @@ private final class ForumSessionBridge {
   private let channel: FlutterMethodChannel
   private let store = WKWebsiteDataStore.default()
   private var requests: [UUID: PageRequest] = [:]
+  private var posterRequests: [UUID: PageRequest] = [:]
   private var browser: ForumBrowserController?
   private var media: MediaPlayerController?
   private var generation = 0
@@ -64,6 +65,7 @@ private final class ForumSessionBridge {
       case "openBrowser": self.openBrowser(call.arguments, result: result)
       case "clearSession": self.clear(result: result)
       case "playMedia": self.playMedia(call.arguments, result: result)
+      case "mediaPosterHTML": self.mediaPosterHTML(call.arguments, result: result)
       case "openExternal":
         guard let value = call.arguments as? String, let url = URL(string: value), url.scheme == "https", url.host != nil, url.user == nil, url.password == nil else { self.fail(result); return }
         UIApplication.shared.open(url, options: [:]) { opened in result(opened ? nil : FlutterError(code: "open_failed", message: "Could not open link.", details: nil)) }
@@ -72,6 +74,27 @@ private final class ForumSessionBridge {
     }
   }
   private func fail(_ result: FlutterResult) { result(FlutterError(code: "invalid_request", message: "This request is not allowed.", details: nil)) }
+  private func mediaPosterHTML(_ argument: Any?, result: @escaping FlutterResult) {
+    guard let value = argument as? String, let url = URL(string: value), MediaPolicy.posterPage(url), posterRequests.count < 4 else { fail(result); return }
+    let id = UUID()
+    let epoch = generation
+    var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+    request.httpMethod = "GET"
+    request.httpShouldHandleCookies = false
+    request.setValue("text/html", forHTTPHeaderField: "Accept")
+    request.setValue("https://simpcity.cr/", forHTTPHeaderField: "Referer")
+    // Fetch markup only. Do not load scripts, streams, or the forum cookie store.
+    let operation = PageRequest(request: request, maxBytes: 2 * 1024 * 1024, htmlOnly: true) { [weak self] response, data, error in
+      DispatchQueue.main.async {
+        guard let self = self else { result(nil); return }
+        self.posterRequests.removeValue(forKey: id)
+        guard epoch == self.generation, error == nil, let response = response, (200..<300).contains(response.statusCode) else { result(nil); return }
+        result(String(data: data, encoding: .utf8))
+      }
+    }
+    posterRequests[id] = operation
+    operation.start()
+  }
   private func load(_ argument: Any?, result: @escaping FlutterResult) {
     guard let value = argument as? String, let url = URL(string: value), SitePolicy.readable(url), requests.count < 4 else { fail(result); return }
     let currentGeneration = generation
@@ -136,8 +159,9 @@ private final class ForumSessionBridge {
   private func clear(result: @escaping FlutterResult) {
     guard browser == nil, media == nil else { fail(result); return }
     generation += 1
-    let active = Array(requests.values)
+    let active = Array(requests.values) + Array(posterRequests.values)
     requests.removeAll()
+    posterRequests.removeAll()
     active.forEach { $0.cancel() }
     store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { result(nil) }
   }
@@ -145,19 +169,23 @@ private final class ForumSessionBridge {
 
 private final class PageRequest: NSObject, URLSessionDataDelegate {
   private let request: URLRequest
+  private let maxBytes: Int
+  private let htmlOnly: Bool
   private let completion: (HTTPURLResponse?, Data, Error?) -> Void
   private var session: URLSession?
   private var task: URLSessionDataTask?
   private var response: HTTPURLResponse?
   private var data = Data()
-  init(request: URLRequest, completion: @escaping (HTTPURLResponse?, Data, Error?) -> Void) { self.request = request; self.completion = completion }
+  init(request: URLRequest, maxBytes: Int = 8 * 1024 * 1024, htmlOnly: Bool = false, completion: @escaping (HTTPURLResponse?, Data, Error?) -> Void) {
+    self.request = request; self.maxBytes = maxBytes; self.htmlOnly = htmlOnly; self.completion = completion
+  }
   func start() {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpCookieStorage = nil
     configuration.httpShouldSetCookies = false
     configuration.urlCredentialStorage = nil
     configuration.urlCache = nil
-    configuration.timeoutIntervalForResource = 35
+    configuration.timeoutIntervalForResource = htmlOnly ? 20 : 35
     let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     self.session = session
     task = session.dataTask(with: request)
@@ -167,10 +195,11 @@ private final class PageRequest: NSObject, URLSessionDataDelegate {
   func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
   func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
     self.response = response as? HTTPURLResponse
-    completionHandler(response.expectedContentLength > 8 * 1024 * 1024 ? .cancel : .allow)
+    let validHTML = !htmlOnly || ["text/html", "application/xhtml+xml"].contains(response.mimeType?.lowercased() ?? "")
+    completionHandler(response.expectedContentLength > maxBytes || !validHTML ? .cancel : .allow)
   }
   func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-    guard self.data.count + data.count <= 8 * 1024 * 1024 else { dataTask.cancel(); return }
+    guard self.data.count + data.count <= maxBytes else { dataTask.cancel(); return }
     self.data.append(data)
   }
   func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {

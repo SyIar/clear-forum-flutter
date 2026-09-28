@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:async';
 
 import 'package:clean_forum/core/models.dart';
 import 'package:clean_forum/ui/media_widgets.dart';
@@ -47,6 +48,104 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), null);
   });
+
+  testWidgets('late image decoding never changes reserved gallery height', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final provider = _ControlledImage();
+    await tester.pumpWidget(
+      reader([picture('one'), picture('two')], (_) => provider),
+    );
+    final before = tester.getSize(find.byType(ImageGallery));
+    provider.streams.single.complete(100, 1600);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(ImageGallery)),
+      before,
+      reason: 'Loading a portrait must not regroup or grow a lazy list row',
+    );
+  });
+
+  testWidgets(
+    'long image list can scroll back to the top after rows are recycled',
+    (tester) async {
+      final provider = _ControlledImage();
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView.builder(
+              controller: controller,
+              itemCount: 20,
+              itemBuilder: (_, i) => Column(
+                children: [
+                  Text('Floor $i'),
+                  ImageGallery(
+                    blocks: [picture('item$i-a'), picture('item$i-b')],
+                    imageProvider: (_) => provider,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      provider.streams.single.complete(120, 1400);
+      await tester.pumpAndSettle();
+      controller.jumpTo(3600);
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 16 && controller.offset > 0; i++) {
+        final previous = controller.offset;
+        await tester.drag(find.byType(ListView), const Offset(0, 380));
+        await tester.pumpAndSettle();
+        expect(controller.offset, lessThan(previous));
+      }
+      expect(controller.offset, 0);
+      expect(find.text('Floor 0'), findsOneWidget);
+      expect(tester.takeException(), null);
+    },
+  );
+
+  testWidgets(
+    'metadata thumbnails load automatically without opening playback or resizing',
+    (tester) async {
+      final metadata = Completer<Uri?>();
+      final provider = _ControlledImage();
+      var plays = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MediaCard(
+              block: BodyBlock(
+                BlockKind.embeddedMedia,
+                label: 'turbo.cr',
+                url: Uri.https('turbo.cr', '/embed/sample'),
+              ),
+              posterLoader: (_) => metadata.future,
+              imageProvider: (_) => provider,
+              onPlay: () => plays++,
+            ),
+          ),
+        ),
+      );
+      final before = tester.getSize(find.byType(MediaCard));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      metadata.complete(Uri.https('images.example', '/cover.png'));
+      await tester.pump();
+      await tester.pump();
+      provider.streams.single.complete(800, 500);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byType(MediaCard)), before);
+      expect(plays, 0);
+      await tester.tap(find.text('Tap to play'));
+      expect(plays, 1);
+    },
+  );
 
   testWidgets(
     'failed images can retry and recover without reopening the page',

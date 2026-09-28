@@ -33,6 +33,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private var hasPlayed = false
   private var loggedMediaErrors = 0
   private var candidateFrame: WKFrameInfo?
+  private var genericEmbed: Bool { !direct && MediaPolicy.turboID(initialURL) == nil }
 
   init(url: URL, direct: Bool, completion: @escaping () -> Void) {
     initialURL = url
@@ -208,8 +209,12 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       // Normal provider requests run without creating a player page or ad overlay.
       resolveTurbo(id)
     } else {
+      // Some providers expose their source only after a real Play gesture.
+      waitingView.isHidden = true
+      spinner.stopAnimating()
+      webView.isUserInteractionEnabled = true
+      statusLabel.text = "Tap Play in the player below."
       loadWebPage()
-      scheduleTimeout("No playable stream was found. Check Details or open Web player.", stage: "discovery")
     }
   }
   private func resolveTurbo(_ id: String) {
@@ -262,7 +267,11 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     loggedMediaErrors = 0
     let epoch = generation
     diagnostics.record("avkit", "Preparing validated HTTPS candidate")
-    waiting("Opening system player", hint: "Waiting for the video to start.", busy: true)
+    if genericEmbed {
+      statusLabel.text = "Opening system player"
+    } else {
+      waiting("Opening system player", hint: "Waiting for the video to start.", busy: true)
+    }
     scheduleTimeout("The stream did not start. Check Details for the error and retry.", stage: "avkit")
     let applicable = cookies.filter { MediaPolicy.cookieMatches($0, url) }
     let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPCookiesKey: applicable])
@@ -336,11 +345,24 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private func fail(_ message: String, stage: String) {
     guard !closed, !failed else { return }
     diagnostics.record(stage, message)
+    if genericEmbed {
+      // Keep the initialized page and its user gesture/session intact.
+      generation += 1
+      resetPlayer()
+      useWeb = true
+      waitingView.isHidden = true
+      spinner.stopAnimating()
+      playerController.view.isHidden = true
+      webView.isHidden = false
+      webView.isUserInteractionEnabled = true
+      statusLabel.text = "Tap Play in the web player. Reload retries system playback."
+      return
+    }
     generation += 1
     failed = true
     stopWork()
     playerController.view.isHidden = true
-    // Failure never switches to an interactive advertising page.
+    // Turbo failures never switch to an interactive advertising page.
     waiting(hasPlayed ? "Playback interrupted" : "Could not start video", hint: message, busy: false)
   }
   @objc private func showWeb() {

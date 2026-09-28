@@ -45,6 +45,18 @@ class _ClearForumAppState extends State<ClearForumApp> {
         ).copyWith(
           surface: dark ? const Color(0xff080808) : Colors.white,
           primary: dark ? const Color(0xff68b2ff) : const Color(0xff066bd6),
+          surfaceContainerLow: dark
+              ? const Color(0xff101012)
+              : const Color(0xfff2f3f5),
+          surfaceContainer: dark
+              ? const Color(0xff232326)
+              : const Color(0xfff1f2f4),
+          outlineVariant: dark
+              ? const Color(0xff3a3a3e)
+              : const Color(0xffdfe1e5),
+          onSurfaceVariant: dark
+              ? const Color(0xffa7a7ad)
+              : const Color(0xff777b83),
         );
     return ThemeData(
       useMaterial3: true,

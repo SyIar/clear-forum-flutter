@@ -55,11 +55,10 @@ class ForumParser {
           date: attribution?.attributes['datetime'] ?? _text(attribution),
           number:
               article
-                  .querySelector(
-                    '.message-attribution-opposite a[href*="#post-"]',
-                  )
-                  ?.text
-                  .trim() ??
+                  .querySelectorAll('.message-attribution-opposite a')
+                  .map((a) => a.text.trim())
+                  .where((text) => RegExp(r'^#[0-9,]+$').hasMatch(text))
+                  .firstOrNull ??
               '',
           blocks: parseBody(body, url),
         ),
@@ -160,20 +159,12 @@ class ForumParser {
     return ratio.isFinite && ratio > 0 ? ratio : null;
   }
 
-  Uri? _poster(Element node, Uri page, Uri? media) {
+  Uri? _poster(Element node, Uri page) {
     for (final name in ['poster', 'data-poster']) {
       final poster = ForumSite.resolve(node.attributes[name], page);
       if (poster != null) return poster;
     }
-    if (media == null ||
-        media.port != 443 ||
-        !{'turbo.cr', 'www.turbo.cr'}.contains(media.host)) {
-      return null;
-    }
-    final match = RegExp(r'^/(?:embed|v|d)/([A-Za-z0-9_-]+)/?$')
-        .firstMatch(media.path);
-    if (match == null) return null;
-    return Uri.https('cdn.turbo.cr', '/thumbs/${match.group(1)}.jpg');
+    return null;
   }
 
   List<BodyBlock> parseBody(Element root, Uri page) {
@@ -229,6 +220,21 @@ class ForumParser {
           node.attributes.containsKey('data-ad-slot')) {
         return;
       }
+      if (node.classes.contains('bbCodeBlock--unfurl')) {
+        flush();
+        final anchor = node.querySelector('.js-unfurl-title a');
+        final url = ForumSite.resolve(anchor?.attributes['href'], page);
+        if (url != null) {
+          blocks.add(
+            BodyBlock(
+              BlockKind.link,
+              url: url,
+              label: _text(anchor).isEmpty ? url.host : _text(anchor),
+            ),
+          );
+        }
+        return;
+      }
       if (tag == 'img') {
         final alt = node.attributes['alt'] ?? '';
         if (node.classes.contains('smilie')) {
@@ -274,7 +280,7 @@ class ForumParser {
             BlockKind.embeddedMedia,
             label: source?.host ?? 'Embedded media',
             url: source,
-            posterUrl: _poster(node, page, source),
+            posterUrl: _poster(node, page),
             aspectRatio: _aspectRatio(node),
             directMedia: tag != 'iframe',
           ),

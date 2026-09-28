@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'models.dart';
+import 'media_posters.dart';
 import 'parser.dart';
 import 'site.dart';
 
@@ -78,6 +79,11 @@ class DeviceSession implements PageSource {
 
   @override
   Future<void> clearSession() => _channel.invokeMethod('clearSession');
+  Future<String?> mediaPosterHTML(Uri url) async {
+    if (!MediaPosters.supported(url)) return null;
+    return _channel.invokeMethod<String>('mediaPosterHTML', url.toString());
+  }
+
   Future<void> playMedia(BodyBlock block) async {
     final url = block.url;
     if (block.kind != BlockKind.embeddedMedia ||

@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../core/models.dart';
+import '../core/media_posters.dart';
 import 'media_widgets.dart';
 
 class RichBody extends StatelessWidget {
@@ -11,11 +12,13 @@ class RichBody extends StatelessWidget {
     required this.onLink,
     this.onMedia,
     this.imageProvider = networkImageProvider,
+    this.posterLoader,
   });
   final List<BodyBlock> blocks;
   final ValueChanged<Uri> onLink;
   final ValueChanged<BodyBlock>? onMedia;
   final ReaderImageProvider imageProvider;
+  final PosterLoader? posterLoader;
 
   Iterable<List<BodyBlock>> _groups() sync* {
     var images = <BodyBlock>[];
@@ -74,6 +77,7 @@ class RichBody extends StatelessWidget {
               onLink: onLink,
               onMedia: onMedia,
               imageProvider: imageProvider,
+              posterLoader: posterLoader,
             ),
           ],
         ),
@@ -90,6 +94,7 @@ class RichBody extends StatelessWidget {
               onLink: onLink,
               onMedia: onMedia,
               imageProvider: imageProvider,
+              posterLoader: posterLoader,
             ),
           ),
         ],
@@ -109,11 +114,47 @@ class RichBody extends StatelessWidget {
       BlockKind.embeddedMedia => MediaCard(
         block: block,
         imageProvider: imageProvider,
+        posterLoader: posterLoader,
         onPlay: onMedia == null ? null : () => onMedia!(block),
       ),
-      BlockKind.link => TextButton(
-        onPressed: block.url == null ? null : () => onLink(block.url!),
-        child: Text(block.label),
+      BlockKind.link => Material(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: block.url == null ? null : () => onLink(block.url!),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const Icon(Icons.link, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        block.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (block.url != null)
+                        Text(
+                          block.url!.host,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.open_in_new, size: 16),
+              ],
+            ),
+          ),
+        ),
       ),
     };
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/library.dart';
 import '../core/models.dart';
+import '../core/media_posters.dart';
 import '../core/session.dart';
 import '../core/site.dart';
 import 'rich_body.dart';
@@ -37,11 +38,15 @@ class _ReaderPageState extends State<ReaderPage> {
   int _request = 0;
   late Uri _url;
   final _scroll = ScrollController();
+  MediaPosters? _posters;
   @override
   void initState() {
     super.initState();
     _url = widget.url ?? widget.initial?.url ?? ForumSite.base;
     _page = widget.initial;
+    if (!widget.demo && widget.source is DeviceSession) {
+      _posters = MediaPosters((widget.source as DeviceSession).mediaPosterHTML);
+    }
     if (_page == null) _load();
   }
 
@@ -90,6 +95,7 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void dispose() {
     _request++;
+    _posters?.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -107,6 +113,12 @@ class _ReaderPageState extends State<ReaderPage> {
       if (!mounted || request != _request) return;
       setState(() {
         _page = page;
+        if (_posters != null) {
+          _posters!.dispose();
+          _posters = MediaPosters(
+            (widget.source as DeviceSession).mediaPosterHTML,
+          );
+        }
         _url = page.url;
         _loading = false;
       });
@@ -314,6 +326,9 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget build(BuildContext context) {
     final page = _page;
     return Scaffold(
+      backgroundColor: page?.kind == PageKind.posts
+          ? Theme.of(context).colorScheme.surfaceContainerLow
+          : null,
       appBar: AppBar(
         title: Text(page?.kind == PageKind.posts ? 'Thread' : 'Forums'),
         actions: [
@@ -406,7 +421,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     padding: const EdgeInsets.fromLTRB(0, 8, 0, 24),
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -491,63 +506,7 @@ class _ReaderPageState extends State<ReaderPage> {
                         ),
                         const Divider(indent: 14, endIndent: 14),
                       ],
-                      for (final post in page.posts) ...[
-                        Padding(
-                          key: ValueKey(post.id),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      post.author.isEmpty
-                                          ? 'Member'
-                                          : post.author,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    post.number,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall,
-                                  ),
-                                ],
-                              ),
-                              if (post.date.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 2,
-                                    bottom: 8,
-                                  ),
-                                  child: Text(
-                                    _date(post.date),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall,
-                                  ),
-                                ),
-                              RichBody(
-                                blocks: post.blocks,
-                                imageProvider: widget.demo
-                                    ? sampleImageProvider
-                                    : networkImageProvider,
-                                onLink: _navigate,
-                                onMedia: _openMedia,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Divider(),
-                      ],
+                      for (final post in page.posts) _postCard(post),
                       if (page.posts.isEmpty && page.entries.isEmpty)
                         const Padding(
                           padding: EdgeInsets.all(24),
@@ -561,6 +520,93 @@ class _ReaderPageState extends State<ReaderPage> {
               const Expanded(child: Center(child: Text('Ready to read.'))),
             if (page != null && _failure == null) _pager(page),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _postCard(ForumPost post) {
+    final colors = Theme.of(context).colorScheme;
+    final author = post.author.isEmpty ? 'Member' : post.author;
+    return Padding(
+      key: ValueKey(post.id),
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+      child: Material(
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: colors.outlineVariant.withValues(alpha: .5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: colors.primary.withValues(alpha: .10),
+                    child: Text(
+                      author.characters.first.toUpperCase(),
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          author,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        if (post.date.isNotEmpty)
+                          Text(
+                            _date(post.date),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (post.number.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        post.number,
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Divider(color: colors.outlineVariant.withValues(alpha: .6)),
+              const SizedBox(height: 12),
+              RichBody(
+                blocks: post.blocks,
+                imageProvider: widget.demo
+                    ? sampleImageProvider
+                    : networkImageProvider,
+                posterLoader: _posters?.resolve,
+                onLink: _navigate,
+                onMedia: _openMedia,
+              ),
+            ],
+          ),
         ),
       ),
     );

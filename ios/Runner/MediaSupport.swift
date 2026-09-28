@@ -1,6 +1,12 @@
 import Foundation
 
 enum MediaPolicy {
+  static func posterPage(_ url: URL) -> Bool {
+    guard allowed(url), url.query == nil, url.fragment == nil else { return false }
+    if turboID(url) != nil { return true }
+    return ["cyberdrop.cr", "www.cyberdrop.cr"].contains(url.host?.lowercased() ?? "") &&
+      url.path.range(of: #"^/e/[A-Za-z0-9_-]{1,128}/?$"#, options: .regularExpression) != nil
+  }
   static func allowed(_ url: URL) -> Bool {
     url.scheme == "https" && !(url.host ?? "").isEmpty && url.user == nil && url.password == nil && (url.port == nil || url.port == 443) && url.absoluteString.utf8.count <= 8192
   }

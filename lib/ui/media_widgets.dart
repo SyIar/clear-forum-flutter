@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/models.dart';
+import '../core/media_posters.dart';
 
 typedef ReaderImageProvider = ImageProvider Function(Uri url);
 
@@ -19,20 +20,60 @@ ImageProvider sampleImageProvider(Uri url) =>
     ? AssetImage('assets/demo/${url.pathSegments.last}')
     : networkImageProvider(url);
 
-class MediaCard extends StatelessWidget {
+class MediaCard extends StatefulWidget {
   const MediaCard({
     super.key,
     required this.block,
     this.onPlay,
     this.imageProvider = networkImageProvider,
+    this.posterLoader,
   });
   final BodyBlock block;
   final VoidCallback? onPlay;
   final ReaderImageProvider imageProvider;
+  final PosterLoader? posterLoader;
+  @override
+  State<MediaCard> createState() => _MediaCardState();
+}
+
+class _MediaCardState extends State<MediaCard> {
+  Future<Uri?>? _poster;
+  @override
+  void initState() {
+    super.initState();
+    _loadPoster();
+  }
+
+  @override
+  void didUpdateWidget(covariant MediaCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.block != widget.block ||
+        oldWidget.posterLoader != widget.posterLoader) {
+      _loadPoster();
+    }
+  }
+
+  void _loadPoster() {
+    _poster = widget.block.posterUrl != null
+        ? Future.value(widget.block.posterUrl)
+        : widget.posterLoader?.call(widget.block);
+  }
+
+  ImageProvider _posterProvider(Uri url) =>
+      widget.imageProvider == networkImageProvider
+      ? NetworkImage(
+          url.toString(),
+          headers: {
+            if (widget.block.url != null)
+              'Referer': '${widget.block.url!.origin}/',
+          },
+        )
+      : widget.imageProvider(url);
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final block = widget.block;
       final colors = Theme.of(context).colorScheme;
       final previewWidth = (constraints.maxWidth * .34).clamp(64.0, 128.0);
       return Row(
@@ -43,19 +84,32 @@ class MediaCard extends StatelessWidget {
             height: 96,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: block.posterUrl == null
-                  ? ColoredBox(
-                      color: colors.surfaceContainer,
-                      child: const Center(
-                        child: Icon(Icons.image_outlined, size: 26),
+              child: FutureBuilder<Uri?>(
+                future: _poster,
+                initialData: widget.block.posterUrl,
+                builder: (context, snapshot) => snapshot.data == null
+                    ? ColoredBox(
+                        color: colors.surfaceContainer,
+                        child: Center(
+                          child:
+                              snapshot.connectionState ==
+                                  ConnectionState.waiting
+                              ? const SizedBox.square(
+                                  dimension: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.image_outlined, size: 26),
+                        ),
+                      )
+                    : _AutoImage(
+                        url: snapshot.data!,
+                        label: 'Video thumbnail',
+                        imageProvider: _posterProvider,
+                        compact: true,
                       ),
-                    )
-                  : _AutoImage(
-                      url: block.posterUrl!,
-                      label: 'Video thumbnail',
-                      imageProvider: imageProvider,
-                      compact: true,
-                    ),
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -68,7 +122,7 @@ class MediaCard extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
-                onTap: block.url == null ? null : onPlay,
+                onTap: block.url == null ? null : widget.onPlay,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 96),
                   child: Padding(
@@ -124,26 +178,9 @@ class ImageGallery extends StatefulWidget {
 }
 
 class _ImageGalleryState extends State<ImageGallery> {
-  final Map<Uri, double> _ratios = {};
-  double _ratio(BodyBlock block) =>
-      (_ratios[block.url] ?? block.aspectRatio ?? 1).clamp(.01, 100.0);
-
-  @override
-  void didUpdateWidget(covariant ImageGallery oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final current = widget.blocks.map((block) => block.url).toSet();
-    _ratios.removeWhere((url, _) => !current.contains(url));
-  }
-
-  void _resolved(BodyBlock block, double ratio) {
-    final normalized = ratio.clamp(.01, 100.0);
-    if (!mounted ||
-        _ratio(block) == normalized ||
-        !widget.blocks.contains(block)) {
-      return;
-    }
-    setState(() => _ratios[block.url!] = normalized);
-  }
+  // Reserve geometry from markup. Decoding must not resize a lazy list child:
+  // rebuilding an off-screen row would otherwise repeatedly correct the scroll.
+  double _ratio(BodyBlock block) => (block.aspectRatio ?? 1).clamp(.01, 100.0);
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -205,7 +242,6 @@ class _ImageGalleryState extends State<ImageGallery> {
                                 url: row[i].url!,
                                 label: row[i].label,
                                 imageProvider: widget.imageProvider,
-                                onRatio: (ratio) => _resolved(row[i], ratio),
                               ),
                             ),
                           ),
@@ -252,14 +288,12 @@ class _AutoImage extends StatefulWidget {
     required this.url,
     required this.label,
     required this.imageProvider,
-    this.onRatio,
     this.compact = false,
     this.fullSize = false,
   });
   final Uri url;
   final String label;
   final ReaderImageProvider imageProvider;
-  final ValueChanged<double>? onRatio;
   final bool compact;
   final bool fullSize;
   @override
@@ -268,8 +302,6 @@ class _AutoImage extends StatefulWidget {
 
 class _AutoImageState extends State<_AutoImage> {
   ImageProvider? _provider;
-  ImageStream? _stream;
-  ImageStreamListener? _listener;
   var _attempt = 0;
   var _retrying = false;
 
@@ -289,12 +321,6 @@ class _AutoImageState extends State<_AutoImage> {
     }
   }
 
-  void _detach() {
-    if (_listener != null) _stream?.removeListener(_listener!);
-    _stream = null;
-    _listener = null;
-  }
-
   void _resolve() {
     final provider = ResizeImage(
       widget.imageProvider(widget.url),
@@ -303,28 +329,7 @@ class _AutoImageState extends State<_AutoImage> {
       policy: ResizeImagePolicy.fit,
     );
     if (_provider == provider) return;
-    _detach();
     _provider = provider;
-    if (widget.onRatio == null) return;
-    final stream = provider.resolve(createLocalImageConfiguration(context));
-    _stream = stream;
-    _listener = ImageStreamListener((info, _) {
-      final ratio = info.image.width / info.image.height;
-      info.dispose();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && identical(_stream, stream)) {
-          widget.onRatio?.call(ratio);
-          _detach();
-        }
-      });
-    }, onError: (Object error, StackTrace? stack) {});
-    stream.addListener(_listener!);
-  }
-
-  @override
-  void dispose() {
-    _detach();
-    super.dispose();
   }
 
   Future<void> _retry() async {

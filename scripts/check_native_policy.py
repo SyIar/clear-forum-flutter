@@ -25,6 +25,13 @@ precondition(MediaPolicy.cookieMatches(mediaCookie, URL(string: "https://cdn.med
 precondition(!MediaPolicy.cookieMatches(mediaCookie, URL(string: "https://media.example/assets-other/a.mp4")!))
 precondition(!MediaPolicy.cookieMatches(cookie, URL(string: "https://media.example/assets/a.mp4")!))
 print("Native media URL and cookie isolation checks passed")
+for address in ["https://turbo.cr/embed/sample", "https://www.turbo.cr/d/sample", "https://cyberdrop.cr/e/sample"] {
+  precondition(MediaPolicy.posterPage(URL(string: address)!))
+}
+for address in ["https://turbo.cr/embed/sample?token=x", "https://turbo.cr/embed/sample#x", "https://turbo.cr/logout", "https://turbo.cr.evil.example/embed/sample", "https://cyberdrop.cr/e/", "https://cyberdrop.cr/e/sample/extra", "https://cyberdrop.cr:9443/e/sample"] {
+  precondition(!MediaPolicy.posterPage(URL(string: address)!))
+}
+print("Native poster metadata route checks passed")
 '''
 with tempfile.TemporaryDirectory(prefix='clear-forum-policy-') as directory:
     script = Path(directory) / 'policy.swift'

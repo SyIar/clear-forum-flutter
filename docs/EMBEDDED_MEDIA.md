@@ -1,5 +1,19 @@
 # 嵌入媒体兼容性调研
 
+## 2026-09-28：build 8 真机反馈后的修正
+
+用户已确认 build 8 的 turbo.cr 播放成功且无广告。下面保留的早期“未验证”段落是当时记录，不代表最新验收状态。此次保留 TurboResolver 的请求、签名与 AVKit 路径。
+
+- **非 turbo 回归**：build 8 将 generic embed 也置于原生等待遮罩，挡住需要 Play 手势的网页播放器。恢复初始化时可见、可交互的 WKWebView；发现有效地址可继续交给 AVKit，失败则返回同一个已初始化页面，不重载丢失手势或会话。不再给等待用户点击的页面设置 25 秒解析失败期限。turbo 失败仍保持原生错误页，不自动进入广告页面。
+- **真实缩略图**：当前 turbo iframe 的封面在 video#main-video 的 data-poster 中，host 为 static.scdn.st，路径包含站点分配的目录；旧版 cdn.turbo.cr/thumbs 拼接方式错误，已删除。cyberdrop 的当前 DOM 有 og:image。通过独立的 mediaPosterHTML GET 读取 provider HTML，再提取 poster、data-poster、og:image 或 twitter:image；不执行脚本、不请求签名或媒体流、不使用论坛 Cookie。精确限制 turbo embed/v/d 与 cyberdrop e 路径，拒绝重定向和非 HTML，响应不超过 2 MiB。封面请求使用独立额度，不能挤占论坛页面请求。
+- **封面缓存和退出行为**：每个 ReaderPage 去重、最多两个并发、缓存上限 128；失败也缓存到该页刷新，避免滚动反复重试。离开页面后丢弃排队任务。已有显式 poster 优先，失败不妨碍 Tap to play；缩略图是 provider 给出的封面，未承诺恰好等于视频第 0 帧。
+- **滚动跳位**：已检查用户本地录屏，只用于定位控件和滚动。旧 ImageGallery 在图片解码后按真实比例重组行，Lazy List 子项回收后比例丢失。合成测试在旧实现重现同一图片组高度由 198 增至 852；修复版只按 HTML 尺寸或固定预留框布局，解码与重试不改变高度，图片仍以 contain 保持比例。长图上限、并排布局和点开缩放保留。
+- **论坛排版**：中性灰背景、独立圆角楼层、作者首字母头像、日期和真实楼层号。原站楼层链接没有 #post fragment，改按 attribution 中实际的 #数字 文本提取。unfurl 预览改成紧凑链接卡片，不把 favicon 当正文大图。
+
+本地 61 项 Flutter tests、Dart analyze、Node observer 检查和 Web release build 已通过。手机播放及 CDN 封面显示仍以新版真机验收为准，构建状态另记 IMPLEMENTATION.md。新增测试覆盖封面元数据、并发/缓存/退出、来源限制、卡片自动加载、延迟解码高度稳定、长页滚回顶部与 unfurl/floor 解析。原始录屏和用户页面内容均未提交到仓库。
+
+来源：[Flutter ListView 子项生命周期](https://api.flutter.dev/flutter/widgets/ListView-class.html)、[Apple mediaTypesRequiringUserActionForPlayback](https://developer.apple.com/documentation/webkit/wkwebviewconfiguration/mediatypesrequiringuseractionforplayback)、[MDN poster](https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/poster)。provider 字段来自用户已打开页面的只读 DOM 检查；具体兼容行为仍需要真机验证。
+
 日期：2026-09-28。范围：用户已打开页面的 DOM 只读检查、用户脚本源码和公开问题记录。没有播放、下载媒体，没有修改浏览器拦截设置，也没有保存完整媒体地址、签名参数值、Cookie 或账号信息。
 
 ## 修复前客户端的缺口

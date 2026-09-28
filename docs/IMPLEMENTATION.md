@@ -123,7 +123,7 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 
 此版本加入 turbo 专用解析、原生等待/失败界面和 Details 诊断。2026-09-28，文件弹窗自动填写失败后，用户确认已选择 build 8。随后在 Sideloadly 将同一手机的连接从 Wi-Fi 切为 USB，确认选中值为 @USB，使用原签名账号点 Start，从 0% 进入 Done. / 100%。诊断版已签名并完成 USB 安装。
 
-已请用户在 App 内通过正常 Tap to play 入口验证同一个 turbo 视频，暂不进入 Web player；若失败，通过 Details → Copy 提供脱敏阶段和错误码。当前真实播放结果仍待用户反馈，不能标记为 turbo 播放成功，也未验收自动续签。
+用户后续明确确认：build 8 的 turbo 已可无广告播放。另报告缩略图失败、非 turbo 回归和长帖滚动跳位；修正记录见 EMBEDDED_MEDIA.md 最新一节。此反馈不代表自动续签已验收。
 
 ## iPhone 验收步骤
 

@@ -9,6 +9,29 @@ void main() {
   final parser = ForumParser();
   final base = ForumSite.base;
   test(
+    'floor permalinks without fragments and unfurled links stay compact',
+    () {
+      final page = parser.parse(
+        '''<html data-template="thread_view"><article class="message--post">
+      <div class="message-attribution-opposite"><a href="/posts/81/bookmark">Bookmark</a><a href="/threads/sample.1/page-5">#81</a></div>
+      <div class="message-body"><div class="bbWrapper">
+      <div class="bbCodeBlock--unfurl">
+        <img class="bbCodeBlockUnfurl-image" src="https://images.example/preview.jpg">
+        <h3 class="js-unfurl-title"><a href="https://example.org/album">Sample album</a></h3>
+        <img class="bbCodeBlockUnfurl-icon" src="https://images.example/favicon.png">
+      </div></div></div></article></html>''',
+        base,
+      );
+      expect(page.posts.single.number, '#81');
+      expect(page.posts.single.blocks.single.kind, BlockKind.link);
+      expect(page.posts.single.blocks.single.label, 'Sample album');
+      expect(
+        page.posts.single.blocks.single.url,
+        Uri.https('example.org', '/album'),
+      );
+    },
+  );
+  test(
     'image metadata preserves lazy sources, dimensions and safe posters',
     () {
       final page = parser.parse(
@@ -32,7 +55,8 @@ void main() {
       expect(blocks[2].posterUrl, base.resolve('/images/poster.png'));
       expect(
         blocks[3].posterUrl,
-        Uri.parse('https://cdn.turbo.cr/thumbs/sample123.jpg'),
+        null,
+        reason: 'Never synthesize a provider thumbnail URL',
       );
       expect(blocks[4].posterUrl, null);
       expect(blocks[5].posterUrl, null);
