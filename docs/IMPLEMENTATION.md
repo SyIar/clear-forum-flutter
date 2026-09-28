@@ -127,6 +127,21 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 
 ## iPhone 验收步骤
 
+### 当前候选包：simpcity ultimate 0.1.0 (10)
+
+[Actions 36407443718](https://github.com/SyIar/clear-forum-flutter/actions/runs/36407443718) 全部成功：62 项 Flutter tests、Dart analyze、Node observer、Web release、Swift URL/Cookie/metadata 路由及 resolver 检查、Xcode 编译与 IPA 校验。
+
+- 构建源码：61a42bb866a3000dc388895fc72ae6314e31af02。
+- Xcode：26.3 / 17C529；Bundle ID 保持 dev.sylar.clearforum。
+- 本地包：D:\workspace\sideloadly-setup\SimpcityUltimate-0.1.0-10-unsigned.ipa。
+- 大小：9,718,287 bytes。
+- SHA-256：20aa82bec375f5a00715635181005570ed093a8f6ffb6938847265630ab47029。
+- 已核对 ZIP、必要资源、App identity、device 平台、build number、source commit、Actions metadata 与 checksum；复制到安装目录后再次核对 hash。
+
+包含非 turbo 播放恢复、真实封面元数据加载、稳定图片布局、论坛楼层卡片、真实楼层号和小框外链。turbo resolver 的已验收播放路径保留。浏览器以 390px 手机宽度检查浅色/深色、外链框和媒体加载后滚回顶部，console 无 error/warn。
+
+交互示例位于本机 http://127.0.0.1:8880/preview.html；该页面包装实际 Flutter Web reader，可切换浅色/深色，使用合成内容。预览包装与截图位于忽略目录，不包含用户页面或媒体。真实 CDN 缩略图和非 turbo 恢复仍待 build 10 真机验收；本次尚未签名安装。
+
 最新界面改动：视频改为左缩略图、右侧独立 Tap to play；普通图片自动加载，支持 loading、失败重试、连续图片自适应排列和点击缩放。当前本地 53 项 Flutter tests、Dart analyze、仓库检查及 Web release build 已通过。具体行为与 turbo 播放限制见 [EMBEDDED_MEDIA.md](EMBEDDED_MEDIA.md) 最新一节；新 IPA 的构建和真机验收单独记录。
 
 1. 安装后选择 Open forum；可阅读公开页面，受限页面提示登录或打开浏览器。
