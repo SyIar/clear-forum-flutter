@@ -19,11 +19,13 @@
 
 ## Verified build
 
-- Version: `0.2.0 (1003)`.
-- Source: `a76f80b75f36c796b80c4fb16e5e11a0a0507f2b`.
-- [macOS CI](https://github.com/SyIar/clear-forum-flutter/actions/runs/36425771541): success.
-- 7 Swift core tests, media probe checks, media support checks and iPhone arm64 compilation passed.
-- Downloaded IPA SHA-256: `1635a00f7b8d2b15bb5c2e9620b52a3089d74a4a99e7e2e9b61164cd68bc441c`.
-- Local package: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1003-unsigned.ipa`.
+- Version: `0.2.0 (1007)`.
+- Source: `14c9923f1a287f6cf8bf63990481adeb731b3e62`.
+- [macOS CI](https://github.com/SyIar/clear-forum-flutter/actions/runs/36436554872): success.
+- 16 Swift core tests, media probe checks, media support checks and iPhone arm64 compilation passed. No simulator checks ran.
+- Downloaded IPA SHA-256: `6ff4402b23b0b8864d60ed7675c3ad275fe517e0ad42b5cc15f43d36718ac5a2`.
+- Size: `3,305,977` bytes.
+- Local package: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1007-unsigned.ipa`.
 - Package verified: `CFBundleDisplayName=simp lite`, original bundle identifier, compiled AppIcon assets, MediaProbe.js present, no Flutter.framework/App.framework/flutter_assets, intact ZIP.
 - 尚未安装这版原生 IPA；保留的数据、登录会话、滚动和两类播放器需要真机升级验收。之前 Flutter 版本的验收不等同于此版本验收。
+- 本轮新增 media 左边缘返回、首页最大楼层记录与 Updated、原生玻璃刷新按钮、目录缩略图、breadcrumb 与可点击 title tag；实现和验证边界见 [THREAD_UPDATES.md](THREAD_UPDATES.md)。

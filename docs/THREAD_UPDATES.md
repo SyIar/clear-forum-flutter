@@ -48,3 +48,12 @@ Directory `.structItem-title .labelLink` and thread `h1.p-title-value .labelLink
 Live DOM verification showed `?prefix_id[0]=N` in directory links and `?prefix_id=N` in thread-heading links. These are XenForo forum prefix filters, not arbitrary text searches. Both forms are accepted only on read-only forum routes with bounded numeric values; existing rejection of mutations, foreign origins and duplicate query keys remains. A live `News` prefix link returned the expected one-thread `forum_view`, so the result remains in the native reader. Pagination retains the filter query.
 
 Additional device acceptance: tap a tag in each view, verify the filtered native directory, navigate its pages if present, and use Back to return to the original thread/list. Long tag lists scroll horizontally without widening the page.
+
+## Verified delivery
+
+- Native version: `0.2.0 (1007)`; source `14c9923f1a287f6cf8bf63990481adeb731b3e62`.
+- [macOS run 36436554872](https://github.com/SyIar/clear-forum-flutter/actions/runs/36436554872) passed all 16 Swift core tests, existing media probe/support checks, arm64 Release compilation and packaging. No simulator checks ran.
+- Local IPA: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1007-unsigned.ipa`.
+- SHA-256: `6ff4402b23b0b8864d60ed7675c3ad275fe517e0ad42b5cc15f43d36718ac5a2`; size `3,305,977` bytes.
+- Downloaded source/run metadata, ZIP integrity, arm64 executable, bundle identity, display name/version, AppIcon assets and MediaProbe.js were verified. No Flutter runtime is packaged. The copied install-folder file has the same checksum.
+- Not installed during this task. Physical-device gestures, live update refresh and rendering remain pending the user's acceptance.
