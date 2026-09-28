@@ -4,7 +4,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:real_liquid_glass/real_liquid_glass.dart';
 
-/// One native material behind Flutter controls; it never claims drag gestures.
+import 'native_glass.dart';
+
+/// UIKit owns the entire iOS pager, including its actions and page label.
 class GlassPager extends StatelessWidget {
   const GlassPager({
     super.key,
@@ -27,7 +29,7 @@ class GlassPager extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     // The plugin reads CupertinoTheme on iOS and MediaQuery in its fallback.
     // Keep both in sync with the app, including the web appearance preview.
-    return CupertinoTheme(
+    final fallback = CupertinoTheme(
       data: CupertinoTheme.of(context).copyWith(brightness: brightness),
       child: MediaQuery(
         data: MediaQuery.of(context).copyWith(platformBrightness: brightness),
@@ -74,6 +76,32 @@ class GlassPager extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return NativeGlassControl(
+      kind: 'toolbar',
+      title: 'Page $pageNumber',
+      height: heightOf(context),
+      actions: [
+        NativeGlassAction(
+          id: 'previous',
+          label: 'Previous page',
+          symbol: 'chevron.backward',
+          onPressed: onPrevious,
+        ),
+        NativeGlassAction(
+          id: 'refresh',
+          label: 'Refresh page',
+          symbol: 'arrow.clockwise',
+          onPressed: onRefresh,
+        ),
+        NativeGlassAction(
+          id: 'next',
+          label: 'Next page',
+          symbol: 'chevron.forward',
+          onPressed: onNext,
+        ),
+      ],
+      fallback: fallback,
     );
   }
 }

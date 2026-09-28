@@ -4,8 +4,6 @@ import 'package:clean_forum/core/site.dart';
 import 'package:clean_forum/ui/glass_pager.dart';
 import 'package:clean_forum/ui/reader.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show PlatformViewHitTestBehavior;
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -97,67 +95,5 @@ void main() {
       expect(controller.offset, lessThan(before));
       expect(tester.takeException(), isNull);
     },
-  );
-
-  testWidgets(
-    'iOS creates one native passive glass surface and updates appearance',
-    (tester) async {
-      final messenger = tester.binding.defaultBinaryMessenger;
-      Map<Object?, Object?>? creation;
-      final updates = <Map<Object?, Object?>>[];
-      String? viewChannel;
-      messenger.setMockMethodCallHandler(SystemChannels.platform_views, (
-        call,
-      ) async {
-        if (call.method == 'create') {
-          final args = call.arguments as Map;
-          expect(args['viewType'], 'real_liquid_glass/glass_view');
-          creation = const StandardMessageCodec().decodeMessage(
-            ByteData.sublistView(args['params'] as Uint8List),
-          ) as Map<Object?, Object?>;
-          viewChannel = 'real_liquid_glass/glass_view_${args['id']}';
-          messenger.setMockMethodCallHandler(MethodChannel(viewChannel!), (
-            call,
-          ) async {
-            if (call.method == 'update') {
-              updates.add(Map<Object?, Object?>.from(call.arguments as Map));
-            }
-            return null;
-          });
-        }
-        return null;
-      });
-      addTearDown(() {
-        messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
-        if (viewChannel != null) {
-          messenger.setMockMethodCallHandler(MethodChannel(viewChannel!), null);
-        }
-      });
-      Future<void> show(Brightness brightness) => tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(brightness: brightness),
-          home: const Scaffold(body: Center(child: GlassPager(pageNumber: 3))),
-        ),
-      );
-      await show(Brightness.light);
-      await tester.pumpAndSettle();
-      expect(find.byType(UiKitView), findsOneWidget);
-      expect(creation?['style'], 'regular');
-      expect(creation?['capsule'], isTrue);
-      expect(creation?['interactive'], isFalse);
-      expect(creation?['tint'], isNull);
-      expect(creation?['dark'], isFalse);
-      expect(
-        tester.widget<UiKitView>(find.byType(UiKitView)).hitTestBehavior,
-        PlatformViewHitTestBehavior.transparent,
-      );
-      await show(Brightness.dark);
-      await tester.pumpAndSettle();
-      expect(updates.last['dark'], isTrue);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 }

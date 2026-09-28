@@ -14,6 +14,11 @@ import WebKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let glassRegistrar = engineBridge.applicationRegistrar
+    glassRegistrar.register(
+      NativeGlassFactory(messenger: glassRegistrar.messenger(), prefix: "dev.sylar.clearforum"),
+      withId: "dev.sylar.clearforum/glass"
+    )
     sessionBridge = ForumSessionBridge(messenger: engineBridge.applicationRegistrar.messenger())
   }
 }

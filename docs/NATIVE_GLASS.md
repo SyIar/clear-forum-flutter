@@ -1,5 +1,29 @@
 # Native Liquid Glass trial
 
+## Current revision: complete native pager
+
+The next revision replaces the iOS passive material plus Flutter controls with
+one application-owned platform view in `ios/Runner/NativeGlass.swift`.
+A standard `UIToolbar` contains previous/refresh/next `UIBarButtonItem` actions
+and a native page label. UIKit supplies the glass and pressed feedback;
+enabled state, appearance, accent and page updates cross the method channel.
+The existing non-iOS preview remains a Flutter fallback.
+
+Native events are checked again against current Flutter callbacks, so a queued
+tap cannot activate a now-disabled action. The view hides under another route or
+popup and restores with the reader. It does not install an eager drag recognizer.
+The existing floating layout and safe-area clearance remain intact.
+
+The player toolbar and both media pipelines are unchanged. Build 12 remains the
+device comparison baseline. The historical trial and research below describe the
+previous implementation; their `interactive: false` limitation no longer applies
+to this revision's iOS pager. Compilation and device visual acceptance are
+separate. No claim of measured frame rate or completed device A/B is made.
+
+Local verification: Dart analysis and all 65 Flutter tests passed, including the
+updated native bridge lifecycle/state test and the existing floating-reader
+large-text/scrolling test. Cloud device compilation is pending at this entry.
+
 ## Scope and decision
 
 The forum/thread bottom pager uses `real_liquid_glass` **0.3.0**, pinned in
@@ -101,6 +125,66 @@ verification. Source: `40953f9d44b4dd8954695fd7f6c6b45ee6af3ac7`.
   signing and installation completed. Native glass appearance, launch behavior
   and the updated controls still await the user's on-device acceptance.
 
+## Follow-up comparison on 2026-09-28
+
+The current implementation cannot be called the universally best-looking or
+fastest Flutter glass solution. Its material is Apple's native implementation,
+but the pager does not yet use native controls and touch feedback end to end.
+The player toolbar already uses standard UIKit controls directly. No device A/B
+comparison or frame-time measurement has been performed for the alternatives.
+
+### What is native in this app
+
+`GlassPager` sets `interactive: false` and puts Flutter `IconButton` and `Text`
+widgets over one native material surface. This deliberately keeps the native
+background out of touch handling. It does not provide native glass touch feedback,
+native symbol rendering or a complete native toolbar. The package itself supports
+interactive surfaces, grouped materials and a native `UITabBar`; these are not
+features the current pager uses. A page navigator should not be recast as a tab bar
+merely to use that component.
+
+Changing `interactive` alone would not turn the overlaid Flutter buttons into
+native controls. It also changes the package's platform-view hit testing from
+transparent to opaque. Interaction ownership needs to be designed and verified
+alongside the visual change.
+
+### Alternatives and evidence
+
+| Option reviewed | Evidence | Fit for this app |
+| --- | --- | --- |
+| `real_liquid_glass` 0.3.0, current | Published Dart and Swift sources confirm `UIGlassEffect`, optional interaction, group support and a native tab bar. | A small dependency for the present surface. Its material is not intrinsically inferior to another wrapper around Apple's APIs. |
+| `liquid_glass_native` 0.3.1 | Published source confirms SwiftUI glass buttons and toolbar. Its icon button enables `.interactive()` conditionally. `GlassToolbarView.swift` uses regular glass without that modifier; the toolbar bridge passes icons/colors, but no disabled flag or page label. | A larger control catalog, not a drop-in pager upgrade. Supporting the current page number and unavailable previous/next actions would still require adaptation. Version 0.3.1 changes documentation only, per its changelog. |
+| `native_liquid_glass` 0.3.1 | Author documentation describes complete UIKit controls, route/overlay workarounds, composition costs, and empty non-Apple fallbacks. Its source was not fully audited in this comparison. | Worth evaluating if adopting a broader native control suite, but not evidence that switching improves this single pager. |
+| `cupertino_native` 0.1.1 | Serverpod's published README explicitly describes the package as a proof of concept and lists integration work still needed. Its source was not fully audited here. | Native controls are relevant, but the publisher's own scope does not support calling it a universally more mature replacement. |
+| `liquid_glass_renderer` 0.2.0-dev.4 | Author documentation describes custom Flutter rendering, interaction effects, Impeller requirements and experimental performance limitations. | Useful for custom visual design; not the first choice when the objective is the actual iOS material and standard control behavior. |
+
+The source inspection for `liquid_glass_native` used the pub.dev 0.3.1 release
+archive, rather than assuming its README applies equally to every widget. A wider
+catalog does not mean every control implements the same interaction, accessibility
+or fallback behavior.
+
+### Recommendation and limits
+
+1. Retain the player's standard `UINavigationController` / `UIBarButtonItem`
+   implementation. Apple supplies its glass presentation and control behavior.
+2. If richer pager interaction is the next priority, prototype the entire pager
+   as one native control surface, including its buttons, page label, enabled state
+   and callbacks. A narrowly scoped UIKit/SwiftUI bridge is a reasonable candidate
+   given the existing native integration; it also creates code we must maintain.
+   Compare it on the same device before replacing the current pager.
+3. Keep regular glass for text/navigation readability. Apple recommends glass for
+   floating navigation and controls, rather than repeated content rows or stacked
+   glass layers. Keep forum floors as readable content surfaces.
+4. Check scrolling over detailed images, light/dark appearance, disabled buttons,
+   large text, reduced-transparency/motion settings, route transitions and touch
+   behavior. Use device profile/release measurements for performance claims.
+
+These recommendations are an inference from the current code and the cited
+platform/package sources. Flutter's official documentation confirms platform-view
+composition and performance tradeoffs; it does not establish that a particular
+package is fastest. A web fallback preview and compilation success cannot settle
+native visual quality. This follow-up changes documentation only.
+
 ## Sources
 
 - [Apple UIGlassEffect](https://developer.apple.com/documentation/uikit/uiglasseffect)
@@ -111,3 +195,10 @@ verification. Source: `40953f9d44b4dd8954695fd7f6c6b45ee6af3ac7`.
 - [real_liquid_glass package](https://pub.dev/packages/real_liquid_glass)
 - [real_liquid_glass source](https://github.com/kiddo4/real_liquid_glass)
 - [liquid_glass_native comparison](https://pub.dev/packages/liquid_glass_native)
+- [liquid_glass_native changelog](https://pub.dev/packages/liquid_glass_native/changelog)
+- [liquid_glass_native published source archive](https://pub.dev/api/archives/liquid_glass_native-0.3.1.tar.gz)
+- [native_liquid_glass and composition caveats](https://pub.dev/packages/native_liquid_glass)
+- [cupertino_native and proof-of-concept scope](https://pub.dev/packages/cupertino_native)
+- [liquid_glass_renderer and limitations](https://pub.dev/packages/liquid_glass_renderer)
+- [Apple: Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/)
+- [Apple UIGlassEffect interaction](https://developer.apple.com/documentation/uikit/uiglasseffect/isinteractive)
