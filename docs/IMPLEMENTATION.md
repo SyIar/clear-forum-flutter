@@ -110,8 +110,6 @@ build 5 的视频卡片只有占位提示，确实不能播放。本次将其改
 
 build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机体验仍需安装后验收；本版没有宣称修复 turbo 广告或原生接管问题。
 
-## iPhone 验收
-
 ## 最新诊断包：simpcity ultimate 0.1.0 (8)
 
 [Actions 36390947988](https://github.com/SyIar/clear-forum-flutter/actions/runs/36390947988) 全部成功：53 项 Flutter tests、Dart analyze、Node observer 检查、Web release build、原生 URL/Cookie policy、新增 Swift resolver/diagnostic 检查、Xcode build 和 IPA 校验。
@@ -123,7 +121,9 @@ build 7 尚未签名安装。用户真实图片/CDN 兼容性与 iPhone 真机�
 - SHA-256：9aec62ee4cc56516fc8f15f886c8464937f23cec3e2d70d36757e91b61b269dc。
 - 下载后核对 ZIP、必要资源、App identity、device 平台、版本、source commit 和校验值；复制到安装目录后再次核对 hash。
 
-此版本加入 turbo 专用解析、原生等待/失败界面和 Details 诊断。真实 iPhone 播放尚未验收。Sideloadly 已识别同一手机的 USB/Wi-Fi 接口及原签名账号；文件弹窗的自动填写失败，已请求用户选好 build 8，再继续签名安装。尚不能标记已安装或已播放成功。
+此版本加入 turbo 专用解析、原生等待/失败界面和 Details 诊断。2026-09-28，文件弹窗自动填写失败后，用户确认已选择 build 8。随后在 Sideloadly 将同一手机的连接从 Wi-Fi 切为 USB，确认选中值为 @USB，使用原签名账号点 Start，从 0% 进入 Done. / 100%。诊断版已签名并完成 USB 安装。
+
+已请用户在 App 内通过正常 Tap to play 入口验证同一个 turbo 视频，暂不进入 Web player；若失败，通过 Details → Copy 提供脱敏阶段和错误码。当前真实播放结果仍待用户反馈，不能标记为 turbo 播放成功，也未验收自动续签。
 
 ## iPhone 验收步骤
 
