@@ -10,7 +10,9 @@
 - **滚动跳位**：已检查用户本地录屏，只用于定位控件和滚动。旧 ImageGallery 在图片解码后按真实比例重组行，Lazy List 子项回收后比例丢失。合成测试在旧实现重现同一图片组高度由 198 增至 852；修复版只按 HTML 尺寸或固定预留框布局，解码与重试不改变高度，图片仍以 contain 保持比例。长图上限、并排布局和点开缩放保留。
 - **论坛排版**：中性灰背景、独立圆角楼层、作者首字母头像、日期和真实楼层号。原站楼层链接没有 #post fragment，改按 attribution 中实际的 #数字 文本提取。unfurl 预览改成紧凑链接卡片，不把 favicon 当正文大图。
 
-本地 61 项 Flutter tests、Dart analyze、Node observer 检查和 Web release build 已通过。手机播放及 CDN 封面显示仍以新版真机验收为准，构建状态另记 IMPLEMENTATION.md。新增测试覆盖封面元数据、并发/缓存/退出、来源限制、卡片自动加载、延迟解码高度稳定、长页滚回顶部与 unfurl/floor 解析。原始录屏和用户页面内容均未提交到仓库。
+外部链接进一步改成 12px 单行小框：隐藏重复的协议前缀，长标题和网址省略，完整地址保留在 tooltip；链接预览不再显示第二行域名。视觉框收紧，触摸区域仍至少 44px。示例页提供浅色和深色直达入口，仅 Web preview 接受 appearance 参数，iPhone 继续 ThemeMode.system。
+
+本地 62 项 Flutter tests、Dart analyze、Node observer 检查和 Web release build 已通过。手机播放及 CDN 封面显示仍以新版真机验收为准，构建状态另记 IMPLEMENTATION.md。新增测试覆盖封面元数据、并发/缓存/退出、来源限制、卡片自动加载、延迟解码高度稳定、长页滚回顶部与 unfurl/floor 解析。原始录屏和用户页面内容均未提交到仓库。
 
 来源：[Flutter ListView 子项生命周期](https://api.flutter.dev/flutter/widgets/ListView-class.html)、[Apple mediaTypesRequiringUserActionForPlayback](https://developer.apple.com/documentation/webkit/wkwebviewconfiguration/mediatypesrequiringuseractionforplayback)、[MDN poster](https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/poster)。provider 字段来自用户已打开页面的只读 DOM 检查；具体兼容行为仍需要真机验证。
 

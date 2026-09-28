@@ -54,6 +54,8 @@ void main() {
     expect(find.text('Alex'), findsOneWidget);
     expect(find.textContaining('DO NOT DISPLAY'), findsNothing);
     expect(find.textContaining('Hidden text stays hidden'), findsNothing);
+    await tester.ensureVisible(find.text('Spoiler'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Spoiler'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Hidden text stays hidden'), findsOneWidget);

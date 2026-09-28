@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../core/models.dart';
 import '../core/media_posters.dart';
+import '../core/site.dart';
 import 'media_widgets.dart';
+import 'compact_link.dart';
 
 class RichBody extends StatelessWidget {
   const RichBody({
@@ -117,45 +119,17 @@ class RichBody extends StatelessWidget {
         posterLoader: posterLoader,
         onPlay: onMedia == null ? null : () => onMedia!(block),
       ),
-      BlockKind.link => Material(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: block.url == null ? null : () => onLink(block.url!),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const Icon(Icons.link, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        block.label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (block.url != null)
-                        Text(
-                          block.url!.host,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
-                  ),
+      BlockKind.link =>
+        block.url == null
+            ? const SizedBox.shrink()
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: CompactLink(
+                  url: block.url!,
+                  label: block.label,
+                  onTap: () => onLink(block.url!),
                 ),
-                const Icon(Icons.open_in_new, size: 16),
-              ],
-            ),
-          ),
-        ),
-      ),
+              ),
     };
   }
 }
@@ -189,6 +163,16 @@ class _RunTextState extends State<_RunText> {
     return Text.rich(
       TextSpan(
         children: widget.runs.map((run) {
+          if (run.url != null && !ForumSite.sameOrigin(run.url!)) {
+            return WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: CompactLink(
+                url: run.url!,
+                label: run.text,
+                onTap: () => widget.onLink(run.url!),
+              ),
+            );
+          }
           TapGestureRecognizer? recognizer;
           if (run.url != null) {
             recognizer = TapGestureRecognizer()

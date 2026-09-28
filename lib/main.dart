@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 
 import 'core/session.dart';
 import 'core/library.dart';
+import 'core/site.dart';
 import 'ui/home.dart';
+import 'ui/reader.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -93,8 +95,18 @@ class _ClearForumAppState extends State<ClearForumApp> {
       debugShowCheckedModeBanner: false,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      themeMode: ThemeMode.system,
-      home: const HomePage(),
+      themeMode: kIsWeb && Uri.base.queryParameters['appearance'] == 'light'
+          ? ThemeMode.light
+          : kIsWeb && Uri.base.queryParameters['appearance'] == 'dark'
+          ? ThemeMode.dark
+          : ThemeMode.system,
+      home: kIsWeb && Uri.base.queryParameters['demo'] == 'thread'
+          ? ReaderPage(
+              source: DemoSource(),
+              url: ForumSite.base.resolve('/threads/quiet-reading.101/'),
+              demo: true,
+            )
+          : const HomePage(),
     ),
   );
 }
