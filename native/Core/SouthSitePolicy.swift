@@ -60,7 +60,7 @@ enum SouthSitePolicy {
     if path == "/u.php" && (values["action"] != "topic" || values["uid"] == nil) { return nil }
     return Route(path: path, parameters: values, legacy: legacy)
   }
-  static func readable(_ url: URL) -> Bool { route(url) != nil }
+  static func readable(_ url: URL) -> Bool { route(url) != nil || SouthSearch.parameters(url) != nil }
   static func isLogin(_ url: URL) -> Bool { sameOrigin(url) && url.path == "/login.php" }
   static func isThread(_ url: URL) -> Bool { route(url)?.path == "/read.php" }
   static func threadKey(_ url: URL) -> String? { isThread(url) ? route(url)?.parameters["tid"] : nil }
@@ -75,12 +75,14 @@ enum SouthSitePolicy {
     guard let id = threadKey(url) else { return nil }
     return URL(string: "read.php?tid=\(id)", relativeTo: base)?.absoluteURL
   }
-  static func pageNumber(_ url: URL) -> Int { route(url)?.page ?? 1 }
+  static func pageNumber(_ url: URL) -> Int { Int(SouthSearch.parameters(url)?["page"] ?? "") ?? route(url)?.page ?? 1 }
   static func pageRoot(_ url: URL) -> URL {
+    if let search = SouthSearch.pageURL(url, number: 1) { return search }
     guard let route = route(url) else { return withoutFragment(url) }
     return URL(string: route.resourceKey, relativeTo: base)!.absoluteURL
   }
   static func pageURL(_ url: URL, number: Int) -> URL? {
+    if let search = SouthSearch.pageURL(url, number: number) { return search }
     guard var route = route(url), route.path != "/index.php", (1...99_999).contains(number) else { return nil }
     route.parameters["page"] = number == 1 ? nil : String(number)
     var parts = URLComponents(url: base.appendingPathComponent(String(route.path.dropFirst())), resolvingAgainstBaseURL: false)!
@@ -90,6 +92,7 @@ enum SouthSitePolicy {
     return parts.url
   }
   static func pageCacheKey(_ url: URL) -> String {
+    if let search = SouthSearch.pageURL(url, number: pageNumber(url)) { return search.absoluteString }
     guard let route = route(url) else { return withoutFragment(url).absoluteString }
     return host + route.resourceKey + "&page=\(route.page)"
   }

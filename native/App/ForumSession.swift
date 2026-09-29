@@ -62,7 +62,7 @@ final class ForumSession: ObservableObject {
     guard !browserActive else { throw CancellationError() }
     let epoch = generation
     let userAgent = browserUserAgent
-    var current = SitePolicy.withoutFragment(url)
+    var current = url
     for _ in 0..<6 {
       try Task.checkCancellation()
       guard generation == epoch else { throw CancellationError() }
@@ -82,16 +82,14 @@ final class ForumSession: ObservableObject {
       }
       guard generation == epoch else { throw CancellationError() }
       if (300..<400).contains(response.statusCode) {
-        guard let next = SitePolicy.resolve(response.value(forHTTPHeaderField: "Location"), from: current) else { throw ReaderFailure.unsupported }
+        guard let next = ForumRequest.redirect(response.value(forHTTPHeaderField: "Location"), from: current) else { throw ReaderFailure.unsupported }
         if site.isLogin(next) { throw ReaderFailure.login }
         guard site.accepts(next) else { throw ReaderFailure.unsupported }
-        current = SitePolicy.withoutFragment(next)
+        current = next
         continue
       }
-      var finalComponents = URLComponents(url: current, resolvingAgainstBaseURL: false)!
-      finalComponents.fragment = url.fragment
       let source = try HTMLDecoder.decode(data, encodingName: response.textEncodingName)
-      let finalURL = finalComponents.url ?? current
+      let finalURL = current
       let status = response.statusCode
       let page = try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
       try Task.checkCancellation()
@@ -109,6 +107,78 @@ final class ForumSession: ObservableObject {
     query.setValue(site.base.absoluteString, forHTTPHeaderField: "Referer")
     guard let (response, data) = try? await request(query, maxBytes: 2 * 1024 * 1024, htmlOnly: true), (200..<300).contains(response.statusCode) else { return nil }
     return String(data: data, encoding: .utf8)
+  }
+  func search(_ query: SimpSearchQuery) async throws -> ForumPage {
+    guard site == .simp, !browserActive else { throw ReaderFailure.unsupported }
+    let epoch = generation
+    let form = try await searchHTML(SimpSearch.formURL)
+    let body = try SimpSearch.formBody(form.source, url: form.url, status: form.status, query: query)
+    try Task.checkCancellation()
+    guard generation == epoch, !browserActive else { throw CancellationError() }
+    let result = try await searchHTML(SimpSearch.formURL, body: body)
+    guard SimpSitePolicy.searchResults(result.url) else {
+      // Submission errors are returned at the form URL, without a result ID.
+      _ = try SimpSearch.formBody(result.source, url: result.url, status: result.status, query: query)
+      throw ReaderFailure.unsupported
+    }
+    let page = try await Task.detached(priority: .userInitiated) {
+      try ForumParser().parse(result.source, url: result.url, status: result.status)
+    }.value
+    try Task.checkCancellation()
+    guard generation == epoch, !browserActive else { throw CancellationError() }
+    return page
+  }
+  private func searchHTML(_ url: URL, body: Data? = nil) async throws -> (source: String, url: URL, status: Int) {
+    let epoch = generation
+    var current = url
+    var pendingBody = body
+    for _ in 0..<6 {
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      let cookies = await store.httpCookieStore.allCookies()
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      let query = try site == .simp
+        ? SimpSearch.request(url: current, body: pendingBody, userAgent: browserUserAgent, cookies: cookies)
+        : SouthSearch.request(url: current, body: pendingBody, userAgent: browserUserAgent, cookies: cookies)
+      let (response, data) = try await request(query)
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      var headers: [String: String] = [:]
+      for (key, value) in response.allHeaderFields { headers[String(describing: key)] = String(describing: value) }
+      for cookie in HTTPCookie.cookies(withResponseHeaderFields: headers, for: current).filter({ site.domainMatches($0) }) {
+        guard generation == epoch, !browserActive else { throw CancellationError() }
+        if cookie.expiresDate.map({ $0 <= Date() }) ?? false { await store.httpCookieStore.deleteCookie(cookie) }
+        else { await store.httpCookieStore.saveCookie(cookie) }
+      }
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      if (300..<400).contains(response.statusCode) {
+        guard let next = SitePolicy.resolve(response.value(forHTTPHeaderField: "Location"), from: current) else { throw ReaderFailure.unsupported }
+        if site.isLogin(next) { throw ReaderFailure.login }
+        guard pendingBody == nil || [301, 302, 303].contains(response.statusCode) else { throw ReaderFailure.unsupported }
+        // A POST is never replayed. Redirects rebuild cookies for the validated destination.
+        pendingBody = nil
+        current = SitePolicy.withoutFragment(next)
+        continue
+      }
+      return (try HTMLDecoder.decode(data, encodingName: response.textEncodingName), current, response.statusCode)
+    }
+    throw ReaderFailure.network
+  }
+  func search(_ query: SouthSearchQuery) async throws -> ForumPage {
+    guard site == .south, !browserActive else { throw ReaderFailure.unsupported }
+    let epoch = generation
+    let form = try await searchHTML(SouthSearch.formURL)
+    let body = try SouthSearch.formBody(form.source, url: form.url, status: form.status, query: query)
+    try Task.checkCancellation()
+    guard generation == epoch, !browserActive else { throw CancellationError() }
+    let result = try await searchHTML(SouthSearch.formURL, body: body)
+    let page = try await Task.detached(priority: .userInitiated) {
+      try SouthSearch.parse(result.source, url: result.url, status: result.status)
+    }.value
+    try Task.checkCancellation()
+    guard generation == epoch, !browserActive else { throw CancellationError() }
+    return page
   }
   func purchaseContent(in page: ForumPage, selected: SouthPurchaseOffer? = nil, excludingAuthors blocked: Set<String> = [], onUpdate: SouthPurchaseService.Update = { _ in }) async throws -> SouthPurchaseResult {
     guard site == .south, site.accepts(page.url), !browserActive else { throw ReaderFailure.unsupported }

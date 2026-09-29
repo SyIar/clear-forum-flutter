@@ -20,6 +20,8 @@ struct ForumLiteApp: App {
               switch destination {
               case .home:
                 HomeView(path: $path)
+              case .search:
+                ForumSearchView { path.append(.reader($0)) }
               case .reader(let url):
                 ReaderView(initialURL: url,
                            library: site == .simp ? simpLibrary : southLibrary,
@@ -46,10 +48,11 @@ struct ForumLiteApp: App {
 
 enum ForumDestination: Hashable {
   case home(ForumSite)
+  case search(ForumSite)
   case reader(URL)
   var site: ForumSite {
     switch self {
-    case .home(let site): return site
+    case .home(let site), .search(let site): return site
     case .reader(let url): return ForumSite(url: url) ?? .simp
     }
   }
@@ -331,11 +334,15 @@ struct HomeView: View {
       .toolbarRole(.editor)
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
+          Button {
+            path.append(.search(session.site))
+          } label: { Image(systemName: "magnifyingglass") }
+            .accessibilityLabel("Search forum")
           if session.site == .south {
             Button { showingBlockedAuthors = true } label: { Image(systemName: "person.slash") }
               .accessibilityLabel("Blocked authors")
           }
-          Button { adding = true } label: { Image(systemName: "bookmark.badge.plus") }
+          Button { adding = true } label: { Image(systemName: "bookmark") }
             .accessibilityLabel("Add bookmark")
         }
       }

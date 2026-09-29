@@ -32,6 +32,7 @@ struct ForumEntryCard: View {
           else { Image(systemName: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             Text(entry.title).font(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
+            if !entry.excerpt.isEmpty { Text(entry.excerpt).font(.subheadline).foregroundStyle(.secondary).lineLimit(3) }
             if !entry.pinned && !entry.subtitle.isEmpty { Text(entry.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
           }
           Spacer(minLength: 0)

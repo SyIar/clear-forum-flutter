@@ -4,6 +4,7 @@ The compact logo/compass banner is included in [build 1027](BUILD_1027.md); devi
 
 ## Changes
 
+- Pending delivery: both forum readers omit the persistent login-status caption. Home uses the standard `bookmark` symbol for Add bookmark; the action and accessibility label are unchanged.
 - Both forum homes show a compact logo banner without the `Open forum` caption or automatic navigation chevron. Tapping the logo opens the native reader. A separate 44-point native glass `safari` compass opens that forum's original start page in the app's existing site browser, sharing its isolated login session. Choosing `Read page` returns to native reading; `Done` returns home. Purchase and poll pages are fetched afresh to preserve their original form markup.
 - Thread rows in Bookmarks and Recent reading reuse the directory thumbnail and `ForumTagStrip`. Each tag opens its original prefix-filter URL independently of the thread row.
 - `LibraryDocument.presentations` stores thumbnail URLs and tags by stable thread ID. Older `reading_library_v1` records remain valid. Custom bookmark titles, saved page URLs, read baselines, and history order are preserved.

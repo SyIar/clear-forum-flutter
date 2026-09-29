@@ -6,6 +6,7 @@ enum SimpSitePolicy {
   }
   static func readable(_ url: URL) -> Bool {
     guard sameOrigin(url), !url.path.contains("%"), !url.path.contains("\\"), !url.path.components(separatedBy: "/").contains("..") else { return false }
+    if searchResults(url) { return true }
     let pattern = #"^/(?:(?:forums|threads)/[^/]+\.\d+(?:/(?:page-\d+/?)?)?|posts/\d+/?|search-forums/[^/]+(?:/(?:page-\d+/?)?)?|whats-new/(?:posts/)?|watched/threads/?)$"#
     guard url.path == "/" || url.path.range(of: pattern, options: .regularExpression) != nil else { return false }
     var keys = Set<String>()
@@ -18,6 +19,23 @@ enum SimpSitePolicy {
       } else if item.name == "prefix_id" || item.name.range(of: #"^prefix_id\[(?:[0-9]|1[0-5])\]$"#, options: .regularExpression) != nil {
         guard url.path.hasPrefix("/forums/"), value.range(of: #"^[1-9]\d{0,7}$"#, options: .regularExpression) != nil else { return false }
       } else { return false }
+    }
+    return true
+  }
+  static func searchResults(_ url: URL) -> Bool {
+    guard sameOrigin(url), url.absoluteString.utf8.count <= 8192,
+          url.path.range(of: #"^/search/[1-9][0-9]*/?$"#, options: .regularExpression) != nil else { return false }
+    var keys = Set<String>()
+    for item in URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [] {
+      guard keys.insert(item.name).inserted, let value = item.value else { return false }
+      switch item.name {
+      case "page":
+        guard value.range(of: #"^[1-9][0-9]{0,4}$"#, options: .regularExpression) != nil else { return false }
+      case "q": guard value.utf8.count <= 1024 else { return false }
+      case "o": guard ["date", "relevance"].contains(value) else { return false }
+      case "c[title_only]": guard ["0", "1"].contains(value) else { return false }
+      default: return false
+      }
     }
     return true
   }
@@ -87,6 +105,11 @@ extension SimpSitePolicy {
           candidate.scheme == "https", !(candidate.host ?? "").isEmpty,
           candidate.user == nil, candidate.password == nil else { return nil }
     var resolved = candidate
+    if sameOrigin(candidate), candidate.query == nil,
+       let part = candidate.path.split(separator: "/").last,
+       candidate.path.range(of: #"^/threads/[^/]+\.[0-9]+/post-[1-9][0-9]*/?$"#, options: .regularExpression) != nil {
+      resolved = base.appendingPathComponent("posts/\(part.dropFirst(5))/")
+    }
     if sameOrigin(candidate), candidate.path.range(of: #"^/threads/[^/]+\.\d+/unread/?$"#, options: .regularExpression) != nil,
        candidate.query == nil || candidate.query == "new=1" {
       var components = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!

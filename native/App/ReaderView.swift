@@ -87,7 +87,6 @@ struct ReaderView: View {
             }
             if !page.tags.isEmpty { ForumTagStrip(tags: page.tags, navigate: navigate) }
             Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
-            Text(page.loggedIn.map { $0 ? "Signed in" : "Guest" } ?? "Clean view").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
               if let poll = visible.poll {
                 SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
@@ -181,7 +180,9 @@ struct ReaderView: View {
         guard error == nil else { return }
         let anchor = force ? previousID ?? "top" : current.fragment ?? restoredID ?? "top"
         let visible = page.map { library.document.visibleContent(in: $0) }
-        if pinnedThreads.dropFirst(2).contains(where: { $0.id == anchor }) { visibleID = "south-pinned-more" }
+        if let first = pinnedThreads.first, anchor == "south-pinned-more" || pinnedThreads.contains(where: { $0.id == anchor }) {
+          visibleID = first.id
+        }
         else if anchor != "top", visible?.posts.contains(where: { $0.id == anchor }) == true || visible?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && visible?.poll != nil) { visibleID = anchor }
         else if let entry = visible?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
         else { visibleID = "top"; proxy.scrollTo("top", anchor: .top) }
@@ -279,18 +280,11 @@ struct ReaderView: View {
   @ViewBuilder private func directoryEntries(in page: ForumPage) -> some View {
     if session.site == .south, page.kind == .threads {
       let pinned = page.entries.filter(\.pinned)
-      ForEach(pinned.prefix(2)) { entry in
-        ForumEntryCard(entry: entry, isForum: false, navigate: navigate).id(entry.id)
-      }
-      if pinned.count > 2 {
-        HStack {
-          Spacer()
-          Button { selectedPinnedThread = nil; showingPinnedThreads = true } label: {
-            Image(systemName: "ellipsis").font(.headline).frame(width: 40, height: 28)
-          }.buttonStyle(.glass).buttonBorderShape(.capsule)
-            .disabled(loading).accessibilityLabel("Show all \(pinned.count) pinned threads")
-          Spacer()
-        }.id("south-pinned-more")
+      if let first = pinned.first {
+        SouthPinnedThreadsCard(entries: pinned, busy: loading, select: navigate) {
+          selectedPinnedThread = nil
+          showingPinnedThreads = true
+        }.id(first.id)
       }
       ForEach(page.entries.filter { !$0.pinned }) { entry in
         ForumEntryCard(entry: entry, isForum: false, navigate: navigate).id(entry.id)

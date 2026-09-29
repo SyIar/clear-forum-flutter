@@ -5,6 +5,7 @@ struct SimpForumParser {
   private let unwanted = "script,style,object,embed,input,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]"
   func parse(_ source: String, url: URL, status: Int = 200) throws -> ForumPage {
     let doc = try SwiftSoup.parse(source)
+    if SimpSitePolicy.searchResults(url) { try SimpSearch.validate(doc, url: url, status: status) }
     let heading = try doc.select("h1.p-title-value").first()
     let headingTags = try tags(heading, page: url)
     try heading?.select(".labelLink,.label-append").remove()
@@ -41,6 +42,25 @@ struct SimpForumParser {
                                 pinned: try !row.select(".structItem-status--sticky").isEmpty(), thumbnail: thumbnail(row, page: url),
                                 tags: try tags(row.select(".structItem-title").first(), page: url)))
     }
+    if template == "search_results" {
+      let results = try doc.select(".block-row .contentRow")
+      for row in results {
+        let heading = try row.select(".contentRow-title").first()
+        let anchor = try heading?.select("a[href]").first { !$0.hasClass("labelLink") }
+        guard let link = SimpSitePolicy.resolve(try anchor?.attr("href"), from: url, internalOnly: true),
+              SimpSitePolicy.threadKey(link) != nil || link.path.hasPrefix("/posts/"),
+              seen.insert(link.absoluteString).inserted else { continue }
+        let resultTags = try tags(heading, page: url)
+        try heading?.select(".label,.label-append").remove()
+        guard !text(anchor).isEmpty else { continue }
+        threads.append(ForumEntry(title: text(anchor), url: link,
+                                  subtitle: text(try row.select(".contentRow-minor").first()),
+                                  thumbnail: thumbnail(row, page: url), tags: resultTags,
+                                  excerpt: text(try row.select(".contentRow-snippet").first())))
+      }
+      if threads.isEmpty, !results.isEmpty() { throw ReaderFailure.unsupported }
+      if threads.isEmpty, try doc.select(".blockMessage").isEmpty() { throw ReaderFailure.unsupported }
+    }
     var forums: [ForumEntry] = []
     for node in try doc.select(".node") {
       let anchor = try node.select(".node-title a").first()
@@ -51,7 +71,7 @@ struct SimpForumParser {
     }
     let kind: PageKind
     if !posts.isEmpty || template == "thread_view" { kind = .posts }
-    else if !threads.isEmpty || ["forum_view", "watched_threads_list", "search_forum_view"].contains(template) { kind = .threads }
+    else if !threads.isEmpty || ["forum_view", "watched_threads_list", "search_forum_view", "search_results"].contains(template) { kind = .threads }
     else if !forums.isEmpty || template == "forum_list" { kind = .forums }
     else { throw ReaderFailure.unsupported }
     if kind == .posts && posts.isEmpty { throw ReaderFailure.unsupported }
