@@ -51,7 +51,7 @@ struct ReaderView: View {
             }
             if !page.tags.isEmpty { ForumTagStrip(tags: page.tags, navigate: navigate) }
             Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
-            Text(page.loggedIn ? "Signed in" : "Guest").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
+            Text(page.loggedIn.map { $0 ? "Signed in" : "Guest" } ?? "Clean view").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
               ForEach(page.posts) { post in
                 PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }).id(post.id)
@@ -78,7 +78,7 @@ struct ReaderView: View {
           Menu {
             ShareLink(item: current) { Label("Share link", systemImage: "square.and.arrow.up") }
             Button("Site browser", systemImage: "globe") { presentation = .browser(current) }
-            Button("Sign in", systemImage: "person.crop.circle") { presentation = .browser(SitePolicy.base.appendingPathComponent("login/")) }
+            Button("Sign in", systemImage: "person.crop.circle") { presentation = .browser(session.site.login) }
             Button("Clear session", systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
           } label: { Image(systemName: "ellipsis") }
         }
@@ -134,11 +134,12 @@ struct ReaderView: View {
       .fullScreenCover(item: $presentation) { item in
         ReaderController(presentation: item, store: session.store) { captured in
           presentation = nil
+          session.invalidatePages()
+          loadedGeneration = session.generation
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
-             SitePolicy.readable(target), let html = captured["html"] as? String {
+             session.site.accepts(target), let html = captured["html"] as? String {
             do {
               let parsed = try ForumParser().parse(html, url: target)
-              session.invalidatePages()
               loadedGeneration = session.generation
               session.pages.store(parsed)
               page = parsed; url = target; error = nil
@@ -146,7 +147,7 @@ struct ReaderView: View {
               proxy.scrollTo("top", anchor: .top)
             }
             catch { self.error = error.localizedDescription }
-          }
+          } else { page = nil; reload() }
         }.ignoresSafeArea()
       }
       .confirmationDialog("Clear forum session?", isPresented: $clearSession, titleVisibility: .visible) {
@@ -164,19 +165,19 @@ struct ReaderView: View {
   }
   private func reload() { savePosition(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL) {
-    guard SitePolicy.readable(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+    guard session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
     savePosition()
     forceNextLoad = false
     url = target
     requestID = UUID()
   }
   private func navigate(_ url: URL) {
-    if SitePolicy.readable(url) { destination = ReaderDestination(url: url) }
+    if session.site.accepts(url) { destination = ReaderDestination(url: url) }
     else { external = url }
   }
   private func play(_ block: BodyBlock) {
     guard let url = block.url, MediaPolicy.allowed(url) else { return }
-    media = .video(url, block.direct)
+    media = .video(url, block.direct, session.site.base)
   }
   @MainActor private func load(force: Bool) async -> String? {
     let expected = requestID

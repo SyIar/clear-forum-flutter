@@ -21,7 +21,7 @@ final class ForumCoreTests: XCTestCase {
     XCTAssertFalse(post.blocks.flatMap(\.runs).contains { $0.text.contains("hidden ad") })
     XCTAssertTrue(post.blocks.contains { $0.kind == .quote })
     XCTAssertTrue(post.blocks.contains { $0.kind == .spoiler })
-    XCTAssertTrue(page.loggedIn)
+    XCTAssertEqual(page.loggedIn, true)
     XCTAssertNotNil(page.next)
   }
   func testChallengesAndUnsupportedPagesAreNotEmptySuccesses() {

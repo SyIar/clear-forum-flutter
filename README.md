@@ -1,6 +1,12 @@
-# simp lite
+# forum lite
 
-A personal iOS forum reader built with SwiftUI, UIKit, WebKit and AVKit. The production target is `native/SimpLite.xcodeproj`, generated from `native/project.yml`; it does not load Flutter. A visible WKWebView handles sign-in and pages requiring browser interaction.
+A personal iOS forum reader built with SwiftUI, UIKit, WebKit and AVKit. The production target is `native/ForumLite.xcodeproj`, generated from `native/project.yml`; it does not load Flutter. A visible WKWebView handles sign-in and pages requiring browser interaction.
+
+## Two forums, one installation
+
+The home screen switches between **SimpCity** and **South Plus**. Each forum has a separate local library, page/image cache, and WebKit session. The app remembers the selected forum. The bundle identifier stays `dev.sylar.clearforum`, allowing a correctly signed update to replace simp lite. Existing Simp bookmarks, reading history and its default WebKit profile are retained; an independently installed South app has a different sandbox and is not migrated.
+
+South's parser is a compatibility preview tested against synthetic fixtures. Live South pages and account access have not been validated because browser site-safety policy blocked the target site. This build does not establish real-site compatibility. See [merge details and validation](docs/FORUM_LITE_MERGE.md).
 
 ## Scope
 
@@ -17,13 +23,13 @@ A personal iOS forum reader built with SwiftUI, UIKit, WebKit and AVKit. The pro
 
 Media cards open an iOS player. Direct HTTPS media uses AVKit. Turbo links use a bounded, isolated provider request followed by a fresh signed-stream request. Other embedded pages initialize behind a native loading screen, where a media observer can hand an available HTTPS stream to AVKit. Failure shows Retry and Details; only an explicit Web player action exposes the provider page. Details contains redacted stages, HTTP/MIME metadata, and native error codes. Signed links stay in memory, never in reports, bookmarks or history. Provider compatibility requires device verification; this is not a guarantee that every embed plays or that every ad is removed. See [media behavior and limits](docs/EMBEDDED_MEDIA.md).
 
-The iOS display name and generated icon are updated; the bundle identifier remains `dev.sylar.clearforum` so a correctly re-signed update can replace the existing installation. See [branding](docs/BRANDING.md) for the icon source and generation prompt.
+The iOS display name and generated icon are updated; the bundle identifier remains `dev.sylar.clearforum` so a correctly re-signed update can replace the existing installation. The merged app uses an original geometric F icon from `scripts/render_forum_icon.py`; the SimpCity header remains inside its forum home. Earlier branding is recorded in [branding history](docs/BRANDING.md).
 
 The sample mode is clearly marked and contains only invented, non-account content. A successful build is not evidence that a real account session works on a phone.
 
 ## Run and build
 
-Use Xcode 26 or newer on macOS. Run `swift test --package-path native`, generate the project with `xcodegen generate --spec native/project.yml`, then build the `SimpLite` scheme. The `ios-native.yml` workflow builds and validates an unsigned device IPA. See [native migration](docs/SWIFT_MIGRATION.md) for the delivered build and device acceptance status.
+Use Xcode 26 or newer on macOS. Run `swift test --package-path native`, generate the project with `xcodegen generate --spec native/project.yml`, then build the `ForumLite` scheme. The `ios-native.yml` workflow builds and validates an unsigned device IPA. See [native migration](docs/SWIFT_MIGRATION.md) for the delivered build and device acceptance status.
 
 The old Flutter source and its workflows remain for comparison and rollback. They are not dependencies of the native target. The old web sample preview is still available through the Flutter toolchain.
 

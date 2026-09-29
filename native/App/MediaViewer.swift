@@ -3,11 +3,11 @@ import UIKit
 
 enum MediaViewerItem: Identifiable {
   case image(UUID, UIImage)
-  case video(URL, Bool)
+  case video(URL, Bool, URL)
   var id: String {
     switch self {
     case .image(let id, _): return id.uuidString
-    case .video(let url, let direct): return "\(direct):\(url.absoluteString)"
+    case .video(let url, let direct, let referer): return "\(referer.host ?? ""):\(direct):\(url.absoluteString)"
     }
   }
 }
@@ -56,7 +56,7 @@ final class MediaNavigationController: UINavigationController {
     let root: UIViewController
     switch item {
     case .image(_, let image): root = ImageViewerController(image: image)
-    case .video(let url, let direct): root = MediaPlayerController(url: url, direct: direct, completion: {})
+    case .video(let url, let direct, let referer): root = MediaPlayerController(url: url, direct: direct, referer: referer, completion: {})
     }
     self.init(rootViewController: root)
     if case .image = item { overrideUserInterfaceStyle = .dark }

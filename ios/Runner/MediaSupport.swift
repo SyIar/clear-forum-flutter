@@ -88,6 +88,7 @@ struct ResolvedMedia {
 // Two bounded GETs in a private, in-memory session. No player/ad scripts run here.
 final class TurboResolver: NSObject, URLSessionDataDelegate {
   private let pageURL: URL
+  private let forumReferer: URL
   private let signURL: URL
   private var cookies: [HTTPCookie]
   private let configuration: URLSessionConfiguration
@@ -104,12 +105,13 @@ final class TurboResolver: NSObject, URLSessionDataDelegate {
   private var stage: String { signing ? "sign" : "provider-page" }
 
   init(id: String, cookies: [HTTPCookie], configuration: URLSessionConfiguration = .ephemeral,
-       event: @escaping (String, String) -> Void,
+       referer: URL = URL(string: "https://simpcity.cr/")!, event: @escaping (String, String) -> Void,
        completion: @escaping (Result<ResolvedMedia, MediaFailure>) -> Void) {
     pageURL = URL(string: "https://turbo.cr/d/\(id)")!
     var components = URLComponents(string: "https://turbo.cr/api/sign")!
     components.queryItems = [URLQueryItem(name: "v", value: id)]
     signURL = components.url!
+    forumReferer = referer
     self.cookies = cookies
     self.configuration = configuration
     self.event = event
@@ -148,7 +150,7 @@ final class TurboResolver: NSObject, URLSessionDataDelegate {
       request.setValue(value, forHTTPHeaderField: name)
     }
     request.setValue(signing ? "application/json" : "text/html", forHTTPHeaderField: "Accept")
-    request.setValue(signing ? pageURL.absoluteString : "https://simpcity.cr/", forHTTPHeaderField: "Referer")
+    request.setValue(signing ? pageURL.absoluteString : forumReferer.absoluteString, forHTTPHeaderField: "Referer")
     task = session?.dataTask(with: request)
     task?.resume()
   }

@@ -1,19 +1,32 @@
 import SwiftUI
 
 @main
-struct SimpcityUltimateApp: App {
-  @StateObject private var library = LibraryStore()
-  @StateObject private var session = ForumSession()
+struct ForumLiteApp: App {
+  @StateObject private var simpLibrary = LibraryStore(site: .simp)
+  @StateObject private var southLibrary = LibraryStore(site: .south)
+  @StateObject private var simpSession = ForumSession(site: .simp)
+  @StateObject private var southSession = ForumSession(site: .south)
+  @AppStorage("selected_forum") private var selectedForum = ForumSite.simp.rawValue
+  private var selection: Binding<ForumSite> {
+    Binding(get: { ForumSite(rawValue: selectedForum) ?? .simp }, set: { selectedForum = $0.rawValue })
+  }
   var body: some Scene {
     WindowGroup {
-      HomeView().environmentObject(library).environmentObject(session).tint(.blue)
+      if selection.wrappedValue == .simp {
+        HomeView(selection: selection).id(ForumSite.simp)
+          .environmentObject(simpLibrary).environmentObject(simpSession).tint(.blue)
+      } else {
+        HomeView(selection: selection).id(ForumSite.south)
+          .environmentObject(southLibrary).environmentObject(southSession).tint(.blue)
+      }
     }
   }
 }
 
 @MainActor
 final class LibraryStore: ObservableObject {
-  @Published private(set) var document = LibraryDocument()
+  let site: ForumSite
+  @Published private(set) var document: LibraryDocument
   @Published var error: String?
   @Published private(set) var refreshing = false
   @Published private(set) var refreshMessage: String?
@@ -21,9 +34,9 @@ final class LibraryStore: ObservableObject {
   private var visitTokens: [String: UUID] = [:]
   private var visitTasks: [String: Task<Void, Never>] = [:]
   private var directoryEntries: [ForumEntry] = []
-  init() { reload() }
+  init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
-    do { document = try LibraryDocument.load(from: .standard); ready = true; error = nil }
+    do { document = try LibraryDocument.load(from: .standard, site: site); ready = true; error = nil }
     catch { self.error = error.localizedDescription; ready = false }
   }
   func change(_ mutate: (inout LibraryDocument) -> Void) {
@@ -35,6 +48,7 @@ final class LibraryStore: ObservableObject {
     catch { self.error = "Could not save your reading library." }
   }
   func remember(_ page: ForumPage, session: ForumSession, checkMaximum: Bool = true) {
+    guard session.site == site, site.accepts(page.url) else { return }
     if page.kind != .posts { directoryEntries = Array(page.entries.prefix(200)) }
     change {
       $0.remember(SavedPage(url: page.url, title: page.title))
@@ -62,7 +76,7 @@ final class LibraryStore: ObservableObject {
     }
   }
   func refresh(session: ForumSession) async {
-    guard ready, !refreshing else { return }
+    guard session.site == site, ready, !refreshing else { return }
     let targets = document.trackedThreads
     guard !targets.isEmpty else { refreshMessage = nil; return }
     refreshing = true
@@ -107,6 +121,7 @@ struct ReaderDestination: Hashable {
 }
 
 struct HomeView: View {
+  @Binding var selection: ForumSite
   @EnvironmentObject private var library: LibraryStore
   @EnvironmentObject private var session: ForumSession
   @State private var path: [ReaderDestination] = []
@@ -117,12 +132,29 @@ struct HomeView: View {
     NavigationStack(path: $path) {
       List {
         Section {
-          NavigationLink(value: ReaderDestination(url: SitePolicy.base)) {
+          Picker("Forum", selection: $selection) {
+            ForEach(ForumSite.allCases) { site in Text(site.title).tag(site) }
+          }.pickerStyle(.segmented)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            .listRowBackground(Color.clear)
+        }
+        Section {
+          NavigationLink(value: ReaderDestination(url: session.site.start)) {
             VStack(alignment: .leading, spacing: 12) {
-              Image("ForumLogo").resizable().scaledToFit()
-                .frame(maxWidth: .infinity).padding(10)
-                .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityHidden(true)
+              if session.site == .simp {
+                Image("ForumLogo").resizable().scaledToFit()
+                  .frame(maxWidth: .infinity).padding(10)
+                  .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 12))
+                  .accessibilityHidden(true)
+              } else {
+                HStack(spacing: 14) {
+                  Image(systemName: "text.bubble.fill").font(.largeTitle)
+                  Text("South Plus").font(.title.bold())
+                  Spacer()
+                }.foregroundStyle(.white).padding(20)
+                  .background(Color.blue.gradient, in: RoundedRectangle(cornerRadius: 12))
+                  .accessibilityHidden(true)
+              }
               Text("Open forum").font(.headline)
             }.padding(.vertical, 6)
           }
@@ -144,7 +176,7 @@ struct HomeView: View {
           Section { Text(message).font(.caption).foregroundStyle(.secondary) }
         }
       }
-      .navigationTitle("simp lite")
+      .navigationTitle("forum lite")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Add bookmark", systemImage: "bookmark.badge.plus") { adding = true } } }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
@@ -230,7 +262,7 @@ struct BookmarkEditor: View {
         .toolbar {
           ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
           ToolbarItem(placement: .confirmationAction) { Button("Save") {
-            guard let url = SitePolicy.resolve(address, from: SitePolicy.base, internalOnly: true) else { error = "Enter a supported simpcity.cr forum or thread URL."; return }
+            guard let url = SitePolicy.resolve(address, from: library.site.base, internalOnly: true), library.site.accepts(url) else { error = "Enter a supported \(library.site.host) forum or thread URL."; return }
             guard !library.contains(url) else { error = "This URL is already bookmarked."; return }
             library.toggle(url, title: title.isEmpty ? url.path : title)
             if library.error == nil { dismiss() }

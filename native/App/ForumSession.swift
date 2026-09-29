@@ -4,16 +4,21 @@ import UIKit
 
 @MainActor
 final class ForumSession: ObservableObject {
-  let store = WKWebsiteDataStore.default()
+  let site: ForumSite
+  let store: WKWebsiteDataStore
+  let images = ImageStore()
   let pages = PageCache()
   private var operations: [UUID: PageRequest] = [:]
   @Published private(set) var generation = 0
   private var memoryObserver: NSObjectProtocol?
-  init() {
+  init(site: ForumSite) {
+    self.site = site
+    // Keep the existing Simp login; South gets an isolated persistent WebKit profile.
+    store = site == .simp ? .default() : WKWebsiteDataStore(forIdentifier: UUID(uuidString: "1F621C45-387F-478D-A8E2-56DB533EA481")!)
     memoryObserver = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
       Task { @MainActor in
         self?.pages.removeAll()
-        ImageStore.shared.releaseCachedImages()
+        self?.images.releaseCachedImages()
       }
     }
   }
@@ -41,38 +46,40 @@ final class ForumSession: ObservableObject {
     }
   }
   func load(_ url: URL, cacheResult: Bool = false) async throws -> ForumPage {
-    guard SitePolicy.readable(url) else { throw ReaderFailure.unsupported }
+    guard site.accepts(url) else { throw ReaderFailure.unsupported }
     let epoch = generation
     var current = SitePolicy.withoutFragment(url)
     for _ in 0..<6 {
       try Task.checkCancellation()
       guard generation == epoch else { throw CancellationError() }
       let cookies = await store.httpCookieStore.allCookies()
+      try Task.checkCancellation()
+      guard generation == epoch else { throw CancellationError() }
       var query = URLRequest(url: current, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
       query.httpShouldHandleCookies = false
       query.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
-      query.setValue("ClearForum/0.1", forHTTPHeaderField: "User-Agent")
-      let applicable = cookies.filter { SitePolicy.matches($0, url: current) }.sorted { $0.path.count > $1.path.count }
+      query.setValue("ForumLite/0.3", forHTTPHeaderField: "User-Agent")
+      let applicable = cookies.filter { site.matches($0, url: current) }.sorted { $0.path.count > $1.path.count }
       for (key, value) in HTTPCookie.requestHeaderFields(with: applicable) { query.setValue(value, forHTTPHeaderField: key) }
       let (response, data) = try await request(query)
       var headers: [String: String] = [:]
       for (key, value) in response.allHeaderFields { headers[String(describing: key)] = String(describing: value) }
-      for cookie in HTTPCookie.cookies(withResponseHeaderFields: headers, for: current).filter({ SitePolicy.domainMatches($0) }) {
+      for cookie in HTTPCookie.cookies(withResponseHeaderFields: headers, for: current).filter({ site.domainMatches($0) }) {
         if cookie.expiresDate.map({ $0 <= Date() }) ?? false { await store.httpCookieStore.deleteCookie(cookie) }
         else { await store.httpCookieStore.saveCookie(cookie) }
       }
       guard generation == epoch else { throw CancellationError() }
       if (300..<400).contains(response.statusCode) {
         guard let next = SitePolicy.resolve(response.value(forHTTPHeaderField: "Location"), from: current) else { throw ReaderFailure.unsupported }
-        if SitePolicy.sameOrigin(next), next.path.hasPrefix("/login") { throw ReaderFailure.login }
-        guard SitePolicy.readable(next) else { throw ReaderFailure.unsupported }
+        if site.isLogin(next) { throw ReaderFailure.login }
+        guard site.accepts(next) else { throw ReaderFailure.unsupported }
         current = SitePolicy.withoutFragment(next)
         continue
       }
-      var final = URLComponents(url: current, resolvingAgainstBaseURL: false)!
-      final.fragment = url.fragment
-      let source = String(decoding: data, as: UTF8.self)
-      let finalURL = final.url ?? current
+      var finalComponents = URLComponents(url: current, resolvingAgainstBaseURL: false)!
+      finalComponents.fragment = url.fragment
+      let source = try HTMLDecoder.decode(data, encodingName: response.textEncodingName)
+      let finalURL = finalComponents.url ?? current
       let status = response.statusCode
       let page = try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
       try Task.checkCancellation()
@@ -87,20 +94,20 @@ final class ForumSession: ObservableObject {
     var query = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 15)
     query.httpShouldHandleCookies = false
     query.setValue("text/html", forHTTPHeaderField: "Accept")
-    query.setValue(SitePolicy.base.absoluteString, forHTTPHeaderField: "Referer")
+    query.setValue(site.base.absoluteString, forHTTPHeaderField: "Referer")
     guard let (response, data) = try? await request(query, maxBytes: 2 * 1024 * 1024, htmlOnly: true), (200..<300).contains(response.statusCode) else { return nil }
     return String(data: data, encoding: .utf8)
   }
   func maximumPostNumber(from initial: ForumPage) async throws -> Int {
-    guard let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }
+    guard site.accepts(initial.url), let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }
     var page = initial
     if URLComponents(url: page.url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "order" }) == true,
        let root = SitePolicy.threadRoot(page.url) { page = try await load(root) }
     // Follow the last-page link, including a page added while this request is in flight.
     for attempt in 0..<3 {
       try Task.checkCancellation()
-      guard SitePolicy.threadKey(page.url) == key, page.kind == .posts else { throw ReaderFailure.unsupported }
-      if let maximum = page.maximumPostNumber, maximum > 0 { return maximum }
+      guard site.accepts(page.url), SitePolicy.threadKey(page.url) == key, page.kind == .posts else { throw ReaderFailure.unsupported }
+      if let maximum = page.maximumPostNumber, maximum >= 0 { return maximum }
       guard attempt < 2, let last = page.url(forPage: page.pageCount) ?? page.lastPage ?? page.next,
             SitePolicy.threadKey(last) == key, SitePolicy.pageNumber(last) > page.pageNumber else { throw ReaderFailure.unsupported }
       page = try await load(last)
@@ -116,6 +123,7 @@ final class ForumSession: ObservableObject {
   }
   func clear() async {
     invalidatePages()
+    images.releaseCachedImages()
     await withCheckedContinuation { continuation in
       store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { continuation.resume() }
     }

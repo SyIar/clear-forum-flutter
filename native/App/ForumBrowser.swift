@@ -43,6 +43,7 @@ final class PageRequest: NSObject, URLSessionDataDelegate {
 }
 
 final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+  private let site: ForumSite
   private let initialURL: URL
   private let dataStore: WKWebsiteDataStore
   private let completion: ([String: Any]?) -> Void
@@ -51,11 +52,11 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   private var observation: NSKeyValueObservation?
   private var finished = false
   private var capturing = false
-  init(url: URL, store: WKWebsiteDataStore, completion: @escaping ([String: Any]?) -> Void) { initialURL = url; dataStore = store; self.completion = completion; super.init(nibName: nil, bundle: nil) }
+  init(url: URL, store: WKWebsiteDataStore, completion: @escaping ([String: Any]?) -> Void) { site = ForumSite(url: url)!; initialURL = url; dataStore = store; self.completion = completion; super.init(nibName: nil, bundle: nil) }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = SitePolicy.host
+    title = site.host
     view.backgroundColor = .systemBackground
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Done", style: .plain, target: self, action: #selector(close))
     navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Read page", style: .done, target: self, action: #selector(readPage))
@@ -80,13 +81,13 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   @objc private func close() { finish(nil) }
   private func finish(_ page: [String: Any]?) { guard !finished else { return }; finished = true; webView.stopLoading(); dismiss(animated: true) { self.completion(page) } }
   @objc private func readPage() {
-    guard !capturing, let url = webView.url, SitePolicy.readable(url) else { notice("Open a forum or thread before choosing Read page."); return }
+    guard !capturing, let url = webView.url, site.accepts(url) else { notice("Open a forum or thread before choosing Read page."); return }
     capturing = true
     let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,input,textarea,select,svg,noscript,.p-nav,.p-header,.p-footer,.p-body-sidebar').forEach(e=>e.remove());root.querySelectorAll('form').forEach(e=>e.replaceWith(...e.childNodes));return {url:location.href,html:root.outerHTML};})()"#
     webView.evaluateJavaScript(script) { [weak self] value, error in
       guard let self = self else { return }
       self.capturing = false
-      guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), SitePolicy.readable(finalURL) else { self.notice("This page is not ready for clean view. Finish loading or sign in and try again."); return }
+      guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), self.site.accepts(finalURL) else { self.notice("This page is not ready for clean view. Finish loading or sign in and try again."); return }
       self.finish(page)
     }
   }
@@ -98,7 +99,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
-    if navigationAction.targetFrame?.isMainFrame == true && !SitePolicy.sameOrigin(url) {
+    if navigationAction.targetFrame?.isMainFrame == true && !site.sameOrigin(url) {
       decisionHandler(.cancel)
       if navigationAction.navigationType == .linkActivated { notice("External links open from the clean reader. This browser keeps your forum session on the forum domain.") }
       return
@@ -106,7 +107,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     decisionHandler(url.scheme == "https" || url.scheme == "about" ? .allow : .cancel)
   }
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-    if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url, SitePolicy.sameOrigin(url) { webView.load(navigationAction.request) }
+    if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url, site.sameOrigin(url) { webView.load(navigationAction.request) }
     return nil
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { notice("Could not load this page. Check the connection and try again.") } }

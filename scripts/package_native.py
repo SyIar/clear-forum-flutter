@@ -6,18 +6,21 @@ import struct
 import zipfile
 from pathlib import Path
 
-app = Path('native/build/Build/Products/Release-iphoneos/SimpLite.app')
+app = Path('native/build/Build/Products/Release-iphoneos/ForumLite.app')
 info = plistlib.loads((app / 'Info.plist').read_bytes())
 assert info['CFBundleIdentifier'] == 'dev.sylar.clearforum'
-assert info['CFBundleDisplayName'] == 'simp lite'
+assert info['CFBundleDisplayName'] == 'forum lite'
 assert info['DTPlatformName'] == 'iphoneos'
 binary = (app / info['CFBundleExecutable']).read_bytes()
 assert struct.unpack('<II', binary[:8]) == (0xFEEDFACF, 0x0100000C), 'Expected arm64 Mach-O'
 assert not any(p.name in {'Flutter.framework', 'App.framework', 'flutter_assets'} for p in app.rglob('*')), 'Unexpected Flutter runtime'
 assert (app / 'MediaProbe.js').is_file(), 'Missing media compatibility script'
+assert (app / 'Assets.car').is_file(), 'Missing app assets'
+assert (app / 'ThirdPartyNotices.txt').is_file(), 'Missing dependency notice'
+assert info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon'), 'Missing primary icon'
 output = Path('artifacts/native')
 output.mkdir(parents=True, exist_ok=True)
-ipa = output / 'SimpLite-unsigned.ipa'
+ipa = output / 'ForumLite-unsigned.ipa'
 with zipfile.ZipFile(ipa, 'w', zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(app.rglob('*')):
         if path.is_file():

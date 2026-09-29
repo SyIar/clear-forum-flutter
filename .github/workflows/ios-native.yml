@@ -24,11 +24,11 @@ jobs:
       - run: brew install xcodegen
       - run: xcodegen generate --spec native/project.yml
       - name: Compile native device app
-        run: xcodebuild -project native/SimpLite.xcodeproj -scheme SimpLite -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath native/build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=$((1000 + GITHUB_RUN_NUMBER)) build
+        run: xcodebuild -project native/ForumLite.xcodeproj -scheme ForumLite -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath native/build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=$((1000 + GITHUB_RUN_NUMBER)) build
       - run: python3 scripts/package_native.py
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: SimpLite-native-unsigned-${{ github.run_number }}
+          name: ForumLite-native-unsigned-${{ github.run_number }}
           path: artifacts/native/
           if-no-files-found: error
           retention-days: 14

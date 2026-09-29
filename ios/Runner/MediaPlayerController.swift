@@ -6,6 +6,7 @@ import WebKit
 final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
   var requestClose: (() -> Void)?
   private let initialURL: URL
+  private let forumReferer: URL
   private let direct: Bool
   private let completion: () -> Void
   private let store = WKWebsiteDataStore.nonPersistent()
@@ -39,8 +40,9 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private var candidateFrame: WKFrameInfo?
   private var genericEmbed: Bool { !direct && MediaPolicy.turboID(initialURL) == nil }
 
-  init(url: URL, direct: Bool, completion: @escaping () -> Void) {
+  init(url: URL, direct: Bool, referer: URL = URL(string: "https://simpcity.cr/")!, completion: @escaping () -> Void) {
     initialURL = url
+    forumReferer = referer
     self.direct = direct
     self.completion = completion
     super.init(nibName: nil, bundle: nil)
@@ -108,7 +110,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       waitingView.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
     ])
     configureFullscreenButton()
-    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+    let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "unknown"
     diagnostics.record("app", "build=\(build), iOS=\(UIDevice.current.systemVersion)")
     diagnostics.record("provider", MediaPolicy.turboID(initialURL) == nil ? (direct ? "direct-media" : "generic-embed") : "turbo")
     // Keep provider scripts intact when the user explicitly opens its web player.
@@ -276,7 +278,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     store.httpCookieStore.getAllCookies { [weak self] cookies in
       DispatchQueue.main.async {
         guard let self = self, self.active(epoch) else { return }
-        let resolver = TurboResolver(id: id, cookies: cookies, event: { [weak self] stage, detail in
+        let resolver = TurboResolver(id: id, cookies: cookies, referer: forumReferer, event: { [weak self] stage, detail in
           guard let self = self, self.active(epoch) else { return }
           self.diagnostics.record(stage, detail)
         }, completion: { [weak self] result in
@@ -298,7 +300,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private func active(_ epoch: Int) -> Bool { !closed && generation == epoch && !useWeb && !failed }
   private func loadWebPage() {
     var request = URLRequest(url: initialURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
-    request.setValue("https://simpcity.cr/", forHTTPHeaderField: "Referer")
+    request.setValue(forumReferer.absoluteString, forHTTPHeaderField: "Referer")
     diagnostics.record("web", "Loading provider page")
     activeNavigation = webView.load(request)
   }

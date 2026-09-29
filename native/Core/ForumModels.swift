@@ -2,7 +2,7 @@ import Foundation
 
 enum PageKind { case forums, threads, posts }
 enum ReaderFailure: String, Error, LocalizedError {
-  case login, verification, forbidden, rateLimit, network, unsupported, storage
+  case login, verification, forbidden, rateLimit, network, unsupported, storage, encoding
   var errorDescription: String? {
     switch self {
     case .login: return "Sign in to read this page."
@@ -11,6 +11,7 @@ enum ReaderFailure: String, Error, LocalizedError {
     case .rateLimit: return "The site is receiving too many requests. Try again later."
     case .network: return "Could not load the page. Check your connection and try again."
     case .unsupported: return "This page cannot be displayed in the reader. Try Site browser."
+    case .encoding: return "Could not decode this page. Open Site browser and choose Read page."
     case .storage: return "Could not read your saved library. Your existing data has been preserved."
     }
   }
@@ -64,7 +65,7 @@ struct ForumPage {
   var previous: URL?
   var next: URL?
   var pageNumber: Int
-  var loggedIn: Bool
+  var loggedIn: Bool?
   var lastPage: URL?
   var maximumPostNumber: Int?
   var breadcrumbs: [ForumEntry] = []
@@ -77,29 +78,5 @@ struct ForumPage {
   func url(forPage number: Int) -> URL? {
     guard (1...pageCount).contains(number) else { return nil }
     return SitePolicy.pageURL(url, number: number)
-  }
-}
-
-extension SitePolicy {
-  static let base = URL(string: "https://simpcity.cr/")!
-  static func resolve(_ value: String?, from page: URL, internalOnly: Bool = false) -> URL? {
-    guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
-          let candidate = URL(string: raw, relativeTo: page)?.absoluteURL,
-          candidate.scheme == "https", !(candidate.host ?? "").isEmpty,
-          candidate.user == nil, candidate.password == nil else { return nil }
-    var resolved = candidate
-    if sameOrigin(candidate), candidate.path.range(of: #"^/threads/[^/]+\.\d+/unread/?$"#, options: .regularExpression) != nil,
-       candidate.query == nil || candidate.query == "new=1" {
-      var components = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!
-      components.path = candidate.path.replacingOccurrences(of: #"unread/?$"#, with: "", options: .regularExpression)
-      components.query = nil
-      resolved = components.url ?? candidate
-    }
-    return internalOnly && !readable(resolved) ? nil : resolved
-  }
-  static func withoutFragment(_ url: URL) -> URL {
-    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-    components.fragment = nil
-    return components.url ?? url
   }
 }

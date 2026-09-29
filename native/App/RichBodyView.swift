@@ -43,6 +43,7 @@ struct ForumEntryCard: View {
 }
 
 struct ForumThumbnail: View {
+  @EnvironmentObject private var session: ForumSession
   let url: URL
   var compact = false
   @State private var image: UIImage?
@@ -62,7 +63,7 @@ struct ForumThumbnail: View {
         imageURL = url
         loading = true
         image = nil
-        let loaded = await ImageStore.shared.load(url, referer: SitePolicy.base)
+        let loaded = await session.images.load(url, referer: session.site.base)
         guard !Task.isCancelled, imageURL == url else { return }
         image = loaded
         loading = false
@@ -239,7 +240,6 @@ struct MediaRow: View {
 
 @MainActor
 final class ImageStore {
-  static let shared = ImageStore()
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
   private var generation = 0
@@ -287,6 +287,7 @@ final class ImageStore {
   }
 }
 struct RemoteImageView: View {
+  @EnvironmentObject private var session: ForumSession
   let url: URL?
   var ratio: Double?
   var maximumHeight: CGFloat = 360
@@ -315,7 +316,7 @@ struct RemoteImageView: View {
         imageURL = url
         loading = true
         image = nil
-        let loaded = if let url { await ImageStore.shared.load(url) } else { nil as UIImage? }
+        let loaded = if let url { await session.images.load(url) } else { nil as UIImage? }
         guard !Task.isCancelled, imageURL == url else { return }
         image = loaded
         loading = false

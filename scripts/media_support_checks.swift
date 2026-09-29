@@ -17,7 +17,7 @@ final class StubProtocol: URLProtocol {
 
 func checkResolve(signStatus: Int = 200, mime: String = "application/json",
                   json: String = #"{"success":true,"url":"https://media.example/clip.mp4?token=private-fixture"}"#,
-                  pageStatus: Int = 200, oversized: Bool = false) -> Result<ResolvedMedia, MediaFailure> {
+                  pageStatus: Int = 200, oversized: Bool = false, forum: URL = URL(string: "https://simpcity.cr/")!) -> Result<ResolvedMedia, MediaFailure> {
   StubProtocol.requests = []
   StubProtocol.responder = { request in
     if request.url!.path.hasPrefix("/d/") {
@@ -27,10 +27,10 @@ func checkResolve(signStatus: Int = 200, mime: String = "application/json",
   }
   let configuration = URLSessionConfiguration.ephemeral
   configuration.protocolClasses = [StubProtocol.self]
-  let forumCookie = HTTPCookie(properties: [.name: "forum", .value: "private-session", .domain: ".simpcity.cr", .path: "/", .secure: "TRUE"])!
+  let forumCookie = HTTPCookie(properties: [.name: "forum", .value: "private-session", .domain: "." + forum.host!, .path: "/", .secure: "TRUE"])!
   var result: Result<ResolvedMedia, MediaFailure>?
   let diagnostics = MediaDiagnostics()
-  let resolver = TurboResolver(id: "sample123", cookies: [forumCookie], configuration: configuration,
+  let resolver = TurboResolver(id: "sample123", cookies: [forumCookie], configuration: configuration, referer: forum,
     event: { diagnostics.record($0, $1) }, completion: { result = $0 })
   resolver.start()
   let deadline = Date().addingTimeInterval(5)
@@ -60,6 +60,13 @@ case .failure: preconditionFailure("Expected a resolved media URL")
 precondition(StubProtocol.requests.count == 2)
 precondition(StubProtocol.requests[1].value(forHTTPHeaderField: "Referer") == "https://turbo.cr/d/sample123")
 precondition(StubProtocol.requests[1].value(forHTTPHeaderField: "Cookie")?.contains("provider=fixture") == true)
+precondition(StubProtocol.requests[0].value(forHTTPHeaderField: "Referer") == "https://simpcity.cr/")
+switch checkResolve(forum: URL(string: "https://south-plus.net/")!) {
+case .success: break
+case .failure: preconditionFailure("Second forum media context failed")
+}
+precondition(StubProtocol.requests[0].value(forHTTPHeaderField: "Referer") == "https://south-plus.net/")
+precondition(StubProtocol.requests[1].value(forHTTPHeaderField: "Referer") == "https://turbo.cr/d/sample123")
 for result in [
   checkResolve(signStatus: 403),
   checkResolve(mime: "text/html", json: "<html>Verification</html>"),

@@ -1,0 +1,104 @@
+import Foundation
+
+enum SouthSitePolicy {
+  static let host = "south-plus.net"
+  static let base = URL(string: "https://south-plus.net/")!
+  static let start = URL(string: "https://south-plus.net/thread.php?fid-9.html")!
+  static let login = base.appendingPathComponent("login.php")
+
+  struct Route {
+    var path: String
+    var parameters: [String: String]
+    var legacy: Bool
+    var page: Int { Int(parameters["page"] ?? "1") ?? 1 }
+    var resourceKey: String {
+      var identity = parameters
+      identity.removeValue(forKey: "page")
+      if path == "/read.php" { identity.removeValue(forKey: "fid") }
+      return path + "?" + identity.keys.sorted().map { "\($0)=\(identity[$0]!)" }.joined(separator: "&")
+    }
+  }
+
+  static func sameOrigin(_ url: URL) -> Bool {
+    url.scheme == "https" && url.host?.lowercased() == host && (url.port == nil || url.port == 443) && url.user == nil && url.password == nil
+  }
+  static func route(_ url: URL) -> Route? {
+    guard sameOrigin(url), url.absoluteString.utf8.count < 8192,
+          ["", "/", "/index.php", "/thread.php", "/read.php"].contains(url.path) else { return nil }
+    let path = ["", "/"].contains(url.path) ? "/index.php" : url.path
+    let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery ?? ""
+    var values: [String: String] = [:]
+    let legacy = !query.isEmpty && !query.contains("=")
+    if legacy {
+      guard query.hasSuffix(".html") else { return nil }
+      let tokens = query.dropLast(5).split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+      guard tokens.count % 2 == 0 else { return nil }
+      for index in stride(from: 0, to: tokens.count, by: 2) {
+        guard values.updateValue(tokens[index + 1], forKey: tokens[index]) == nil else { return nil }
+      }
+    } else {
+      for item in URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [] {
+        guard let value = item.value, values.updateValue(value, forKey: item.name) == nil else { return nil }
+      }
+    }
+    let permitted: Set<String> = path == "/read.php" ? ["tid", "fid", "page"] : path == "/thread.php" ? ["fid", "page", "type"] : []
+    for (key, value) in values {
+      guard permitted.contains(key), value.range(of: #"^(0|[1-9][0-9]{0,17})$"#, options: .regularExpression) != nil else { return nil }
+      if key == "page", !(1...99_999).contains(Int(value) ?? 0) { return nil }
+      if ["fid", "tid"].contains(key), value == "0" { return nil }
+    }
+    if path == "/thread.php" && values["fid"] == nil { return nil }
+    if path == "/read.php" && values["tid"] == nil { return nil }
+    return Route(path: path, parameters: values, legacy: legacy)
+  }
+  static func readable(_ url: URL) -> Bool { route(url) != nil }
+  static func isLogin(_ url: URL) -> Bool { sameOrigin(url) && url.path == "/login.php" }
+  static func isThread(_ url: URL) -> Bool { route(url)?.path == "/read.php" }
+  static func threadKey(_ url: URL) -> String? { isThread(url) ? route(url)?.parameters["tid"] : nil }
+  static func threadRoot(_ url: URL) -> URL? {
+    guard let id = threadKey(url) else { return nil }
+    return URL(string: "read.php?tid=\(id)", relativeTo: base)?.absoluteURL
+  }
+  static func pageNumber(_ url: URL) -> Int { route(url)?.page ?? 1 }
+  static func pageRoot(_ url: URL) -> URL {
+    guard let route = route(url) else { return withoutFragment(url) }
+    return URL(string: route.resourceKey, relativeTo: base)!.absoluteURL
+  }
+  static func pageURL(_ url: URL, number: Int) -> URL? {
+    guard var route = route(url), route.path != "/index.php", (1...99_999).contains(number) else { return nil }
+    route.parameters["page"] = number == 1 ? nil : String(number)
+    var parts = URLComponents(url: base.appendingPathComponent(String(route.path.dropFirst())), resolvingAgainstBaseURL: false)!
+    let keys = ["fid", "tid", "type", "page"].filter { route.parameters[$0] != nil }
+    if route.legacy { parts.percentEncodedQuery = keys.map { "\($0)-\(route.parameters[$0]!)" }.joined(separator: "-") + ".html" }
+    else { parts.queryItems = keys.map { URLQueryItem(name: $0, value: route.parameters[$0]) } }
+    return parts.url
+  }
+  static func pageCacheKey(_ url: URL) -> String {
+    guard let route = route(url) else { return withoutFragment(url).absoluteString }
+    return host + route.resourceKey + "&page=\(route.page)"
+  }
+  static func domainMatches(_ cookie: HTTPCookie) -> Bool {
+    cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) == host
+  }
+  static func matches(_ cookie: HTTPCookie, url: URL) -> Bool {
+    guard sameOrigin(url), domainMatches(cookie), cookie.expiresDate.map({ $0 > Date() }) ?? true else { return false }
+    let path = url.path.isEmpty ? "/" : url.path
+    return path == cookie.path || (path.hasPrefix(cookie.path) && (cookie.path.hasSuffix("/") || path.dropFirst(cookie.path.count).hasPrefix("/")))
+  }
+  static func resolve(_ value: String?, from page: URL, internalOnly: Bool = false) -> URL? {
+    guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+          var candidate = URL(string: raw, relativeTo: page)?.absoluteURL else { return nil }
+    if candidate.scheme == "http", candidate.host?.lowercased() == host, candidate.port == nil || candidate.port == 80 {
+      var parts = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!
+      parts.scheme = "https"; parts.port = nil; candidate = parts.url ?? candidate
+    }
+    guard candidate.scheme == "https", !(candidate.host ?? "").isEmpty, candidate.user == nil, candidate.password == nil,
+          candidate.port == nil || candidate.port == 443, candidate.absoluteString.utf8.count <= 8192 else { return nil }
+    return internalOnly && !readable(candidate) ? nil : candidate
+  }
+  static func withoutFragment(_ url: URL) -> URL {
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+    components.fragment = nil
+    return components.url ?? url
+  }
+}
