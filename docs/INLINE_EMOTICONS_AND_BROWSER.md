@@ -25,4 +25,12 @@ Device checks after installation:
 3. Repeat from Site browser and from a link opening a new window. Confirm forum login still works after returning.
 4. Open existing Turbo and non-Turbo media cards; their player flow should remain unchanged.
 
-Native build and device acceptance results are recorded below when available.
+## Build 1020 delivery
+
+- Source commit: `67eefac45abf30122327b76f03e1f6584c99e4f8`.
+- [GitHub Actions run 36543727068](https://github.com/SyIar/clear-forum-flutter/actions/runs/36543727068) succeeded: 69 Swift Core tests, media checks, native arm64 iPhoneOS Release compilation, and packaging. No simulator was run.
+- Version `0.3.0 (1020)`, bundle ID `dev.sylar.clearforum`, display name `forum lite`.
+- Local package: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1020-unsigned.ipa`.
+- Size: `4,165,248` bytes. SHA-256: `6a73a2235d4e6ee40f12d5a2be5edc6f845d5f635f16ab5ade9cbc5a287e6c4d`.
+- Local verification checked source/run metadata, checksum, ZIP CRC, version/bundle identity, arm64 executable, icon resources, Photos usage description, MediaProbe, no Flutter runtime, and the delivery copy.
+- Includes the preceding South navigation crash fix, FORUM/LITE icon, and playback loading feedback. This task did not install the package. Device acceptance remains pending.
