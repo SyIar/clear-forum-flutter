@@ -21,6 +21,14 @@ struct ForumSearchView: View {
   @FocusState private var editing: Bool
 
   var body: some View {
+    ScrollViewReader { proxy in
+      content.onChange(of: page?.url) { _, value in
+        if value != nil { proxy.scrollTo("search-results", anchor: .top) }
+      }
+    }
+  }
+
+  private var content: some View {
     List {
       Section {
         HStack {
@@ -79,7 +87,7 @@ struct ForumSearchView: View {
             ForumEntryCard(entry: entry, isForum: false, navigate: navigate)
               .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
           }
-        }.disabled(loading)
+        }.disabled(loading).id("search-results")
         if page.pageCount > 1 {
           Section {
             HStack {
