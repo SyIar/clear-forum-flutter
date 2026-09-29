@@ -32,7 +32,7 @@ struct ForumTag: Identifiable, Codable, Equatable {
   let title: String
   let url: URL
 }
-struct TextRun {
+struct TextRun: Equatable {
   var text: String
   var bold = false
   var italic = false

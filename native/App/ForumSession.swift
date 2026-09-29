@@ -110,13 +110,13 @@ final class ForumSession: ObservableObject {
     guard let (response, data) = try? await request(query, maxBytes: 2 * 1024 * 1024, htmlOnly: true), (200..<300).contains(response.statusCode) else { return nil }
     return String(data: data, encoding: .utf8)
   }
-  func purchaseContent(in page: ForumPage, selected: SouthPurchaseOffer? = nil, excludingAuthors blocked: Set<String> = []) async throws -> SouthPurchaseResult {
+  func purchaseContent(in page: ForumPage, selected: SouthPurchaseOffer? = nil, excludingAuthors blocked: Set<String> = [], onUpdate: SouthPurchaseService.Update = { _ in }) async throws -> SouthPurchaseResult {
     guard site == .south, site.accepts(page.url), !browserActive else { throw ReaderFailure.unsupported }
     let epoch = generation
     let read: SouthPurchaseService.Load = { [self] url in
       try Task.checkCancellation()
       guard generation == epoch, !browserActive else { throw CancellationError() }
-      return try await load(url, cacheResult: true)
+      return try await load(url)
     }
     let submit: SouthPurchaseService.Submit = { [self] offer, url in
       let cookies = await store.httpCookieStore.allCookies()
@@ -144,8 +144,8 @@ final class ForumSession: ObservableObject {
         if site.isLogin(target) { throw ReaderFailure.login }
       }
     }
-    if let selected { return try await purchases.buy(selected, page: page, excludingAuthors: blocked, load: read, submit: submit) }
-    return try await purchases.unlockFree(in: page, excludingAuthors: blocked, load: read, submit: submit)
+    if let selected { return try await purchases.buy(selected, page: page, excludingAuthors: blocked, load: read, submit: submit, onUpdate: onUpdate) }
+    return try await purchases.unlockFree(in: page, excludingAuthors: blocked, load: read, submit: submit, onUpdate: onUpdate)
   }
   func maximumPostNumber(from initial: ForumPage) async throws -> Int {
     guard site.accepts(initial.url), let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }

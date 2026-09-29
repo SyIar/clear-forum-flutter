@@ -285,25 +285,34 @@ struct ReaderView: View {
     media = .video(url, block.direct, session.site.base)
   }
   private func buy(_ offer: SouthPurchaseOffer) {
-    guard !purchasing, !loading, let page else { return }
+    guard !loading else { return }
+    startPurchase(selected: offer)
+  }
+  private func startPurchase(selected offer: SouthPurchaseOffer? = nil) {
+    guard !purchasing, let page else { return }
+    let blocked = library.document.blockedAuthorIDs
+    guard offer != nil || (session.site == .south && page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree)) else { return }
     purchasing = true
     purchaseMessage = nil
     let expected = requestID
     let epoch = session.generation
-    let position = visibleID
     purchaseTask = Task { @MainActor in
       defer { purchasing = false; purchaseTask = nil }
       do {
-        let blocked = library.document.blockedAuthorIDs
-        var result = try await session.purchaseContent(in: page, selected: offer, excludingAuthors: blocked)
-        if result.message == nil, result.page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
-          result = try await session.purchaseContent(in: result.page, excludingAuthors: blocked)
+        let update: SouthPurchaseService.Update = { fresh in
+          guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
+          let position = visibleID
+          let merged = fresh.preservingPurchaseContent(from: self.page ?? page)
+          self.page = merged; url = merged.url
+          session.pages.store(merged)
+          session.pages.savePosition(position, for: merged.url)
+          library.remember(merged, session: session, checkMaximum: false)
+        }
+        var result = try await session.purchaseContent(in: page, selected: offer, excludingAuthors: blocked, onUpdate: update)
+        if offer != nil, result.message == nil, result.page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
+          result = try await session.purchaseContent(in: result.page, excludingAuthors: blocked, onUpdate: update)
         }
         guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
-        self.page = result.page; url = result.page.url
-        session.pages.store(result.page)
-        visibleID = position
-        library.remember(result.page, session: session, checkMaximum: false)
         purchaseMessage = result.message
       } catch {
         guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
@@ -318,26 +327,19 @@ struct ReaderView: View {
     loading = true
     error = nil
     defer { if requestID == expected { loading = false } }
-    let blocked = library.document.blockedAuthorIDs
-    if !force, let cached = session.pages.value(for: current), !cached.page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
+    if !force, let cached = session.pages.value(for: current) {
       page = cached.page; url = cached.page.url; loadedGeneration = epoch
       library.remember(cached.page, session: session, checkMaximum: false)
+      startPurchase()
       return cached.visibleID
     }
     do {
-      var parsed = try await session.load(current, cacheResult: true)
-      if session.site == .south, parsed.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
-        page = parsed; url = parsed.url; loadedGeneration = epoch
-        purchasing = true
-        defer { purchasing = false }
-        let result = try await session.purchaseContent(in: parsed, excludingAuthors: blocked)
-        parsed = result.page
-        if !Task.isCancelled, expected == requestID, epoch == session.generation { purchaseMessage = result.message }
-      }
+      let parsed = try await session.load(current, cacheResult: true)
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       posters.cancel()
       loadedGeneration = epoch
       page = parsed; url = parsed.url; library.remember(parsed, session: session)
+      startPurchase()
     } catch {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       self.error = error.localizedDescription

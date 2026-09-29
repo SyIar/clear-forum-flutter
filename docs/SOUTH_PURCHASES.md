@@ -21,6 +21,21 @@ Offers and verification URLs are held in memory only. Browser capture continues 
 - Invalidate cached pages of the affected thread before submission. Preserve unrelated cached threads and the reader's visible floor when a manual purchase completes.
 - Network or site failures retain the readable page and the purchase controls. The app does not infer success from a 200 response alone or automatically replay a paid submission.
 
+## Intermittent confirmation recovery (pending device validation)
+
+The user reported occasional generic `ReaderFailure.unsupported` alerts during automatic purchases, followed by a successful unlock when reopening the thread. The previous implementation had one preflight read and one confirmation read, with no recovery. A failed confirmation read after a successful transaction is a code-supported explanation for that symptom, but the exact failing response has not been captured; this is not a confirmed server-side diagnosis.
+
+- Both stages now allow up to three read-only attempts, waiting 600 ms and 1,200 ms before the second and third attempts. Only network, unsupported-markup, and decoding failures are retried. A still-present gate, or a temporarily absent target post after submission, is checked again within the same three-attempt budget.
+- A lost or malformed mutation response triggers the same read-only confirmation path. Each offer is submitted at most once per batch, including free offers. Reopening/refreshing starts a new batch with fresh offer validation. Paid actions still require a user click and exact price revalidation.
+- Login, verification, forbidden, rate-limit, cancellation, and page-identity failures are not retried. The returned page must be the same thread, page, and author filter. The target post must still exist before a missing gate can count as an unlock.
+- Exhausted temporary failures use purchase-specific messages that distinguish an unavailable preflight from an unconfirmed submission. Keep readable content; stop the batch on unresolved errors instead of continuing to issue transactions against a failing session.
+- Publish each completed free unlock to the reader immediately. Automatic purchase work starts after the reader has its initial page, so completing purchases does not run the initial scroll-to-top path again.
+- Network refresh still fetches and parses full HTML. It is not a site-provided partial endpoint. At the UI layer, match posts by ID and reuse unchanged body blocks before and after the replaced purchase region (including their UUIDs and nested state). Preserve the current scroll binding and save its anchor with the reconciled page. Changed URLs/tokens/content stay fresh; surrounding media and unrelated floors retain their identity.
+
+This follows [HTTP retry guidance](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2) conservatively: the site's purchase URL is a state-changing GET, so its apparent HTTP method does not make blind replay safe. [Apple's SwiftUI identity documentation](https://developer.apple.com/documentation/swiftui/view/id(_:)) explains why replacing IDs resets view state; retaining content identities addresses the local image/state churn without retaining raw HTML.
+
+Synthetic regression cases cover temporary reads at both stages, delayed visibility, lost paid responses, bounded failures, missing posts, foreign thread/page/filter results, immediate batch updates, cancellation during backoff, and content identity around an expanding purchase region. Local Swift syntax parsing and repository checks are run; Swift compilation, test execution, and device acceptance remain pending. Packaging and cloud builds remain paused at the user's request.
+
 The observed endpoint contains no atomic maximum-price parameter. Fresh-page revalidation reduces stale-price errors but cannot enforce a server-side price lock between the final read and the site's own transaction. No undocumented price parameter is invented.
 
 ## Validation

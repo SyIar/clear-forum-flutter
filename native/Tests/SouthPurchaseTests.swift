@@ -19,7 +19,8 @@ final class SouthPurchaseTests: XCTestCase {
       action: URL(string: "https://south-plus.net/job.php?action=buytopic&tid=20&pid=\(pid)&verify=\(token)")!)
   }
   private func page(_ offers: [SouthPurchaseOffer]) -> ForumPage {
-    let posts = offers.map { ForumPost(id: "post_" + $0.postID, author: "Reader", date: "", number: "", blocks: [BodyBlock(kind: .purchase, purchase: $0)]) }
+    let posts = offers.isEmpty ? [ForumPost(id: "post_tpc", author: "Reader", date: "", number: "", blocks: [BodyBlock(kind: .paragraph, runs: [TextRun(text: "Unlocked content")])])] :
+      offers.map { ForumPost(id: "post_" + $0.postID, author: "Reader", date: "", number: "", blocks: [BodyBlock(kind: .purchase, purchase: $0)]) }
     return ForumPage(url: url, title: "Sample", kind: .posts, entries: [], posts: posts, pageNumber: 1, loggedIn: true)
   }
   func testParsesRealButtonShapeBeforeInputSanitization() throws {
@@ -70,7 +71,8 @@ final class SouthPurchaseTests: XCTestCase {
     var reads = 0
     let result = try await SouthPurchaseService().unlockFree(in: current, load: { _ in reads += 1; return current }, submit: { selected, _ in
       submitted.append(selected.postID)
-      current = self.page(current.purchaseOffers.filter { $0.id != selected.id })
+      let index = current.posts.firstIndex { $0.id == "post_" + selected.postID }!
+      current.posts[index].blocks = [BodyBlock(kind: .paragraph, runs: [TextRun(text: "Unlocked content")])]
     })
     XCTAssertEqual(submitted, ["tpc", "123"])
     XCTAssertEqual(reads, 4)
@@ -91,7 +93,8 @@ final class SouthPurchaseTests: XCTestCase {
     var submitted: [String] = []
     let result = try await SouthPurchaseService().unlockFree(in: current, excludingAuthors: ["101"], load: { _ in current }, submit: { selected, _ in
       submitted.append(selected.postID)
-      current.posts.removeAll { $0.id == "post_" + selected.postID }
+      let index = current.posts.firstIndex { $0.id == "post_" + selected.postID }!
+      current.posts[index].blocks = [BodyBlock(kind: .paragraph, runs: [TextRun(text: "Unlocked content")])]
     })
     XCTAssertEqual(submitted, ["123"])
     XCTAssertEqual(result.page.posts.first?.authorID, "101")
@@ -127,7 +130,7 @@ final class SouthPurchaseTests: XCTestCase {
   }
   @MainActor func testAlreadyUnlockedAndStillLockedResponsesDoNotLoop() async throws {
     var submissions = 0
-    let service = SouthPurchaseService()
+    let service = SouthPurchaseService(pause: { _ in })
     let unlocked = try await service.buy(offer(), page: page([offer()]), load: { _ in self.page([]) }, submit: { _, _ in submissions += 1 })
     XCTAssertTrue(unlocked.page.purchaseOffers.isEmpty)
     XCTAssertEqual(submissions, 0)
