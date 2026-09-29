@@ -4,7 +4,7 @@
 
 - Opening a successfully loaded thread records its current maximum floor number as the local read baseline. This is the thread's maximum at visit time, not a claim that every floor was individually read.
 - The reader uses numbered post links on the final page. When viewing an earlier page, it follows the last-page navigation link using the existing session. It does not infer totals from page size, count article elements, or confuse global post IDs with floor numbers.
-- Home checks distinct threads in Bookmarks and Recent reading on entry. The lower-right native SwiftUI `.glass` refresh button and pull-to-refresh explicitly repeat the check.
+- Home checks distinct threads in Bookmarks and Recent reading once on initial entry. Returning from the reader keeps the current data. The lower-right native SwiftUI `.glass` refresh button and pull-to-refresh explicitly repeat the check; see [page navigation and cache behavior](PAGE_NAVIGATION_CACHE.md).
 - A successful background check updates `latestMaximum` only. If it exceeds `seenMaximum`, every Home row for that thread displays `Updated` and the old/new floor numbers. Opening the thread again records the new baseline.
 - Legacy entries retain their links and order. A refresh can discover a latest floor, but a baseline is established only when the user opens the thread. Existing unknown baselines are not silently marked read.
 - Thread IDs deduplicate different pages, fragments and renamed slugs. Forums are excluded. Records persist locally in `reading_library_v1`; only threads retained in bookmarks or the recent ten entries keep tracking data.

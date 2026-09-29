@@ -67,7 +67,9 @@ struct ForumParser {
       .compactMap { SitePolicy.resolve(try? $0.attr("href"), from: url, internalOnly: true) }
       .filter { SitePolicy.pageRoot($0) == pageRoot }
     let lastPage = (pageLinks + [next].compactMap { $0 }).max { SitePolicy.pageNumber($0) < SitePolicy.pageNumber($1) }
-    let hasLaterPage = next != nil || lastPage.map { SitePolicy.pageNumber($0) > pageNumber } == true
+    let totalPages = try doc.select(".pageNavSimple-el--current[data-last],.js-pageJump[data-last]").array()
+      .compactMap { Int((try? $0.attr("data-last")) ?? "") }.filter { (1...99_999).contains($0) }.max()
+    let hasLaterPage = next != nil || lastPage.map { SitePolicy.pageNumber($0) > pageNumber } == true || (totalPages ?? 1) > pageNumber
     let maximum = kind == .posts && !hasLaterPage ? posts.compactMap { Int($0.number.dropFirst().replacingOccurrences(of: ",", with: "")) }.max() : nil
     var breadcrumbs: [ForumEntry] = []
     if let trail = try doc.select(".p-breadcrumbs").first() {
@@ -79,7 +81,7 @@ struct ForumParser {
     return ForumPage(url: url, title: title.isEmpty ? "Forums" : title, kind: kind, entries: forums + threads, posts: posts,
                      previous: try paging("prev"), next: next, pageNumber: pageNumber,
                      loggedIn: try doc.select("html").first()?.attr("data-logged-in") == "true",
-                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs, tags: headingTags)
+                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs, tags: headingTags, totalPages: totalPages)
   }
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
   private func tags(_ node: Element?, page: URL) throws -> [ForumTag] {

@@ -33,9 +33,9 @@ final class LibraryStore: ObservableObject {
     do { try next.save(to: .standard); document = next }
     catch { self.error = "Could not save your reading library." }
   }
-  func remember(_ page: ForumPage, session: ForumSession) {
+  func remember(_ page: ForumPage, session: ForumSession, checkMaximum: Bool = true) {
     change { $0.remember(SavedPage(url: page.url, title: page.title)) }
-    guard ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
+    guard checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
     visitTasks[key]?.cancel()
     let token = UUID()
     visitTokens[key] = token
@@ -101,6 +101,7 @@ struct HomeView: View {
   @State private var path: [ReaderDestination] = []
   @State private var adding = false
   @State private var clearHistory = false
+  @State private var checkedUpdatesOnLaunch = false
   var body: some View {
     NavigationStack(path: $path) {
       List {
@@ -143,7 +144,11 @@ struct HomeView: View {
           .padding(.trailing, 16).padding(.bottom, 8)
       }
       .refreshable { await library.refresh(session: session) }
-      .task(id: path.isEmpty) { if path.isEmpty { await library.refresh(session: session) } }
+      .task {
+        guard !checkedUpdatesOnLaunch else { return }
+        checkedUpdatesOnLaunch = true
+        await library.refresh(session: session)
+      }
       .navigationDestination(for: ReaderDestination.self) { destination in ReaderView(initialURL: destination.url, home: { path = [] }) }
       .sheet(isPresented: $adding) { BookmarkEditor() }
       .confirmationDialog("Clear recent reading?", isPresented: $clearHistory, titleVisibility: .visible) {

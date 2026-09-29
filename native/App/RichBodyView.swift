@@ -222,10 +222,18 @@ final class ImageStore {
   static let shared = ImageStore()
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
+  private var generation = 0
   init() { cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80 }
+  func releaseCachedImages() {
+    generation += 1
+    tasks.values.forEach { $0.cancel() }
+    tasks.removeAll()
+    cache.removeAllObjects()
+  }
   func load(_ url: URL, referer: URL? = nil) async -> UIImage? {
     if let image = cache.object(forKey: url as NSURL) { return image }
     if let task = tasks[url] { return await task.value }
+    let epoch = generation
     let task = Task { () -> UIImage? in
       guard MediaPolicy.allowed(url) else { return nil }
       var request = URLRequest(url: url, timeoutInterval: 25)
@@ -252,6 +260,7 @@ final class ImageStore {
     }
     tasks[url] = task
     let image = await task.value
+    guard epoch == generation else { return nil }
     tasks.removeValue(forKey: url)
     if let image { cache.setObject(image, forKey: url as NSURL, cost: Int(image.size.width * image.size.height * 4)) }
     return image

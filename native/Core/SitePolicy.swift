@@ -56,6 +56,25 @@ enum SitePolicy {
     if components.queryItems?.isEmpty == true { components.queryItems = nil }
     return components.url ?? url
   }
+  static func pageURL(_ url: URL, number: Int) -> URL? {
+    guard readable(url), (1...99_999).contains(number), !url.path.hasPrefix("/posts/") else { return nil }
+    var components = URLComponents(url: pageRoot(url), resolvingAgainstBaseURL: false)!
+    if number > 1 {
+      if ["threads", "forums", "search-forums"].contains(url.path.split(separator: "/").first.map(String.init) ?? "") {
+        components.path += "page-\(number)"
+      } else {
+        components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "page", value: String(number))]
+      }
+    }
+    guard let result = components.url, readable(result) else { return nil }
+    return result
+  }
+  static func pageCacheKey(_ url: URL) -> String {
+    let canonical = pageURL(url, number: pageNumber(url)) ?? withoutFragment(url)
+    var components = URLComponents(url: canonical, resolvingAgainstBaseURL: false)!
+    components.queryItems = components.queryItems?.sorted { $0.name < $1.name }
+    return components.url?.absoluteString ?? canonical.absoluteString
+  }
 }
 
 

@@ -56,7 +56,7 @@ struct ForumPost: Identifiable {
   var blocks: [BodyBlock]
 }
 struct ForumPage {
-  let url: URL
+  var url: URL
   var title: String
   var kind: PageKind
   var entries: [ForumEntry]
@@ -69,6 +69,14 @@ struct ForumPage {
   var maximumPostNumber: Int?
   var breadcrumbs: [ForumEntry] = []
   var tags: [ForumTag] = []
+  var totalPages: Int?
+  var pageCount: Int {
+    min(99_999, [pageNumber, totalPages ?? 1, lastPage.map(SitePolicy.pageNumber) ?? 1, next.map(SitePolicy.pageNumber) ?? 1].max() ?? 1)
+  }
+  func url(forPage number: Int) -> URL? {
+    guard (1...pageCount).contains(number) else { return nil }
+    return SitePolicy.pageURL(url, number: number)
+  }
 }
 
 extension SitePolicy {

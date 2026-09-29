@@ -1,29 +1,46 @@
 import Foundation
 import WebKit
+import UIKit
 
 @MainActor
 final class ForumSession: ObservableObject {
   let store = WKWebsiteDataStore.default()
+  let pages = PageCache()
   private var operations: [UUID: PageRequest] = [:]
-  private var generation = 0
+  @Published private(set) var generation = 0
+  private var memoryObserver: NSObjectProtocol?
+  init() {
+    memoryObserver = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
+      Task { @MainActor in
+        self?.pages.removeAll()
+        ImageStore.shared.releaseCachedImages()
+      }
+    }
+  }
+  deinit { if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) } }
   private func request(_ request: URLRequest, maxBytes: Int = 8 * 1024 * 1024, htmlOnly: Bool = false) async throws -> (HTTPURLResponse, Data) {
     let id = UUID()
     let epoch = generation
-    return try await withCheckedThrowingContinuation { continuation in
-      let operation = PageRequest(request: request, maxBytes: maxBytes, htmlOnly: htmlOnly) { [weak self] response, data, error in
-        Task { @MainActor in
-          guard let self else { continuation.resume(throwing: CancellationError()); return }
-          self.operations.removeValue(forKey: id)
-          guard epoch == self.generation else { continuation.resume(throwing: CancellationError()); return }
-          guard error == nil, let response else { continuation.resume(throwing: ReaderFailure.network); return }
-          continuation.resume(returning: (response, data))
+    return try await withTaskCancellationHandler {
+      try Task.checkCancellation()
+      return try await withCheckedThrowingContinuation { continuation in
+        let operation = PageRequest(request: request, maxBytes: maxBytes, htmlOnly: htmlOnly) { [weak self] response, data, error in
+          Task { @MainActor in
+            guard let self else { continuation.resume(throwing: CancellationError()); return }
+            self.operations.removeValue(forKey: id)
+            guard epoch == self.generation else { continuation.resume(throwing: CancellationError()); return }
+            guard error == nil, let response else { continuation.resume(throwing: ReaderFailure.network); return }
+            continuation.resume(returning: (response, data))
+          }
         }
+        operations[id] = operation
+        operation.start()
       }
-      operations[id] = operation
-      operation.start()
+    } onCancel: {
+      Task { @MainActor [weak self] in self?.operations[id]?.cancel() }
     }
   }
-  func load(_ url: URL) async throws -> ForumPage {
+  func load(_ url: URL, cacheResult: Bool = false) async throws -> ForumPage {
     guard SitePolicy.readable(url) else { throw ReaderFailure.unsupported }
     let epoch = generation
     var current = SitePolicy.withoutFragment(url)
@@ -57,7 +74,11 @@ final class ForumSession: ObservableObject {
       let source = String(decoding: data, as: UTF8.self)
       let finalURL = final.url ?? current
       let status = response.statusCode
-      return try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
+      let page = try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
+      try Task.checkCancellation()
+      guard generation == epoch else { throw CancellationError() }
+      if cacheResult { pages.store(page) }
+      return page
     }
     throw ReaderFailure.network
   }
@@ -80,17 +101,21 @@ final class ForumSession: ObservableObject {
       try Task.checkCancellation()
       guard SitePolicy.threadKey(page.url) == key, page.kind == .posts else { throw ReaderFailure.unsupported }
       if let maximum = page.maximumPostNumber, maximum > 0 { return maximum }
-      guard attempt < 2, let last = page.lastPage ?? page.next,
+      guard attempt < 2, let last = page.url(forPage: page.pageCount) ?? page.lastPage ?? page.next,
             SitePolicy.threadKey(last) == key, SitePolicy.pageNumber(last) > page.pageNumber else { throw ReaderFailure.unsupported }
       page = try await load(last)
     }
     throw ReaderFailure.unsupported
   }
-  func clear() async {
+  func invalidatePages() {
     generation += 1
+    pages.removeAll()
     let active = Array(operations.values)
     operations.removeAll()
     active.forEach { $0.cancel() }
+  }
+  func clear() async {
+    invalidatePages()
     await withCheckedContinuation { continuation in
       store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { continuation.resume() }
     }

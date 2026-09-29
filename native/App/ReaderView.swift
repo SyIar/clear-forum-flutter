@@ -12,6 +12,11 @@ struct ReaderView: View {
   @State private var loading = false
   @State private var requestID = UUID()
   @State private var completedRequestID: UUID?
+  @State private var forceNextLoad = false
+  @State private var visibleID: String?
+  @State private var isVisible = false
+  @State private var loadedGeneration = -1
+  @State private var selectingPage = false
   @State private var presentation: ReaderPresentation?
   @State private var media: MediaViewerItem?
   @State private var clearSession = false
@@ -58,10 +63,11 @@ struct ReaderView: View {
               if page.entries.isEmpty { ContentUnavailableView("No threads yet", systemImage: "tray") }
             }
           } else { ProgressView("Loading page...").frame(maxWidth: .infinity).padding(.top, 100) }
-        }.padding(.horizontal, 12).padding(.bottom, 14)
+        }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 14)
       }
+      .scrollPosition(id: $visibleID, anchor: .top)
       .background(Color(uiColor: .systemGroupedBackground))
-      .refreshable { await load() }
+      .refreshable { _ = await load(force: true) }
       .navigationTitle(page?.kind == .posts ? "Thread" : "Forums").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
@@ -77,24 +83,50 @@ struct ReaderView: View {
           } label: { Image(systemName: "ellipsis") }
         }
         ToolbarItemGroup(placement: .bottomBar) {
-          Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { url = previous; reload() } }.disabled(page?.previous == nil || loading)
-          Spacer()
-          Text("Page \(page?.pageNumber ?? 1)").font(.subheadline.weight(.semibold)).monospacedDigit()
-          Spacer()
-          Button("Refresh", systemImage: "arrow.clockwise") { reload() }.disabled(loading)
-          Button("Next page", systemImage: "chevron.right") { if let next = page?.next { url = next; reload() } }.disabled(page?.next == nil || loading)
+          Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading)
+          Button { selectingPage = true } label: {
+            Text("Page \(page?.pageNumber ?? 1)").font(.subheadline.weight(.semibold)).monospacedDigit()
+          }.disabled(page == nil || loading || page?.pageCount == 1).accessibilityLabel("Choose page")
+          Button("Next page", systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading)
         }
+        ToolbarSpacer(.flexible, placement: .bottomBar)
+        ToolbarItem(placement: .bottomBar) {
+          Button("Refresh", systemImage: "arrow.clockwise") { reload() }.disabled(loading)
+        }
+      }
+      .sheet(isPresented: $selectingPage) {
+        if let page { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
       }
       .overlay(alignment: .top) { if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) } }
       .task(id: requestID) {
         guard completedRequestID != requestID else { return }
-        await load()
-        guard !Task.isCancelled else { return }
+        let expected = requestID
+        let force = forceNextLoad
+        let previousID = visibleID
+        let restoredID = await load(force: force)
+        guard !Task.isCancelled, expected == requestID else { return }
+        forceNextLoad = false
         completedRequestID = requestID
-        let anchor = current.fragment ?? "top"
-        if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true { proxy.scrollTo(anchor, anchor: .top) }
-        else if let entry = page?.entries.first(where: { $0.sectionAnchor == anchor }) { proxy.scrollTo(entry.id, anchor: .top) }
-        else { proxy.scrollTo("top", anchor: .top) }
+        guard error == nil else { return }
+        let anchor = force ? previousID ?? "top" : current.fragment ?? restoredID ?? "top"
+        if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true || page?.entries.contains(where: { $0.id == anchor }) == true { visibleID = anchor }
+        else if let entry = page?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
+        else { visibleID = "top"; proxy.scrollTo("top", anchor: .top) }
+      }
+      .onAppear {
+        isVisible = true
+        if page == nil { completedRequestID = nil; requestID = UUID() }
+      }
+      .onDisappear { savePosition(); isVisible = false }
+      .onChange(of: visibleID) { _, value in
+        if !loading, let page { session.pages.savePosition(value, for: page.url) }
+      }
+      .onChange(of: session.generation) { _, generation in
+        guard loadedGeneration != generation else { return }
+        page = nil; error = nil; completedRequestID = nil; posters.cancel()
+      }
+      .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+        if !isVisible { page = nil; completedRequestID = nil; posters.cancel() }
       }
       .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }
       .background(MediaViewerPresenter(item: $media))
@@ -103,9 +135,17 @@ struct ReaderView: View {
           presentation = nil
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              SitePolicy.readable(target), let html = captured["html"] as? String {
-            do { let parsed = try ForumParser().parse(html, url: target); page = parsed; url = target; error = nil; library.remember(parsed, session: session); proxy.scrollTo("top", anchor: .top) }
+            do {
+              let parsed = try ForumParser().parse(html, url: target)
+              session.invalidatePages()
+              loadedGeneration = session.generation
+              session.pages.store(parsed)
+              page = parsed; url = target; error = nil
+              library.remember(parsed, session: session)
+              proxy.scrollTo("top", anchor: .top)
+            }
             catch { self.error = error.localizedDescription }
-          } else if case .browser = item { reload() }
+          }
         }.ignoresSafeArea()
       }
       .confirmationDialog("Clear forum session?", isPresented: $clearSession, titleVisibility: .visible) {
@@ -116,7 +156,19 @@ struct ReaderView: View {
       }
     }
   }
-  private func reload() { requestID = UUID() }
+  private func savePosition() {
+    guard let page else { return }
+    session.pages.store(page)
+    session.pages.savePosition(visibleID, for: page.url)
+  }
+  private func reload() { savePosition(); forceNextLoad = true; requestID = UUID() }
+  private func go(to target: URL) {
+    guard SitePolicy.readable(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+    savePosition()
+    forceNextLoad = false
+    url = target
+    requestID = UUID()
+  }
   private func navigate(_ url: URL) {
     if SitePolicy.readable(url) { destination = ReaderDestination(url: url) }
     else { external = url }
@@ -125,20 +177,28 @@ struct ReaderView: View {
     guard let url = block.url, MediaPolicy.allowed(url) else { return }
     media = .video(url, block.direct)
   }
-  @MainActor private func load() async {
+  @MainActor private func load(force: Bool) async -> String? {
     let expected = requestID
+    let epoch = session.generation
     loading = true
     error = nil
+    defer { if requestID == expected { loading = false } }
+    if !force, let cached = session.pages.value(for: current) {
+      page = cached.page; url = cached.page.url; loadedGeneration = epoch
+      library.remember(cached.page, session: session, checkMaximum: false)
+      return cached.visibleID
+    }
     do {
-      let parsed = try await session.load(current)
-      guard !Task.isCancelled, requestID == expected else { return }
+      let parsed = try await session.load(current, cacheResult: true)
+      guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       posters.cancel()
+      loadedGeneration = epoch
       page = parsed; url = parsed.url; library.remember(parsed, session: session)
     } catch {
-      guard !Task.isCancelled, requestID == expected else { return }
+      guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       self.error = error.localizedDescription
     }
-    if requestID == expected { loading = false }
+    return nil
   }
 }
 
