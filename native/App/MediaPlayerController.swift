@@ -63,7 +63,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = initialURL.host
+    title = "Video"
     view.backgroundColor = .systemBackground
     // The parent SwiftUI destination owns the navigation bar and system back gesture.
     let configuration = WKWebViewConfiguration()

@@ -3,6 +3,7 @@
 ## Layout
 
 - Keep the NavigationStack system back button and interactive return gesture.
+- The navigation title is always `Video` for every provider and direct stream; it never displays a CDN or provider hostname.
 - Top right: download, then refresh. No overflow menu and no Details action.
 - Download uses a clockwise ring starting at twelve o'clock, with an integer percentage in its center. It uses received bytes versus the response's expected byte count. Unknown length and source preparation use an indeterminate indicator, not a fabricated percentage.
 - Tapping an active ring offers cancellation. At transfer completion, keep 100 while Photos imports; show a checkmark only after a successful import. Import failures retain the existing Save to Files recovery action.

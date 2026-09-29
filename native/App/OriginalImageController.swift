@@ -13,7 +13,6 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   private let scroll = ImageScrollView()
   private let imageView = UIImageView()
   private let originalButton = UIButton(type: .system)
-  private let statusLabel = UILabel()
   private var transfer: MediaFileTransfer?
   private var file: URL?
   private var originalLoaded = false
@@ -46,20 +45,10 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     originalButton.translatesAutoresizingMaskIntoConstraints = false
     originalButton.addTarget(self, action: #selector(loadOriginal), for: .touchUpInside)
     view.addSubview(originalButton)
-    statusLabel.textColor = .white; statusLabel.font = .preferredFont(forTextStyle: .caption1)
-    statusLabel.backgroundColor = UIColor.black.withAlphaComponent(0.55)
-    statusLabel.layer.cornerRadius = 6; statusLabel.clipsToBounds = true
-    statusLabel.textAlignment = .right; statusLabel.numberOfLines = 3
-    statusLabel.translatesAutoresizingMaskIntoConstraints = false
-    statusLabel.isAccessibilityElement = true
-    view.addSubview(statusLabel)
     NSLayoutConstraint.activate([
       originalButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
       originalButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
       originalButton.widthAnchor.constraint(equalToConstant: 48), originalButton.heightAnchor.constraint(equalToConstant: 48),
-      statusLabel.trailingAnchor.constraint(equalTo: originalButton.leadingAnchor, constant: -12),
-      statusLabel.centerYAnchor.constraint(equalTo: originalButton.centerYAnchor),
-      statusLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
     ])
   }
   override func viewDidAppear(_ animated: Bool) {
@@ -83,10 +72,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     if originalLoaded { zoom(); return }
     guard transfer == nil, decoding == nil else { return }
     originalButton.configuration?.showsActivityIndicator = true
-    statusLabel.text = "Loading source image..."
-    let transfer = MediaFileTransfer(limit: MediaFilePolicy.imageLimit, referer: source.url.deletingLastPathComponent(), progress: { [weak self] progress in
-      self?.statusLabel.text = progress.map { "Loading source image \(Int($0 * 100))%" } ?? "Loading source image..."
-    }, completion: { [weak self] result in
+    let transfer = MediaFileTransfer(limit: MediaFilePolicy.imageLimit, referer: source.url.deletingLastPathComponent(), progress: { _ in }, completion: { [weak self] result in
       guard let self else { if case .success(let url) = result { try? FileManager.default.removeItem(at: url) }; return }
       self.transfer = nil
       switch result {
@@ -98,9 +84,8 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   }
   private func decode(_ file: URL) {
     self.file = file
-    statusLabel.text = "Opening full resolution..."
     decoding = Task { [weak self] in
-      let result = await Task.detached(priority: .userInitiated) { () -> Result<(UIImage, Int, Int), Error> in
+      let result = await Task.detached(priority: .userInitiated) { () -> Result<UIImage, Error> in
         guard let source = CGImageSourceCreateWithURL(file as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
               let values = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = values[kCGImagePropertyPixelWidth] as? Int, let height = values[kCGImagePropertyPixelHeight] as? Int,
@@ -108,17 +93,16 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
           return .failure(MediaFileError(message: "This image is invalid or exceeds the full-resolution memory limit."))
         }
         guard let image = UIImage(contentsOfFile: file.path) else { return .failure(MediaFileError(message: "Could not open the source image.")) }
-        return .success((image, width, height))
+        return .success(image)
       }.value
       guard let self, !Task.isCancelled else { return }
       self.decoding = nil
       self.originalButton.configuration?.showsActivityIndicator = false
       switch result {
-      case .success(let (image, width, height)):
+      case .success(let image):
         self.scroll.setZoomScale(1, animated: false)
         self.imageView.image = image; self.originalLoaded = true
         self.view.setNeedsLayout()
-        self.statusLabel.text = "Source \(width) \u{00D7} \(height)"
         self.originalButton.accessibilityLabel = "Zoom source image"
       case .failure(let error): self.failed(error)
       }
@@ -126,8 +110,12 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   }
   private func failed(_ error: Error) {
     originalButton.configuration?.showsActivityIndicator = false
-    statusLabel.text = error is CancellationError ? nil : (error as? MediaFileError)?.message ?? "Could not open the source image. Tap to retry."
     if let file { try? FileManager.default.removeItem(at: file); self.file = nil }
+    guard !(error is CancellationError), viewIfLoaded?.window != nil, presentedViewController == nil else { return }
+    let message = (error as? MediaFileError)?.message ?? "Could not open the source image. Tap the magnifier to retry."
+    let alert = UIAlertController(title: "Image", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+    present(alert, animated: true)
   }
   func stopLoading() {
     transfer?.cancel(); transfer = nil

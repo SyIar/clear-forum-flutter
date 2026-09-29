@@ -43,7 +43,7 @@ struct MediaViewerDestination: View {
   }
   private var isImage: Bool { if case .image = item { return true }; return false }
   private var title: String {
-    switch item { case .image: return "Image"; case .video(let url, _, _): return url.host ?? "Video" }
+    switch item { case .image: return "Image"; case .video: return "Video" }
   }
   var body: some View {
     MediaViewerContent(item: item, state: state)
