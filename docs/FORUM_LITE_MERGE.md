@@ -43,4 +43,9 @@ Apple 的 [WKWebsiteDataStore](https://developer.apple.com/documentation/webkit/
 
 ## 构建状态
 
-待本次 CI 和制品校验完成后补充。
+- 已完成 `forum lite 0.3.0 (1013)`，source commit：`8b9ee598a21325cd436bccecc34472e19eb720a9`。
+- [GitHub Actions run 36526054353](https://github.com/SyIar/clear-forum-flutter/actions/runs/36526054353) 成功：45 个 Swift tests、媒体 JavaScript 检查、合成 URLProtocol 检查和 arm64 iPhoneOS Release 编译均通过。
+- unsigned IPA：`D:\workspace\sideloadly-setup\ForumLite-0.3.0-1013-unsigned.ipa`，2,379,936 bytes。
+- SHA-256：`ea4020707c79ef49c970f970d489da3410ebd6fdb89b1698827581065d3e957b`。
+- 下载后已校验 ZIP CRC、CI/source commit、Info.plist 的 display name/version/build/bundle ID、arm64 Mach-O、图标、媒体脚本和依赖许可资源，以及 SHA-256；制品无 Flutter runtime。
+- 本轮完成上传、构建与制品交付，尚未签名安装，未运行模拟器。真机切换、登录和覆盖保留数据仍需验收；South 的真实 DOM 兼容性限制保持不变。
