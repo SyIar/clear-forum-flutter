@@ -45,17 +45,19 @@ final class PageRequest: NSObject, URLSessionDataDelegate {
 final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUIDelegate {
   private let site: ForumSite
   private let initialURL: URL
-  private let dataStore: WKWebsiteDataStore
+  private let session: ForumSession
+  private var dataStore: WKWebsiteDataStore { session.store }
   private let completion: ([String: Any]?) -> Void
   private var webView: WKWebView!
   private let progress = UIProgressView(progressViewStyle: .default)
   private var observation: NSKeyValueObservation?
   private var finished = false
   private var capturing = false
-  init(url: URL, store: WKWebsiteDataStore, completion: @escaping ([String: Any]?) -> Void) { site = ForumSite(url: url)!; initialURL = url; dataStore = store; self.completion = completion; super.init(nibName: nil, bundle: nil) }
+  init(url: URL, session: ForumSession, completion: @escaping ([String: Any]?) -> Void) { site = session.site; initialURL = url; self.session = session; self.completion = completion; super.init(nibName: nil, bundle: nil) }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
     super.viewDidLoad()
+    session.beginBrowsing()
     title = site.host
     view.backgroundColor = .systemBackground
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Done", style: .plain, target: self, action: #selector(close))
@@ -75,15 +77,34 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     observation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] webView, _ in self?.progress.progress = Float(webView.estimatedProgress); self?.progress.isHidden = webView.estimatedProgress >= 1 }
     let rules = #"[{"trigger":{"url-filter":"^https?://([^/]+\\.)?clickadu\\.net/"},"action":{"type":"block"}},{"trigger":{"url-filter":".*"},"action":{"type":"css-display-none","selector":".adsbygoogle,.advertisement,.ad-container,.adContainer,[data-ad-slot]"}}]"#
     WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "clear-forum-basic-v1", encodedContentRuleList: rules) { [weak self] list, _ in
-      DispatchQueue.main.async { guard let self = self, !self.finished else { return }; if let list = list { self.webView.configuration.userContentController.add(list) }; self.webView.load(URLRequest(url: self.initialURL)) }
+      Task { @MainActor in
+        guard let self, !self.finished else { return }
+        do {
+          let userAgent = try await self.session.browserUserAgent()
+          guard !self.finished else { return }
+          self.webView.customUserAgent = userAgent
+          if let list { self.webView.configuration.userContentController.add(list) }
+          self.webView.load(URLRequest(url: self.initialURL))
+        } catch { self.notice("Could not prepare the browser session. Close this browser and try again.") }
+      }
     }
   }
   @objc private func close() { finish(nil) }
-  private func finish(_ page: [String: Any]?) { guard !finished else { return }; finished = true; webView.stopLoading(); dismiss(animated: true) { self.completion(page) } }
+  private func finish(_ page: [String: Any]?) {
+    guard !finished else { return }
+    finished = true
+    webView.stopLoading()
+    Task { @MainActor in
+      // Finish a cookie-store round trip before handing control back to the reader.
+      _ = await dataStore.httpCookieStore.allCookies()
+      dismiss(animated: true) { self.completion(page) }
+    }
+  }
   @objc private func readPage() {
     guard !capturing, let url = webView.url, site.accepts(url) else { notice("Open a forum or thread before choosing Read page."); return }
     capturing = true
-    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,input,textarea,select,svg,noscript,.p-nav,.p-header,.p-footer,.p-body-sidebar').forEach(e=>e.remove());root.querySelectorAll('form').forEach(e=>e.replaceWith(...e.childNodes));return {url:location.href,html:root.outerHTML};})()"#
+    // Keep login/logout structure for the parser, but never copy entered form values.
+    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,textarea,select,svg,noscript').forEach(e=>e.remove());root.querySelectorAll('input').forEach(e=>{const marker=document.createElement('input');for(const name of ['name','type']){if(e.hasAttribute(name))marker.setAttribute(name,e.getAttribute(name));}e.replaceWith(marker);});return {url:location.href,html:root.outerHTML};})()"#
     webView.evaluateJavaScript(script) { [weak self] value, error in
       guard let self = self else { return }
       self.capturing = false
@@ -112,4 +133,3 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { notice("Could not load this page. Check the connection and try again.") } }
 }
-

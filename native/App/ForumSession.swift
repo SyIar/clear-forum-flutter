@@ -11,6 +11,8 @@ final class ForumSession: ObservableObject {
   private var operations: [UUID: PageRequest] = [:]
   @Published private(set) var generation = 0
   private var memoryObserver: NSObjectProtocol?
+  private var userAgentTask: Task<String, Error>?
+  private var browserActive = false
   init(site: ForumSite) {
     self.site = site
     // Keep the existing Simp login; South gets an isolated persistent WebKit profile.
@@ -23,6 +25,32 @@ final class ForumSession: ObservableObject {
     }
   }
   deinit { if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) } }
+  func browserUserAgent() async throws -> String {
+    if let userAgentTask { return try await userAgentTask.value }
+    let key = "forum_\(site.rawValue)_browser_user_agent"
+    let task = Task { @MainActor () throws -> String in
+      if let saved = UserDefaults.standard.string(forKey: key), !saved.isEmpty { return saved }
+      let configuration = WKWebViewConfiguration()
+      configuration.websiteDataStore = store
+      let probe = WKWebView(frame: .zero, configuration: configuration)
+      // Ask the local WebKit engine; no website or credentials are involved.
+      guard let value = try await probe.evaluateJavaScript("navigator.userAgent") as? String, !value.isEmpty else { throw ReaderFailure.network }
+      // Keep the identity stable across app and OS updates for UA-bound sessions.
+      UserDefaults.standard.set(value, forKey: key)
+      return value
+    }
+    userAgentTask = task
+    do { return try await task.value }
+    catch { userAgentTask = nil; throw error }
+  }
+  func beginBrowsing() {
+    browserActive = true
+    invalidatePages()
+  }
+  func endBrowsing() {
+    browserActive = false
+    invalidatePages()
+  }
   private func request(_ request: URLRequest, maxBytes: Int = 8 * 1024 * 1024, htmlOnly: Bool = false) async throws -> (HTTPURLResponse, Data) {
     let id = UUID()
     let epoch = generation
@@ -47,7 +75,9 @@ final class ForumSession: ObservableObject {
   }
   func load(_ url: URL, cacheResult: Bool = false) async throws -> ForumPage {
     guard site.accepts(url) else { throw ReaderFailure.unsupported }
+    guard !browserActive else { throw CancellationError() }
     let epoch = generation
+    let userAgent = try await browserUserAgent()
     var current = SitePolicy.withoutFragment(url)
     for _ in 0..<6 {
       try Task.checkCancellation()
@@ -55,16 +85,14 @@ final class ForumSession: ObservableObject {
       let cookies = await store.httpCookieStore.allCookies()
       try Task.checkCancellation()
       guard generation == epoch else { throw CancellationError() }
-      var query = URLRequest(url: current, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
-      query.httpShouldHandleCookies = false
-      query.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
-      query.setValue("ForumLite/0.3", forHTTPHeaderField: "User-Agent")
-      let applicable = cookies.filter { site.matches($0, url: current) }.sorted { $0.path.count > $1.path.count }
-      for (key, value) in HTTPCookie.requestHeaderFields(with: applicable) { query.setValue(value, forHTTPHeaderField: key) }
+      let query = try ForumRequest.page(site: site, url: current, userAgent: userAgent, cookies: cookies)
       let (response, data) = try await request(query)
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
       var headers: [String: String] = [:]
       for (key, value) in response.allHeaderFields { headers[String(describing: key)] = String(describing: value) }
       for cookie in HTTPCookie.cookies(withResponseHeaderFields: headers, for: current).filter({ site.domainMatches($0) }) {
+        guard generation == epoch, !browserActive else { throw CancellationError() }
         if cookie.expiresDate.map({ $0 <= Date() }) ?? false { await store.httpCookieStore.deleteCookie(cookie) }
         else { await store.httpCookieStore.saveCookie(cookie) }
       }

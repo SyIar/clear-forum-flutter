@@ -132,14 +132,15 @@ struct ReaderView: View {
       .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }
       .background(MediaViewerPresenter(item: $media))
       .fullScreenCover(item: $presentation) { item in
-        ReaderController(presentation: item, store: session.store) { captured in
+        ReaderController(presentation: item, session: session) { captured in
           presentation = nil
-          session.invalidatePages()
+          session.endBrowsing()
           loadedGeneration = session.generation
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              session.site.accepts(target), let html = captured["html"] as? String {
             do {
               let parsed = try ForumParser().parse(html, url: target)
+              requestID = UUID(); completedRequestID = requestID; forceNextLoad = false; loading = false
               loadedGeneration = session.generation
               session.pages.store(parsed)
               page = parsed; url = target; error = nil
@@ -159,7 +160,7 @@ struct ReaderView: View {
     }
   }
   private func savePosition() {
-    guard let page else { return }
+    guard loadedGeneration == session.generation, let page else { return }
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
   }
@@ -212,12 +213,12 @@ enum ReaderPresentation: Identifiable {
 }
 struct ReaderController: UIViewControllerRepresentable {
   let presentation: ReaderPresentation
-  let store: WKWebsiteDataStore
+  let session: ForumSession
   let completion: ([String: Any]?) -> Void
   func makeUIViewController(context: Context) -> UINavigationController {
     switch presentation {
     case .browser(let url):
-      return UINavigationController(rootViewController: ForumBrowserController(url: url, store: store, completion: completion))
+      return UINavigationController(rootViewController: ForumBrowserController(url: url, session: session, completion: completion))
     }
   }
   func updateUIViewController(_ controller: UINavigationController, context: Context) {}

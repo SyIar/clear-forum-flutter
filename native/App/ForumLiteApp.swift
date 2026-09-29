@@ -6,20 +6,73 @@ struct ForumLiteApp: App {
   @StateObject private var southLibrary = LibraryStore(site: .south)
   @StateObject private var simpSession = ForumSession(site: .simp)
   @StateObject private var southSession = ForumSession(site: .south)
-  @AppStorage("selected_forum") private var selectedForum = ForumSite.simp.rawValue
-  private var selection: Binding<ForumSite> {
-    Binding(get: { ForumSite(rawValue: selectedForum) ?? .simp }, set: { selectedForum = $0.rawValue })
-  }
+  @State private var path: [ForumDestination] = []
   var body: some Scene {
     WindowGroup {
-      if selection.wrappedValue == .simp {
-        HomeView(selection: selection).id(ForumSite.simp)
-          .environmentObject(simpLibrary).environmentObject(simpSession).tint(.blue)
-      } else {
-        HomeView(selection: selection).id(ForumSite.south)
-          .environmentObject(southLibrary).environmentObject(southSession).tint(.blue)
-      }
+      NavigationStack(path: $path) {
+        ForumSelectionView()
+          .navigationDestination(for: ForumDestination.self) { destination in
+            let site = destination.site
+            Group {
+              switch destination {
+              case .home:
+                HomeView(path: $path)
+              case .reader(let url):
+                ReaderView(initialURL: url, home: { path = [.home(site)] })
+              }
+            }
+            .environmentObject(site == .simp ? simpLibrary : southLibrary)
+            .environmentObject(site == .simp ? simpSession : southSession)
+          }
+      }.tint(.blue)
     }
+  }
+}
+
+enum ForumDestination: Hashable {
+  case home(ForumSite)
+  case reader(URL)
+  var site: ForumSite {
+    switch self {
+    case .home(let site): return site
+    case .reader(let url): return ForumSite(url: url) ?? .simp
+    }
+  }
+}
+
+struct ForumLogo: View {
+  let site: ForumSite
+  var body: some View {
+    Image(site == .simp ? "ForumLogo" : "SouthLogo")
+      .resizable().scaledToFit().padding(site == .simp ? 10 : 6)
+      .frame(maxWidth: .infinity).frame(height: 102)
+      .background(site == .simp ? Color(white: 0.11) : Color.white, in: RoundedRectangle(cornerRadius: 13))
+      .accessibilityHidden(true)
+  }
+}
+
+struct ForumSelectionView: View {
+  var body: some View {
+    ScrollView {
+      VStack(spacing: 22) {
+        ForEach(ForumSite.allCases) { site in
+          NavigationLink(value: ForumDestination.home(site)) {
+            VStack(spacing: 17) {
+              ForumLogo(site: site)
+              Text(site.host).font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 18)
+            .frame(maxWidth: .infinity, minHeight: 182)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 27))
+            .overlay(RoundedRectangle(cornerRadius: 27).strokeBorder(Color.primary.opacity(0.04)))
+            .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
+          }.buttonStyle(.plain).accessibilityLabel("Open \(site.host) home")
+        }
+      }.frame(maxWidth: 520).padding(.horizontal, 22).padding(.top, 53).padding(.bottom, 40)
+        .frame(maxWidth: .infinity)
+    }
+    .background(Color(uiColor: .systemGroupedBackground))
+    .toolbar(.hidden, for: .navigationBar)
   }
 }
 
@@ -121,40 +174,18 @@ struct ReaderDestination: Hashable {
 }
 
 struct HomeView: View {
-  @Binding var selection: ForumSite
+  @Binding var path: [ForumDestination]
   @EnvironmentObject private var library: LibraryStore
   @EnvironmentObject private var session: ForumSession
-  @State private var path: [ReaderDestination] = []
   @State private var adding = false
   @State private var clearHistory = false
   @State private var checkedUpdatesOnLaunch = false
   var body: some View {
-    NavigationStack(path: $path) {
       List {
         Section {
-          Picker("Forum", selection: $selection) {
-            ForEach(ForumSite.allCases) { site in Text(site.title).tag(site) }
-          }.pickerStyle(.segmented)
-            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-            .listRowBackground(Color.clear)
-        }
-        Section {
-          NavigationLink(value: ReaderDestination(url: session.site.start)) {
+          NavigationLink(value: ForumDestination.reader(session.site.start)) {
             VStack(alignment: .leading, spacing: 12) {
-              if session.site == .simp {
-                Image("ForumLogo").resizable().scaledToFit()
-                  .frame(maxWidth: .infinity).padding(10)
-                  .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 12))
-                  .accessibilityHidden(true)
-              } else {
-                HStack(spacing: 14) {
-                  Image(systemName: "text.bubble.fill").font(.largeTitle)
-                  Text("South Plus").font(.title.bold())
-                  Spacer()
-                }.foregroundStyle(.white).padding(20)
-                  .background(Color.blue.gradient, in: RoundedRectangle(cornerRadius: 12))
-                  .accessibilityHidden(true)
-              }
+              ForumLogo(site: session.site)
               Text("Open forum").font(.headline)
             }.padding(.vertical, 6)
           }
@@ -176,8 +207,10 @@ struct HomeView: View {
           Section { Text(message).font(.caption).foregroundStyle(.secondary) }
         }
       }
-      .navigationTitle("forum lite")
+      .navigationTitle(session.site.host)
       .navigationBarTitleDisplayMode(.inline)
+      .toolbar(.visible, for: .navigationBar)
+      .toolbarRole(.editor)
       .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Add bookmark", systemImage: "bookmark.badge.plus") { adding = true } } }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
         Button { Task { await library.refresh(session: session) } } label: {
@@ -196,7 +229,6 @@ struct HomeView: View {
         checkedUpdatesOnLaunch = true
         await library.refresh(session: session)
       }
-      .navigationDestination(for: ReaderDestination.self) { destination in ReaderView(initialURL: destination.url, home: { path = [] }) }
       .sheet(isPresented: $adding) { BookmarkEditor() }
       .confirmationDialog("Clear recent reading?", isPresented: $clearHistory, titleVisibility: .visible) {
         Button("Clear recent reading", role: .destructive) { library.change { $0.recent = [] } }
@@ -205,7 +237,6 @@ struct HomeView: View {
         Button("Retry") { library.reload() }
         Button("OK", role: .cancel) { library.error = nil }
       } message: { Text(library.error ?? "") }
-    }
   }
   private func savedRow(_ entry: SavedPage) -> some View {
     let key = SitePolicy.threadKey(entry.url)
@@ -213,9 +244,9 @@ struct HomeView: View {
     let state = key.flatMap { library.document.threads[$0] }
     return VStack(alignment: .leading, spacing: 6) {
       if let tags = presentation?.tags, !tags.isEmpty {
-        ForumTagStrip(tags: tags) { path.append(ReaderDestination(url: $0)) }
+        ForumTagStrip(tags: tags) { path.append(.reader($0)) }
       }
-      Button { path.append(ReaderDestination(url: entry.url)) } label: {
+      Button { path.append(.reader(entry.url)) } label: {
         HStack(spacing: 10) {
           if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
           else { Image(systemName: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }

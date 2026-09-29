@@ -4,7 +4,9 @@ A personal iOS forum reader built with SwiftUI, UIKit, WebKit and AVKit. The pro
 
 ## Two forums, one installation
 
-The home screen switches between **SimpCity** and **South Plus**. Each forum has a separate local library, page/image cache, and WebKit session. The app remembers the selected forum. The bundle identifier stays `dev.sylar.clearforum`, allowing a correctly signed update to replace simp lite. Existing Simp bookmarks, reading history and its default WebKit profile are retained; an independently installed South app has a different sandbox and is not migrated.
+The app opens on a forum selection screen with two vertical logo cards and small domain labels. Each card opens that forum's own home; the native back button returns to forum selection. Each forum has a separate local library, page/image cache, and persistent WebKit session. The bundle identifier stays `dev.sylar.clearforum`, allowing a correctly signed update to replace simp lite. Existing Simp bookmarks, reading history and its default WebKit profile are retained; an independently installed South app has a different sandbox and is not migrated.
+
+The site browser and native reader use the same per-forum WebKit-derived User-Agent, including after relaunch. Opening the site browser cancels older reader requests, and returning waits for the shared cookie store before refreshing the reader. See [entry screen and login handoff](docs/ENTRY_AND_LOGIN_HANDOFF.md).
 
 South's parser is a compatibility preview tested against synthetic fixtures. Live South pages and account access have not been validated because browser site-safety policy blocked the target site. This build does not establish real-site compatibility. See [merge details and validation](docs/FORUM_LITE_MERGE.md).
 
