@@ -1,0 +1,171 @@
+import SwiftUI
+import WebKit
+import QuickLook
+import AVKit
+
+struct GofileDestination: Hashable { let url: URL }
+
+struct GofileBrowserView: View {
+  @StateObject private var session: GofileSession
+  @State private var search = ""
+  init(url: URL) { _session = StateObject(wrappedValue: GofileSession(url: url)) }
+  private var entries: [GofileEntry] {
+    (session.listing?.entries ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+  }
+  var body: some View {
+    List {
+      if let error = session.error {
+        Section {
+          Label(error, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary)
+          Button("Open website", systemImage: "globe") { session.showWebsite() }
+        }
+      }
+      if session.loading { HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear) }
+      if let listing = session.listing {
+        Section {
+          ForEach(entries) { entry in
+            HStack(spacing: 12) {
+              if entry.folder {
+                NavigationLink { GofileBrowserView(url: entry.pageURL) } label: { entryLabel(entry) }
+              } else {
+                Button { session.open(entry) } label: { entryLabel(entry) }.buttonStyle(.plain)
+                downloadButton(entry)
+              }
+            }.padding(.vertical, 3)
+          }
+          if entries.isEmpty { Text(search.isEmpty ? "This folder is empty." : "No matching files on this page.").foregroundStyle(.secondary) }
+        } header: { Text("\(listing.entries.count) items · Page \(listing.page) of \(listing.pages)") }
+      }
+    }
+    .listStyle(.insetGrouped)
+    .navigationTitle(session.listing?.title ?? "Gofile").navigationBarTitleDisplayMode(.inline)
+    .toolbarRole(.editor)
+    .searchable(text: $search, prompt: "Find files on this page")
+    .toolbar {
+      ToolbarItemGroup(placement: .topBarTrailing) {
+        Button("Open website", systemImage: "globe") { session.showWebsite() }
+        Button("Refresh", systemImage: "arrow.clockwise") { session.load() }.disabled(session.loading)
+      }
+      if let listing = session.listing, listing.pages > 1 {
+        ToolbarItemGroup(placement: .bottomBar) {
+          Button("Previous", systemImage: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
+          Text("\(listing.page) / \(listing.pages)").monospacedDigit()
+          Button("Next", systemImage: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
+        }
+      }
+    }
+    .task { if session.listing == nil && !session.loading { session.load() } }
+    .background {
+      if !session.showingWebsite { GofileWebSurface(webView: session.webView).frame(width: 1, height: 1).opacity(0).allowsHitTesting(false).accessibilityHidden(true) }
+    }
+    .sheet(isPresented: $session.showingWebsite, onDismiss: { session.returnToFiles() }) {
+      NavigationStack {
+        GofileWebSurface(webView: session.webView).ignoresSafeArea(.container, edges: .bottom)
+          .navigationTitle("gofile.io").navigationBarTitleDisplayMode(.inline)
+          .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Files") { session.showingWebsite = false } } }
+      }
+    }
+    .sheet(item: $session.export) { GofileExport(file: $0.url) }
+    .navigationDestination(item: $session.preview) { file in
+      GofileQuickLook(file: file.url).navigationTitle("Preview").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
+    }
+    .navigationDestination(item: $session.video) { source in
+      GofileVideoView(source: source).navigationTitle("Video").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
+    }
+  }
+  private func entryLabel(_ entry: GofileEntry) -> some View {
+    HStack(spacing: 12) {
+      GofileThumbnail(entry: entry, session: session)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(entry.name).font(.subheadline).lineLimit(2).foregroundStyle(.primary)
+        Text(entry.folder ? "Folder" : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "File")
+          .font(.caption).foregroundStyle(.secondary)
+        if entry.unavailable { Text("Unavailable · Check website").font(.caption2).foregroundStyle(.secondary) }
+        if let error = session.downloads[entry.id]?.error { Text(error).font(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+      }.frame(maxWidth: .infinity, alignment: .leading)
+    }.contentShape(Rectangle())
+  }
+  private func downloadButton(_ entry: GofileEntry) -> some View {
+    let state = session.downloads[entry.id]
+    return Button {
+      if state?.busy == true { session.cancel(entry.id) } else { session.download(entry) }
+    } label: {
+      ZStack {
+        if state?.busy == true {
+          if let fraction = state?.progress {
+            Circle().stroke(.blue.opacity(0.15), lineWidth: 2.5)
+            Circle().trim(from: 0, to: fraction).stroke(.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).rotationEffect(.degrees(-90))
+            Text("\(Int(fraction * 100))").font(.system(size: 10, weight: .semibold)).monospacedDigit()
+          } else { ProgressView() }
+        } else { Image(systemName: state?.file == nil ? "arrow.down" : "square.and.arrow.up").font(.body.weight(.medium)) }
+      }.frame(width: 28, height: 28).padding(6)
+    }.buttonStyle(.glass).buttonBorderShape(.circle)
+      .accessibilityLabel(state?.busy == true ? "Cancel download" : state?.file == nil ? "Download file" : "Save to Files")
+      .disabled(entry.unavailable)
+  }
+}
+
+private struct GofileThumbnail: View {
+  let entry: GofileEntry
+  @ObservedObject var session: GofileSession
+  @State private var image: UIImage?
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 10).fill(Color(uiColor: .tertiarySystemFill))
+      if let image { Image(uiImage: image).resizable().scaledToFill() }
+      else { Image(systemName: entry.symbol).font(.title2).foregroundStyle(.blue) }
+    }.frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 10))
+      .task(id: "\(session.revision):\(entry.thumbnail?.absoluteString ?? entry.id)") { image = await session.thumbnail(entry) }
+      .accessibilityHidden(true)
+  }
+}
+
+struct GofileWebSurface: UIViewRepresentable {
+  let webView: WKWebView
+  func makeUIView(context: Context) -> WKWebView { webView }
+  func updateUIView(_ uiView: WKWebView, context: Context) {}
+}
+private struct GofileExport: UIViewControllerRepresentable {
+  let file: URL
+  func makeUIViewController(context: Context) -> UIDocumentPickerViewController { UIDocumentPickerViewController(forExporting: [file], asCopy: true) }
+  func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+}
+private struct GofileQuickLook: UIViewControllerRepresentable {
+  let file: URL
+  func makeCoordinator() -> Coordinator { Coordinator(file: file) }
+  func makeUIViewController(context: Context) -> QLPreviewController {
+    let controller = QLPreviewController(); controller.dataSource = context.coordinator; return controller
+  }
+  func updateUIViewController(_ controller: QLPreviewController, context: Context) {}
+  final class Coordinator: NSObject, QLPreviewControllerDataSource {
+    let file: URL
+    init(file: URL) { self.file = file }
+    func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { file as NSURL }
+  }
+}
+private struct GofileVideoView: UIViewControllerRepresentable {
+  let source: GofileVideoSource
+  func makeUIViewController(context: Context) -> AVPlayerViewController {
+    let controller = AVPlayerViewController()
+    let asset = AVURLAsset(url: source.url, options: [AVURLAssetHTTPCookiesKey: source.cookies])
+    controller.player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+    controller.player?.play()
+    return controller
+  }
+  func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
+  static func dismantleUIViewController(_ controller: AVPlayerViewController, coordinator: ()) { controller.player?.pause(); controller.player = nil }
+}
+
+// Used by external links from the forum's website view; reader links use a normal push.
+struct GofileModalRoot: View {
+  let url: URL
+  var close: () -> Void
+  var body: some View {
+    NavigationStack {
+      GofileBrowserView(url: url).toolbar {
+        ToolbarItem(placement: .topBarLeading) { Button("Back", systemImage: "chevron.left", action: close) }
+      }
+    }
+  }
+}

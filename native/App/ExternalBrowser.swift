@@ -1,10 +1,16 @@
 import SafariServices
 import SwiftUI
 
+@MainActor
 enum ExternalBrowser {
-  static func make(_ url: URL) -> SFSafariViewController? {
+  static func make(_ url: URL, onClose: (() -> Void)? = nil) -> UIViewController? {
     guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
           !(url.host ?? "").isEmpty, url.user == nil, url.password == nil else { return nil }
+    if let target = GofilePolicy.pageURL(url) {
+      let controller = UIHostingController(rootView: GofileModalRoot(url: target, close: {}))
+      controller.rootView = GofileModalRoot(url: target) { [weak controller] in controller?.dismiss(animated: true, completion: onClose) }
+      return controller
+    }
     let controller = SFSafariViewController(url: url)
     controller.dismissButtonStyle = .close
     // Keep Safari's own presentation and interactive dismissal transitions.
@@ -29,7 +35,7 @@ struct ExternalBrowserPresenter: UIViewControllerRepresentable {
 final class ExternalBrowserHost: UIViewController, SFSafariViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
   var requestedURL: URL?
   var onClose: (() -> Void)?
-  private weak var browser: SFSafariViewController?
+  private weak var browser: UIViewController?
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
@@ -37,8 +43,10 @@ final class ExternalBrowserHost: UIViewController, SFSafariViewControllerDelegat
   }
   func presentIfReady() {
     guard viewIfLoaded?.window != nil, presentedViewController == nil, browser == nil,
-          let url = requestedURL, let controller = ExternalBrowser.make(url) else { return }
-    controller.delegate = self
+          let url = requestedURL, let controller = ExternalBrowser.make(url, onClose: { [weak self] in
+            self?.requestedURL = nil; self?.browser = nil; self?.onClose?()
+          }) else { return }
+    (controller as? SFSafariViewController)?.delegate = self
     browser = controller
     present(controller, animated: true)
     controller.presentationController?.delegate = self

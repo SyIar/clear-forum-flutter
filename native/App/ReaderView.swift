@@ -22,6 +22,7 @@ struct ReaderView: View {
   @State private var clearSession = false
   @State private var destination: ReaderDestination?
   @State private var external: URL?
+  @State private var gofile: GofileDestination?
   @State private var purchasing = false
   @State private var purchaseMessage: String?
   @State private var purchaseTask: Task<Void, Never>?
@@ -217,6 +218,7 @@ struct ReaderView: View {
         Button("Cancel", role: .cancel) {}
       }
       .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
+      .navigationDestination(item: $gofile) { item in GofileBrowserView(url: item.url) }
       .fullScreenCover(item: $presentation) { item in
         ReaderController(presentation: item, session: session) { captured in
           presentation = nil
@@ -313,7 +315,8 @@ struct ReaderView: View {
     requestID = UUID()
   }
   private func navigate(_ url: URL) {
-    if session.site.accepts(url) { destination = ReaderDestination(url: url) }
+    if let target = GofilePolicy.pageURL(url) { gofile = GofileDestination(url: target) }
+    else if session.site.accepts(url) { destination = ReaderDestination(url: url) }
     else { external = url }
   }
   private func play(_ block: BodyBlock) {
