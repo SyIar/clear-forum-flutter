@@ -65,6 +65,7 @@ struct PostCard: View {
   let posters: PosterStore
   let navigate: (URL) -> Void
   let play: (BodyBlock) -> Void
+  let openImage: (UIImage) -> Void
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
@@ -78,7 +79,7 @@ struct PostCard: View {
         if !post.number.isEmpty { Text(post.number).font(.caption.weight(.semibold)).foregroundStyle(.blue) }
       }
       Divider()
-      RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play)
+      RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: openImage)
     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
       .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.05)))
@@ -94,6 +95,7 @@ struct RichBodyView: View {
   let posters: PosterStore
   let navigate: (URL) -> Void
   let play: (BodyBlock) -> Void
+  let openImage: (UIImage) -> Void
   private var groups: [BodyGroup] {
     var result: [BodyGroup] = []
     var images: [BodyBlock] = []
@@ -123,7 +125,7 @@ struct RichBodyView: View {
       .environment(\.openURL, OpenURLAction { url in navigate(url); return .handled })
   }
   private func image(_ block: BodyBlock, grid: Bool) -> some View {
-    RemoteImageView(url: block.url, ratio: grid ? 1 : block.aspectRatio, maximumHeight: grid ? 180 : 360, opensViewer: true)
+    RemoteImageView(url: block.url, ratio: grid ? 1 : block.aspectRatio, maximumHeight: grid ? 180 : 360, openImage: openImage)
   }
   @ViewBuilder private func blockView(_ block: BodyBlock) -> some View {
     switch block.kind {
@@ -139,12 +141,12 @@ struct RichBodyView: View {
         RoundedRectangle(cornerRadius: 2).fill(.blue.opacity(0.4)).frame(width: 3)
         VStack(alignment: .leading, spacing: 6) {
           if !block.label.isEmpty { Text(block.label).font(.caption.bold()).foregroundStyle(.secondary) }
-          AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play))
+          AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage))
         }
       }.padding(10).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
     case .spoiler:
       DisclosureGroup(block.label) {
-        AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play)).padding(.top, 8)
+        AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage)).padding(.top, 8)
       }.font(.subheadline)
     case .code:
       ScrollView(.horizontal) { Text(block.label).font(.system(.caption, design: .monospaced)).textSelection(.enabled).padding(10) }
@@ -199,7 +201,7 @@ struct MediaRow: View {
     HStack(spacing: 10) {
       ZStack {
         Color(uiColor: .tertiarySystemFill)
-        if let poster { RemoteImageView(url: poster, ratio: 4 / 3, maximumHeight: 84, opensViewer: false) }
+        if let poster { RemoteImageView(url: poster, ratio: 4 / 3, maximumHeight: 84) }
         else if fetching { ProgressView() }
         else { Image(systemName: "film").foregroundStyle(.secondary) }
       }.frame(width: 108, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
@@ -259,17 +261,16 @@ struct RemoteImageView: View {
   let url: URL?
   var ratio: Double?
   var maximumHeight: CGFloat = 360
-  var opensViewer = false
+  var openImage: ((UIImage) -> Void)?
   @State private var image: UIImage?
   @State private var loading = true
-  @State private var showing = false
   @State private var attempt = 0
   private var displayRatio: CGFloat { max(0.75, min(2.5, ratio ?? image.map { $0.size.width / max(1, $0.size.height) } ?? 1.5)) }
   var body: some View {
     Group {
       if let image {
         Image(uiImage: image).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: maximumHeight)
-          .contentShape(Rectangle()).onTapGesture { if opensViewer { showing = true } }
+          .contentShape(Rectangle()).onTapGesture { openImage?(image) }
       } else {
         ZStack {
           Color(uiColor: .tertiarySystemFill)
@@ -283,16 +284,6 @@ struct RemoteImageView: View {
         image = nil
         if let url { image = await ImageStore.shared.load(url) }
         loading = false
-      }
-      .fullScreenCover(isPresented: $showing) {
-        NavigationStack {
-          if let image { ZoomImage(image: image).background(.black).ignoresSafeArea(edges: .bottom)
-            .toolbar {
-              ToolbarItem(placement: .topBarLeading) { Button("Back", systemImage: "chevron.backward") { showing = false } }
-              ToolbarItem(placement: .topBarTrailing) { ShareLink(item: Image(uiImage: image), preview: SharePreview("Image", image: Image(uiImage: image))) }
-            }
-          }
-        }.background(MediaEdgeBack { showing = false }).preferredColorScheme(.dark)
       }
   }
 }

@@ -11,7 +11,9 @@ struct ReaderView: View {
   @State private var error: String?
   @State private var loading = false
   @State private var requestID = UUID()
+  @State private var completedRequestID: UUID?
   @State private var presentation: ReaderPresentation?
+  @State private var media: MediaViewerItem?
   @State private var clearSession = false
   @State private var destination: ReaderDestination?
   @State private var external: URL?
@@ -47,7 +49,7 @@ struct ReaderView: View {
             Text(page.loggedIn ? "Signed in" : "Guest").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
               ForEach(page.posts) { post in
-                PostCard(post: post, posters: posters, navigate: navigate, play: play).id(post.id)
+                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }).id(post.id)
               }
             } else {
               ForEach(page.entries) { entry in
@@ -85,14 +87,17 @@ struct ReaderView: View {
       }
       .overlay(alignment: .top) { if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) } }
       .task(id: requestID) {
+        guard completedRequestID != requestID else { return }
         await load()
         guard !Task.isCancelled else { return }
+        completedRequestID = requestID
         let anchor = current.fragment ?? "top"
         if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true { proxy.scrollTo(anchor, anchor: .top) }
         else if let entry = page?.entries.first(where: { $0.sectionAnchor == anchor }) { proxy.scrollTo(entry.id, anchor: .top) }
         else { proxy.scrollTo("top", anchor: .top) }
       }
       .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }
+      .background(MediaViewerPresenter(item: $media))
       .fullScreenCover(item: $presentation) { item in
         ReaderController(presentation: item, store: session.store) { captured in
           presentation = nil
@@ -118,7 +123,7 @@ struct ReaderView: View {
   }
   private func play(_ block: BodyBlock) {
     guard let url = block.url, MediaPolicy.allowed(url) else { return }
-    presentation = .media(url, block.direct)
+    media = .video(url, block.direct)
   }
   @MainActor private func load() async {
     let expected = requestID
@@ -138,10 +143,9 @@ struct ReaderView: View {
 }
 
 enum ReaderPresentation: Identifiable {
-  case browser(URL), media(URL, Bool)
+  case browser(URL)
   var id: String {
-    switch self { case .browser(let url): return "browser:" + url.absoluteString
-    case .media(let url, let direct): return "media:\(direct):" + url.absoluteString }
+    switch self { case .browser(let url): return "browser:" + url.absoluteString }
   }
 }
 struct ReaderController: UIViewControllerRepresentable {
@@ -152,8 +156,6 @@ struct ReaderController: UIViewControllerRepresentable {
     switch presentation {
     case .browser(let url):
       return UINavigationController(rootViewController: ForumBrowserController(url: url, store: store, completion: completion))
-    case .media(let url, let direct):
-      return MediaNavigationController(player: MediaPlayerController(url: url, direct: direct) { completion(nil) })
     }
   }
   func updateUIViewController(_ controller: UINavigationController, context: Context) {}

@@ -13,21 +13,24 @@
 
 ## Media return
 
-Image and video viewers are full-screen modal roots, so there is no navigation predecessor for UIKit's normal interactive pop. A native `UIScreenEdgePanGestureRecognizer` now recognizes a single-finger rightward swipe from the left edge and invokes the existing close action after sufficient movement or a deliberate flick. Short/cancelled/reversed gestures do not dismiss. The transition uses the existing modal dismissal, not a custom interactive pop animation.
+Image and video viewers share a UIKit presentation owned by the reader, outside recycled post cells. A native `UIScreenEdgePanGestureRecognizer` drives `UIPercentDrivenInteractiveTransition`: the viewer moves horizontally with the finger, revealing the reader with subtle parallax. A sufficiently long swipe or deliberate flick completes the return; short, cancelled or reversed gestures animate back into the viewer. The Back button uses the same horizontal animation. This replaces the previous release-only gesture and default modal dismissal.
 
-The edge gesture takes precedence over descendant pan gestures only at the screen edge. Central image paging, image pinch/double-tap zoom and video scrubbing keep their existing handlers. Video return follows the same resolver/audio/WebKit cleanup as its Back button. The underlying thread is not reloaded on media dismissal.
+The edge gesture takes precedence over descendant pan gestures only at the screen edge. Image pinch/double-tap zoom and video scrubbing keep their existing handlers. Resolver/audio/WebKit cleanup runs only after successful dismissal, not during an interactive cancellation. The reader remembers completed load requests so reappearing after media dismissal neither reloads the thread nor repeats its initial anchor jump. Reduce Motion removes background parallax and shortens the transition.
 
-References: [Apple gesture delegate precedence](https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate), [XenForo pagination markup example](https://xenforo.com/community/threads/problems-with-xenforo-com.204448/).
+The video status-label row is removed. Loading/retry/error states remain in the main content area. A lower-right native UIKit `.glass()` button toggles `Full screen` / `Exit full screen`, hiding/restoring the navigation and status bars while expanding the existing player or web view. It sits above the AVKit transport region and retains the same player, web session and playback position. It uses public layout APIs, with no private AVKit fullscreen selectors, forced orientation or second player. Edge return remains available in this mode.
+
+References: [Apple interactive transitions](https://developer.apple.com/documentation/uikit/uipercentdriveninteractivetransition), [Apple gesture delegate precedence](https://developer.apple.com/documentation/uikit/uigesturerecognizerdelegate), [UIKit glass buttons](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/glass()), [XenForo pagination markup example](https://xenforo.com/community/threads/problems-with-xenforo-com.204448/).
 
 ## Device acceptance
 
 No simulator is used at the user's request. Cloud core tests cover terminal-page detection, stable thread identity, legacy storage migration, persistence and read/update transitions. Arm64 Release compilation validates the app target; the user verifies device behavior:
 
-1. Image: left-edge return at normal/zoomed scale; central drag, pinch and double tap still work; short edge gestures remain in the viewer.
-2. Video: edge return during loading/playback/error; playback stops and the previous thread stays at the same position. Reopen and verify refresh remains functional.
-3. Home: open a thread, check its recorded maximum, return and tap the glass refresh button. After new floors appear, verify `Updated` and old/new numbers in both bookmark/recent rows.
-4. Open an updated thread, return, and verify its baseline is advanced and the badge cleared. Restart the app and verify persistence.
-5. Offline/expired-session checks must retain the previous counters and report failure, never fabricate an update.
+1. Image: slowly drag from the left edge at normal/zoomed scale; the page must track the finger. Release a short drag and reverse a long drag to verify cancellation. Complete a return and use the Back button; both must animate horizontally. Pinch, double tap and sharing still work.
+2. Video: repeat edge return/cancellation during loading/playback/error. Cancellation must preserve playback; a completed return must stop it and leave the thread at its prior position. Reopen and verify refresh remains functional. Test both Turbo and a generic provider.
+3. Video fullscreen: toggle the lower-right button during playback and pause, in portrait and landscape. Verify the title/status bars hide and restore, playback position is retained, native controls remain reachable, and edge return works while fullscreen. Also check a generic provider using its web fallback. Native AVKit's own fullscreen controls remain available independently.
+4. Home: open a thread, check its recorded maximum, return and tap the glass refresh button. After new floors appear, verify `Updated` and old/new numbers in both bookmark/recent rows.
+5. Open an updated thread, return, and verify its baseline is advanced and the badge cleared. Restart the app and verify persistence.
+6. Offline/expired-session checks must retain the previous counters and report failure, never fabricate an update.
 
 Live authenticated counts and touch arbitration remain pending physical-device acceptance.
 

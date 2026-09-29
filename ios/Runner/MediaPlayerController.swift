@@ -4,6 +4,7 @@ import UIKit
 import WebKit
 
 final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+  var requestClose: (() -> Void)?
   private let initialURL: URL
   private let direct: Bool
   private let completion: () -> Void
@@ -11,7 +12,10 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private let diagnostics = MediaDiagnostics()
   private var webView: WKWebView!
   private let playerController = AVPlayerViewController()
-  private let statusLabel = UILabel()
+  private let fullscreenButton = UIButton(type: .system)
+  private var immersive = false
+  private var regularBounds: [NSLayoutConstraint] = []
+  private var fullscreenBounds: [NSLayoutConstraint] = []
   private let waitingView = UIView()
   private let messageLabel = UILabel()
   private let hintLabel = UILabel()
@@ -72,12 +76,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     webView.navigationDelegate = self
     webView.uiDelegate = self
     webView.translatesAutoresizingMaskIntoConstraints = false
-    statusLabel.numberOfLines = 0
-    statusLabel.font = .preferredFont(forTextStyle: .footnote)
-    statusLabel.adjustsFontForContentSizeCategory = true
-    statusLabel.textColor = .secondaryLabel
-    statusLabel.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(statusLabel)
     view.addSubview(webView)
     addChild(playerController)
     playerController.allowsPictureInPicturePlayback = false
@@ -88,12 +86,16 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     waitingView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(waitingView)
     configureWaitingView()
-    NSLayoutConstraint.activate([
-      statusLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-      statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-      statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-      webView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
+    regularBounds = [
+      webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
       webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+    ]
+    fullscreenBounds = [
+      webView.topAnchor.constraint(equalTo: view.topAnchor),
+      webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ]
+    NSLayoutConstraint.activate(regularBounds)
+    NSLayoutConstraint.activate([
       webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       playerController.view.topAnchor.constraint(equalTo: webView.topAnchor),
@@ -105,6 +107,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       waitingView.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
       waitingView.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
     ])
+    configureFullscreenButton()
     let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
     diagnostics.record("app", "build=\(build), iOS=\(UIDevice.current.systemVersion)")
     diagnostics.record("provider", MediaPolicy.turboID(initialURL) == nil ? (direct ? "direct-media" : "generic-embed") : "turbo")
@@ -116,6 +119,55 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
         if let list = list { configuration.userContentController.add(list) }
         self.reload()
       }
+    }
+  }
+
+  override var prefersStatusBarHidden: Bool { immersive }
+  override var prefersHomeIndicatorAutoHidden: Bool { immersive }
+  override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
+
+  private func configureFullscreenButton() {
+    fullscreenButton.translatesAutoresizingMaskIntoConstraints = false
+    fullscreenButton.addTarget(self, action: #selector(toggleFullscreen), for: .touchUpInside)
+    view.addSubview(fullscreenButton)
+    NSLayoutConstraint.activate([
+      fullscreenButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+      // Leave the AVKit transport/scrubber touch region unobstructed.
+      fullscreenButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -76),
+      fullscreenButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
+    ])
+    updateFullscreenButton()
+  }
+  private func updateFullscreenButton() {
+    var configuration: UIButton.Configuration
+    if #available(iOS 26.0, *) { configuration = .glass() }
+    else { configuration = .tinted() }
+    configuration.title = immersive ? "Exit full screen" : "Full screen"
+    configuration.image = UIImage(systemName: immersive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+    configuration.imagePadding = 7
+    configuration.cornerStyle = .capsule
+    configuration.baseForegroundColor = .label
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
+    fullscreenButton.configuration = configuration
+    fullscreenButton.accessibilityLabel = configuration.title
+    fullscreenButton.accessibilityHint = immersive ? "Restore the title bar" : "Hide the title bar without restarting playback"
+  }
+  @objc private func toggleFullscreen() {
+    guard !closed, navigationController?.transitionCoordinator == nil else { return }
+    view.layoutIfNeeded()
+    immersive.toggle()
+    NSLayoutConstraint.deactivate(immersive ? regularBounds : fullscreenBounds)
+    NSLayoutConstraint.activate(immersive ? fullscreenBounds : regularBounds)
+    overrideUserInterfaceStyle = immersive ? .dark : .unspecified
+    updateFullscreenButton()
+    let animated = !UIAccessibility.isReduceMotionEnabled
+    navigationController?.setNavigationBarHidden(immersive, animated: animated)
+    setNeedsUpdateOfHomeIndicatorAutoHidden()
+    navigationController?.setNeedsUpdateOfHomeIndicatorAutoHidden()
+    UIView.animate(withDuration: animated ? 0.25 : 0) {
+      self.setNeedsStatusBarAppearanceUpdate()
+      self.navigationController?.setNeedsStatusBarAppearanceUpdate()
+      self.view.layoutIfNeeded()
     }
   }
 
@@ -161,7 +213,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   }
 
   private func waiting(_ title: String, hint: String, busy: Bool) {
-    statusLabel.text = title
     messageLabel.text = title
     hintLabel.text = hint
     waitingView.isHidden = false
@@ -216,7 +267,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       waitingView.isHidden = true
       spinner.stopAnimating()
       webView.isUserInteractionEnabled = true
-      statusLabel.text = "Tap Play in the player below."
       loadWebPage()
     }
   }
@@ -230,7 +280,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
         let resolver = TurboResolver(id: id, cookies: cookies, event: { [weak self] stage, detail in
           guard let self = self, self.active(epoch) else { return }
           self.diagnostics.record(stage, detail)
-          self.statusLabel.text = stage == "sign" ? "Resolving stream" : "Connecting to provider"
         }, completion: { [weak self] result in
           guard let self = self, self.active(epoch) else { return }
           self.resolver = nil
@@ -270,9 +319,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     loggedMediaErrors = 0
     let epoch = generation
     diagnostics.record("avkit", "Preparing validated HTTPS candidate")
-    if genericEmbed {
-      statusLabel.text = "Opening system player"
-    } else {
+    if !genericEmbed {
       waiting("Opening system player", hint: "Waiting for the video to start.", busy: true)
     }
     scheduleTimeout("The stream did not start. Please refresh to try again.", stage: "avkit")
@@ -305,7 +352,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
           }
           self.webView.isHidden = true
           self.playerController.view.isHidden = false
-          self.statusLabel.text = "Buffering video"
           do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
             try AVAudioSession.sharedInstance().setActive(true)
@@ -325,14 +371,11 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
           self.hasPlayed = true
           self.waitingView.isHidden = true
           self.spinner.stopAnimating()
-          self.statusLabel.text = "System player"
         } else if player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
-          self.statusLabel.text = "Buffering video"
           self.diagnostics.record("playback", "waitingToPlay")
           self.scheduleTimeout("Playback stalled. Please refresh to try again.", stage: "buffering")
         } else if self.hasPlayed {
           self.timeout?.invalidate()
-          self.statusLabel.text = "Paused"
         }
       }
     }
@@ -358,7 +401,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       playerController.view.isHidden = true
       webView.isHidden = false
       webView.isUserInteractionEnabled = true
-      statusLabel.text = "Tap Play in the web player. Refresh retries system playback."
       return
     }
     generation += 1
@@ -380,19 +422,26 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     playerController.view.isHidden = true
     webView.isHidden = false
     webView.isUserInteractionEnabled = true
-    statusLabel.text = "Web player. Refresh retries system playback."
     loadWebPage()
   }
   @objc func close() {
     guard !closed else { return }
+    if let requestClose { requestClose(); return }
+    finishPlayback()
+    dismiss(animated: true) { self.completion() }
+  }
+  // Called only after a committed return, never when an edge swipe is cancelled.
+  func finishPlayback() {
+    guard !closed else { return }
     closed = true
     generation += 1
+    guard isViewLoaded else { return }
     stopWork()
     webView.navigationDelegate = nil
     webView.uiDelegate = nil
     webView.configuration.userContentController.removeScriptMessageHandler(forName: "mediaCandidate", contentWorld: .defaultClient)
+    webView.loadHTMLString("", baseURL: nil)
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    dismiss(animated: true) { self.completion() }
   }
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
     guard !closed, !direct, !useWeb, !failed, !attempted, webReady, MediaPolicy.turboID(initialURL) == nil,
@@ -432,7 +481,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     guard !closed, error.code != NSURLErrorCancelled else { return }
     diagnostics.error("web", error)
     if useWeb {
-      statusLabel.text = "Web page failed to load. Please refresh to try again."
+      waiting("Could not load video", hint: "Please refresh to try again.", busy: false)
     } else {
       fail("Could not load the media page. Please refresh to try again.", stage: "web")
     }
