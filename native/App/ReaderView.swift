@@ -130,7 +130,7 @@ struct ReaderView: View {
         if !isVisible && media == nil { page = nil; completedRequestID = nil; posters.cancel() }
       }
       .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }
-      .background(MediaViewerPresenter(item: $media))
+      .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
       .fullScreenCover(item: $presentation) { item in
         ReaderController(presentation: item, session: session) { captured in
           presentation = nil

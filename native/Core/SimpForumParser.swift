@@ -170,7 +170,8 @@ struct SimpForumParser {
         flush()
         let lazy = try node.attr("data-src")
         if let url = SimpSitePolicy.resolve(lazy.isEmpty ? try node.attr("src") : lazy, from: page) {
-          blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? "Image" : alt, url: url, aspectRatio: ratio(node)))
+          blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? "Image" : alt, url: url,
+                                  original: OriginalImageSource.resolve(node, page: page, preview: url, link: href), aspectRatio: ratio(node)))
         }
         return
       }

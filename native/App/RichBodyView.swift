@@ -76,7 +76,7 @@ struct PostCard: View {
   let posters: PosterStore
   let navigate: (URL) -> Void
   let play: (BodyBlock) -> Void
-  let openImage: (UIImage) -> Void
+  let openImage: (ImageViewerSource) -> Void
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
@@ -106,7 +106,7 @@ struct RichBodyView: View {
   let posters: PosterStore
   let navigate: (URL) -> Void
   let play: (BodyBlock) -> Void
-  let openImage: (UIImage) -> Void
+  let openImage: (ImageViewerSource) -> Void
   private var groups: [BodyGroup] {
     var result: [BodyGroup] = []
     var images: [BodyBlock] = []
@@ -136,7 +136,7 @@ struct RichBodyView: View {
       .environment(\.openURL, OpenURLAction { url in navigate(url); return .handled })
   }
   private func image(_ block: BodyBlock, grid: Bool) -> some View {
-    RemoteImageView(url: block.url, ratio: grid ? 1 : block.aspectRatio, maximumHeight: grid ? 180 : 360, openImage: openImage)
+    RemoteImageView(url: block.url, originalURL: block.original, ratio: grid ? 1 : block.aspectRatio, maximumHeight: grid ? 180 : 360, openImage: openImage)
   }
   @ViewBuilder private func blockView(_ block: BodyBlock) -> some View {
     switch block.kind {
@@ -289,9 +289,10 @@ final class ImageStore {
 struct RemoteImageView: View {
   @EnvironmentObject private var session: ForumSession
   let url: URL?
+  var originalURL: URL?
   var ratio: Double?
   var maximumHeight: CGFloat = 360
-  var openImage: ((UIImage) -> Void)?
+  var openImage: ((ImageViewerSource) -> Void)?
   @State private var image: UIImage?
   @State private var loading = true
   @State private var attempt = 0
@@ -301,7 +302,9 @@ struct RemoteImageView: View {
     Group {
       if let image {
         Image(uiImage: image).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: maximumHeight)
-          .contentShape(Rectangle()).onTapGesture { openImage?(image) }
+          .contentShape(Rectangle()).onTapGesture {
+            if let source = originalURL ?? url { openImage?(ImageViewerSource(preview: image, url: source)) }
+          }
       } else {
         ZStack {
           Color(uiColor: .tertiarySystemFill)

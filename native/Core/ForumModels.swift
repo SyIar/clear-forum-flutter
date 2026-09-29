@@ -46,6 +46,7 @@ struct BodyBlock: Identifiable {
   var label = ""
   var url: URL?
   var poster: URL?
+  var original: URL?
   var aspectRatio: Double?
   var direct = false
 }

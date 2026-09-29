@@ -60,7 +60,7 @@ private extension ForumPage {
     func link(_ value: URL?) -> Int { value.map { string($0.absoluteString) } ?? 0 }
     func tags(_ values: [ForumTag]) -> Int { values.reduce(0) { $0 + string($1.title) + link($1.url) + 128 } }
     func block(_ value: BodyBlock) -> Int {
-      var cost = 256 + string(value.label) + link(value.url) + link(value.poster)
+      var cost = 256 + string(value.label) + link(value.url) + link(value.poster) + link(value.original)
       for run in value.runs { cost += string(run.text) + link(run.url) + 96 }
       for child in value.children { cost += block(child) }
       return cost
