@@ -114,6 +114,6 @@ final class SouthFollowingTests: XCTestCase {
     XCTAssertTrue(simp.following.isEmpty)
     XCTAssertFalse(simp.isUnreadSouthThread(thread(5)))
     let forum = SavedPage(url: URL(string: "https://simpcity.cr/forums/sample.12/")!, title: "Simp")
-    XCTAssertEqual(simp.subtitle(for: forum), "/forums/sample.12/")
+    XCTAssertEqual(simp.subtitle(for: forum), "/forums/sample.12")
   }
 }
