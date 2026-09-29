@@ -7,10 +7,12 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
   // Gofile never shares its cookie store with either forum or Safari.
   static let store = WKWebsiteDataStore(forIdentifier: UUID(uuidString: "D547C825-60B1-4AD0-B49B-DA80AC745E24")!)
   let url: URL
+  private(set) var requestedURL: URL
   @Published private(set) var listing: GofileListing?
   @Published private(set) var loading = false
   @Published private(set) var revision = 0
   @Published private(set) var error: String?
+  @Published private(set) var failure: GofileFailure?
   @Published var showingWebsite = false
   @Published private(set) var downloads: [String: GofileDownloadState] = [:]
   @Published var export: GofileLocalFile?
@@ -26,9 +28,12 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
   private var cookies: [HTTPCookie] = []
   private var userAgent = ""
   private var ready = false
+  private var thumbnailsSuspended = false
   private var bridgeSource = ""
+  private var waiter: CheckedContinuation<GofileListing, Error>?
   init(url: URL) {
     self.url = GofilePolicy.pageURL(url) ?? url
+    self.requestedURL = GofilePolicy.pageURL(url) ?? url
     super.init()
     thumbnails.countLimit = 100; thumbnails.totalCostLimit = 24 * 1024 * 1024
     let configuration = WKWebViewConfiguration()
@@ -42,26 +47,84 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
     webView.allowsBackForwardNavigationGestures = true
   }
   func load(page: Int? = nil) {
+    guard failure?.retryDate.map({ $0 > Date() }) != true else { return }
     if let page { pageNumber = max(1, page) }
     generation += 1; let epoch = generation
-    loading = true; ready = false; error = nil
+    loading = true; ready = false; error = nil; failure = nil
     timer?.cancel()
     webView.stopLoading()
     webView.configuration.userContentController.removeAllUserScripts()
     webView.configuration.userContentController.addUserScript(WKUserScript(source: bridgeSource.replacingOccurrences(of: "__FORUM_GENERATION__", with: String(generation)), injectionTime: .atDocumentStart, forMainFrameOnly: true))
-    webView.load(URLRequest(url: GofilePolicy.page(url, number: pageNumber), cachePolicy: .reloadIgnoringLocalCacheData))
+    webView.load(URLRequest(url: GofilePolicy.page(requestedURL, number: pageNumber), cachePolicy: .reloadIgnoringLocalCacheData))
+    armTimer(epoch)
+  }
+  private func armTimer(_ epoch: Int) {
+    timer?.cancel()
     timer = Task { [weak self] in
       try? await Task.sleep(for: .seconds(30))
       guard let self, !Task.isCancelled, self.generation == epoch, self.loading else { return }
-      self.loading = false; self.error = GofileFailure.website.localizedDescription
+      self.fail(GofileFailure.website)
     }
+  }
+  private func fail(_ error: Error) {
+    timer?.cancel(); loading = false; ready = false
+    self.failure = error as? GofileFailure
+    if let date = self.failure?.retryDate { GofileFileTransfer.slowDown(until: date) }
+    self.error = error is CancellationError ? nil : error.localizedDescription
+    let continuation = waiter; waiter = nil; continuation?.resume(throwing: error)
+  }
+  func fetch(_ target: URL, page: Int = 1) async throws -> GofileListing {
+    if let date = failure?.retryDate, date > Date() { throw GofileFailure.rateLimited(date) }
+    stop(); listing = nil; requestedURL = target; pageNumber = page
+    let epoch = generation + 1
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+        waiter = continuation; load()
+      }
+    } onCancel: { Task { @MainActor [weak self] in if self?.generation == epoch { self?.stop() } } }
+  }
+  func unlock(_ password: String) async throws -> GofileListing {
+    guard failure?.needsPassword == true, !password.isEmpty, !loading else { throw GofileFailure.website }
+    let epoch = generation
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+        waiter = continuation; loading = true; error = nil
+        armTimer(epoch)
+        Task { [weak self] in
+          guard let self else { return }
+          do {
+            // Use the site's normal password form; its code hashes and validates the password.
+            // Passing arguments avoids interpolation, logging, or persisting plaintext.
+            let script = """
+            for (let attempt = 0; attempt < 40; attempt++) {
+              const form = document.querySelector('form[data-fm="password"]');
+              const input = form?.querySelector('input[name="password"]');
+              if (input) { input.value = password; form.requestSubmit(); input.value = ''; return true; }
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return false;
+            """
+            let submitted = try await self.webView.callAsyncJavaScript(script, arguments: ["password": password], in: nil, contentWorld: .page) as? Bool
+            guard self.generation == epoch, self.loading else { return }
+            if submitted != true { self.fail(GofileFailure.website) }
+          } catch { if self.generation == epoch && self.loading { self.fail(GofileFailure.website) } }
+        }
+      }
+    } onCancel: { Task { @MainActor [weak self] in if self?.generation == epoch { self?.stop() } } }
+  }
+  func stop() {
+    generation += 1; timer?.cancel(); webView.stopLoading()
+    loading = false; ready = false
+    let continuation = waiter; waiter = nil; continuation?.resume(throwing: CancellationError())
   }
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
     guard message.frameInfo.isMainFrame, message.frameInfo.securityOrigin.protocol == "https",
           message.frameInfo.securityOrigin.host == "gofile.io", let payload = message.body as? [String: Any],
           payload["generation"] as? String == String(generation) else { return }
     do {
-      let value = try GofileListing.parse(payload, requested: url, page: pageNumber)
+      let value = try GofileListing.parse(payload, requested: requestedURL, page: pageNumber)
       timer?.cancel()
       let epoch = generation
       Task { [weak self] in
@@ -71,11 +134,12 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
         guard self.generation == epoch else { return }
         self.cookies = cookies.filter { $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased() == "gofile.io" || $0.domain.lowercased().hasSuffix(".gofile.io") }
         self.userAgent = agent ?? ""
-        self.listing = value; self.loading = false; self.error = nil; self.ready = true; self.revision += 1
+        self.listing = value; self.loading = false; self.error = nil; self.failure = nil; self.ready = true; self.revision += 1
         if !self.showingWebsite { self.webView.stopLoading() }
+        let continuation = self.waiter; self.waiter = nil; continuation?.resume(returning: value)
       }
     } catch GofileFailure.stale { return }
-    catch { timer?.cancel(); loading = false; ready = false; self.error = error.localizedDescription }
+    catch { fail(error) }
   }
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard navigationAction.targetFrame?.isMainFrame != false else { decisionHandler(.allow); return }
@@ -83,9 +147,9 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
     decisionHandler(.allow)
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-    if (error as NSError).code != NSURLErrorCancelled { loading = false; self.error = "Could not connect to Gofile. Check the connection and refresh." }
+    if (error as NSError).code != NSURLErrorCancelled { fail(GofileFailure.website) }
   }
-  func showWebsite() { showingWebsite = true; webView.load(URLRequest(url: GofilePolicy.page(url, number: pageNumber))) }
+  func showWebsite() { showingWebsite = true; webView.load(URLRequest(url: GofilePolicy.page(requestedURL, number: pageNumber))) }
   func returnToFiles() { showingWebsite = false; load() }
   func open(_ entry: GofileEntry) {
     if let file = downloads[entry.id]?.file { preview = GofileLocalFile(url: file); return }
@@ -100,7 +164,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
       return
     }
     guard transfers[entry.id] == nil else { return }
-    guard transfers.count < 2 else { downloads[entry.id] = .init(error: "Two downloads are already running."); return }
+    guard transfers.count < 2 else { downloads[entry.id] = .init(error: "Two files are already queued."); return }
     guard ready, !entry.unavailable, let link = entry.link else {
       downloads[entry.id] = .init(error: "Refresh the folder or open the website to check this file's availability."); return
     }
@@ -123,13 +187,34 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
     transfers[entry.id] = transfer; transfer.start(link)
   }
   func cancel(_ id: String) { transfers[id]?.cancel() }
+  var hasDownloads: Bool { !transfers.isEmpty }
+  var availableListing: GofileListing? { ready ? listing : nil }
+  func suspendThumbnails() {
+    thumbnailsSuspended = true
+    Array(thumbnailTransfers.values).forEach { $0.cancel() }
+  }
+  func resumeThumbnails() { thumbnailsSuspended = false; revision += 1 }
+  func transfer(_ entry: GofileEntry, progress: @escaping (Double?) -> Void) async throws -> URL {
+    guard !entry.unavailable, let link = entry.link else { throw GofileFailure.unavailable }
+    if userAgent.isEmpty { userAgent = (try? await webView.evaluateJavaScript("navigator.userAgent") as? String) ?? "" }
+    let cookies = await Self.store.httpCookieStore.allCookies()
+    var transfer: GofileFileTransfer?
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+        let value = GofileFileTransfer(name: entry.name, expectedBytes: entry.size, mime: entry.mime,
+          cookies: cookies, userAgent: userAgent, progress: progress, completion: { continuation.resume(with: $0) })
+        transfer = value; value.start(link)
+      }
+    } onCancel: { Task { @MainActor in transfer?.cancel() } }
+  }
   func thumbnail(_ entry: GofileEntry) async -> UIImage? {
-    guard let url = entry.thumbnail, ready else { return nil }
+    guard let url = entry.thumbnail, ready, !thumbnailsSuspended else { return nil }
     if let cached = thumbnails.object(forKey: url.absoluteString as NSString) { return cached }
     let epoch = generation
     while thumbnailTransfers.count >= 4 {
       do { try await Task.sleep(for: .milliseconds(80)) } catch { return nil }
-      guard generation == epoch, ready else { return nil }
+      guard generation == epoch, ready, !thumbnailsSuspended else { return nil }
     }
     guard !Task.isCancelled else { return nil }
     let id = UUID()
@@ -156,7 +241,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
   }
   deinit {
     timer?.cancel()
-    transfers.values.forEach { $0.cancel() }; thumbnailTransfers.values.forEach { $0.cancel() }
+    Array(transfers.values).forEach { $0.cancel() }; Array(thumbnailTransfers.values).forEach { $0.cancel() }
     downloads.values.compactMap(\.file).forEach(GofileFileTransfer.remove)
   }
 }

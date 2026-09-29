@@ -20,6 +20,7 @@ jobs:
       - run: python3 scripts/check_repository.py
       - run: swift test --package-path native
       - run: node scripts/check_media_probe.mjs
+      - run: node scripts/gofile_bridge.test.mjs
       - run: python3 scripts/check_media_support.py
       - run: brew install xcodegen
       - run: xcodegen generate --spec native/project.yml

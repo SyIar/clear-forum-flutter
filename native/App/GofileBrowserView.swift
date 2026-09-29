@@ -7,21 +7,31 @@ struct GofileDestination: Hashable { let url: URL }
 
 struct GofileBrowserView: View {
   @StateObject private var session: GofileSession
+  @StateObject private var batch: GofileBatchDownload
   @State private var search = ""
-  init(url: URL) { _session = StateObject(wrappedValue: GofileSession(url: url)) }
+  @State private var showingBatch = false
+  init(url: URL) {
+    _session = StateObject(wrappedValue: GofileSession(url: url))
+    _batch = StateObject(wrappedValue: GofileBatchDownload(url: url))
+  }
   private var entries: [GofileEntry] {
     (session.listing?.entries ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
   }
   var body: some View {
     List {
-      if let error = session.error {
+      if let failure = session.failure {
+        Section {
+          GofileAccessView(failure: failure, busy: session.loading, retry: { session.load() },
+            unlock: { _ = try? await session.unlock($0) }, website: { session.showWebsite() })
+        }
+      } else if let error = session.error {
         Section {
           Label(error, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary)
           Button("Open website", systemImage: "globe") { session.showWebsite() }
         }
       }
       if session.loading { HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear) }
-      if let listing = session.listing {
+      if let listing = session.listing, session.failure == nil, session.error == nil {
         Section {
           ForEach(entries) { entry in
             HStack(spacing: 12) {
@@ -43,6 +53,11 @@ struct GofileBrowserView: View {
     .searchable(text: $search, prompt: "Find files on this page")
     .toolbar {
       ToolbarItemGroup(placement: .topBarTrailing) {
+        Button("Download all", systemImage: "arrow.down.document") {
+          session.suspendThumbnails()
+          if let listing = session.listing, batch.phase != .paused { batch.start(listing) }
+          showingBatch = true
+        }.disabled(session.loading || session.failure != nil || session.listing == nil || session.hasDownloads)
         Button("Open website", systemImage: "globe") { session.showWebsite() }
         Button("Refresh", systemImage: "arrow.clockwise") { session.load() }.disabled(session.loading)
       }
@@ -66,6 +81,7 @@ struct GofileBrowserView: View {
       }
     }
     .sheet(item: $session.export) { GofileExport(file: $0.url) }
+    .sheet(isPresented: $showingBatch, onDismiss: { session.resumeThumbnails() }) { GofileBatchView(batch: batch) }
     .navigationDestination(item: $session.preview) { file in
       GofileQuickLook(file: file.url).navigationTitle("Preview").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
     }
@@ -80,7 +96,7 @@ struct GofileBrowserView: View {
         Text(entry.name).font(.subheadline).lineLimit(2).foregroundStyle(.primary)
         Text(entry.folder ? "Folder" : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "File")
           .font(.caption).foregroundStyle(.secondary)
-        if entry.unavailable { Text("Unavailable · Check website").font(.caption2).foregroundStyle(.secondary) }
+        if entry.unavailable { Text("Unavailable on Gofile").font(.caption2).foregroundStyle(.secondary) }
         if let error = session.downloads[entry.id]?.error { Text(error).font(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
       }.frame(maxWidth: .infinity, alignment: .leading)
     }.contentShape(Rectangle())
@@ -125,7 +141,7 @@ struct GofileWebSurface: UIViewRepresentable {
   func makeUIView(context: Context) -> WKWebView { webView }
   func updateUIView(_ uiView: WKWebView, context: Context) {}
 }
-private struct GofileExport: UIViewControllerRepresentable {
+struct GofileExport: UIViewControllerRepresentable {
   let file: URL
   func makeUIViewController(context: Context) -> UIDocumentPickerViewController { UIDocumentPickerViewController(forExporting: [file], asCopy: true) }
   func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}

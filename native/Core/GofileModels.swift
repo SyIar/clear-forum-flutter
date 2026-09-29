@@ -74,6 +74,7 @@ struct GofileEntry: Identifiable, Hashable {
 }
 
 struct GofileListing {
+  let id: String
   let title: String
   let entries: [GofileEntry]
   let page: Int
@@ -81,8 +82,19 @@ struct GofileListing {
   static func parse(_ payload: [String: Any], requested: URL, page: Int) throws -> Self {
     guard payload["contentId"] as? String == requested.lastPathComponent,
           (payload["page"] as? NSNumber)?.intValue == page else { throw GofileFailure.stale }
-    guard payload["status"] as? String == "ok", let data = payload["data"] as? [String: Any] else { throw GofileFailure.website }
-    guard data["canAccess"] as? Bool != false else { throw GofileFailure.access }
+    let status = payload["status"] as? String
+    let http = (payload["httpStatus"] as? NSNumber)?.intValue ?? 200
+    if http == 429 || status == "error-rateLimit" {
+      throw GofileFailure.rateLimited(Date().addingTimeInterval(max(1, (payload["retryAfter"] as? NSNumber)?.doubleValue ?? 60)))
+    }
+    if status == "error-notFound" || http == 404 { throw GofileFailure.notFound }
+    if status == "error-notPremium" { throw GofileFailure.premium }
+    guard (200..<300).contains(http), status == "ok", let data = payload["data"] as? [String: Any] else { throw GofileFailure.website }
+    if data["canAccess"] as? Bool == false {
+      if data["passwordRequired"] as? Bool == true { throw GofileFailure.password(wrong: data["passwordWrong"] as? Bool == true) }
+      if data["expired"] as? Bool == true { throw GofileFailure.expired }
+      throw GofileFailure.access
+    }
     guard let type = data["type"] as? String, ["file", "folder"].contains(type) else { throw GofileFailure.website }
     let rows = data["children"] as? [[String: Any]] ?? []
     guard rows.count <= 1000 else { throw GofileFailure.website }
@@ -102,17 +114,48 @@ struct GofileListing {
                          unavailable: row["isFrozen"] as? Bool == true || row["overloaded"] as? Bool == true || row["canAccess"] as? Bool == false)
     }
     let count = (payload["totalPages"] as? NSNumber)?.intValue ?? page
-    return Self(title: String((data["name"] as? String ?? "Gofile").prefix(512)), entries: entries, page: page, pages: max(page, min(100000, count)))
+    let id = (data["id"] as? String).flatMap { GofilePolicy.validID($0) ? $0 : nil } ?? requested.lastPathComponent
+    return Self(id: id, title: String((data["name"] as? String ?? "Gofile").prefix(512)), entries: entries, page: page, pages: max(page, min(100000, count)))
   }
 }
 
-enum GofileFailure: Error, LocalizedError {
-  case stale, website, access
+enum GofileFailure: Error, LocalizedError, Equatable {
+  case stale, website, access, notFound, expired, premium, unavailable
+  case password(wrong: Bool)
+  case rateLimited(Date)
+  var title: String {
+    switch self {
+    case .password: return "Password required"
+    case .notFound: return "Content not found"
+    case .expired: return "Link expired"
+    case .access: return "Private content"
+    case .premium: return "Premium access required"
+    case .rateLimited: return "Downloads paused"
+    case .unavailable: return "File unavailable"
+    default: return "Could not load content"
+    }
+  }
+  var symbol: String {
+    switch self {
+    case .password, .access, .premium: return "lock.fill"
+    case .expired, .rateLimited: return "clock"
+    case .notFound: return "folder.badge.questionmark"
+    default: return "exclamationmark.triangle"
+    }
+  }
+  var retryDate: Date? { if case .rateLimited(let date) = self { return date }; return nil }
+  var needsPassword: Bool { if case .password = self { return true }; return false }
   var errorDescription: String? {
     switch self {
     case .stale: return "The folder changed while it was loading. Please refresh."
     case .website: return "Could not read this folder. Open the website to check access, then return to Files."
-    case .access: return "This folder requires a password or additional access. Open the website to continue."
+    case .access: return "The owner has not made this content public. Ask the owner for access."
+    case .password(let wrong): return wrong ? "Incorrect password. Please try again." : "Enter the password shared by the owner."
+    case .notFound: return "This content was removed, or the link is incorrect."
+    case .expired: return "The owner set an expiration date for this link. Ask for a new link."
+    case .premium: return "Gofile requires Premium access for this content."
+    case .unavailable: return "This file is temporarily unavailable or restricted by Gofile."
+    case .rateLimited: return "Gofile asked this device to slow down. Wait before resuming; completed files are safe."
     }
   }
 }

@@ -2,6 +2,14 @@ import Foundation
 
 // A separate transfer policy: arbitrary files go to Files, never through the video/Photos pipeline.
 final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
+  // Main-queue scheduler shared by all native Gofile viewers, including thumbnails.
+  private static var waiting: [(GofileFileTransfer, URL)] = []
+  private static var active: GofileFileTransfer?
+  private static var cooldown = Date.distantPast
+  private static var wake: DispatchWorkItem?
+  static func slowDown(until date: Date) {
+    cooldown = max(cooldown, date)
+  }
   private let cookies: [HTTPCookie]
   private let userAgent: String
   private let name: String
@@ -21,6 +29,22 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     self.progress = progress; self.completion = completion
   }
   func start(_ url: URL) {
+    Self.waiting.append((self, url))
+    Self.startNext()
+  }
+  private static func startNext() {
+    guard active == nil, !waiting.isEmpty else { return }
+    guard cooldown <= Date() else {
+      wake?.cancel()
+      let item = DispatchWorkItem { startNext() }; wake = item
+      DispatchQueue.main.asyncAfter(deadline: .now() + min(3600, cooldown.timeIntervalSinceNow), execute: item)
+      return
+    }
+    wake?.cancel(); wake = nil
+    let (transfer, url) = waiting.removeFirst()
+    active = transfer; transfer.begin(url)
+  }
+  private func begin(_ url: URL) {
     guard GofilePolicy.fileURL(url), expectedBytes.map({ $0 <= limit }) ?? true else {
       fail("This file address is unavailable or the file exceeds the download limit."); return
     }
@@ -52,8 +76,12 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private func finish(_ result: Result<URL, Error>) {
     guard let completion else { return }
     self.completion = nil
+    if case .failure(let error) = result, let date = (error as? GofileFailure)?.retryDate { Self.slowDown(until: date) }
     session?.invalidateAndCancel(); session = nil; task = nil
+    Self.waiting.removeAll { $0.0 === self }
+    if Self.active === self { Self.active = nil }
     completion(result)
+    Self.startNext()
   }
   func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                   newRequest: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
@@ -78,6 +106,16 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     var directory: URL?
     do {
       guard let response = downloadTask.response as? HTTPURLResponse, let url = response.url else { throw MediaFileError(message: "Invalid download response.") }
+      if response.statusCode == 429 || response.statusCode == 503 {
+        let retry = response.value(forHTTPHeaderField: "Retry-After")
+        let format = DateFormatter(); format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(secondsFromGMT: 0); format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
+        let date = retry.flatMap { format.date(from: $0) }
+          ?? Date().addingTimeInterval(max(60, retry.flatMap(Double.init) ?? 60))
+        throw GofileFailure.rateLimited(date)
+      }
+      if response.statusCode == 404 || response.statusCode == 410 { throw GofileFailure.notFound }
+      if response.statusCode == 401 || response.statusCode == 403 { throw GofileFailure.access }
       let bytes = (try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
       let handle = try FileHandle(forReadingFrom: location)
       let prefix = try handle.read(upToCount: 512) ?? Data()

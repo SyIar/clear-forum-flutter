@@ -15,12 +15,20 @@
   };
   const publish = async (response, url) => {
     try {
+      const httpStatus = response.status;
+      const rawRetry = response.headers.get('retry-after');
+      const seconds = rawRetry && /^\d+$/.test(rawRetry) ? Number(rawRetry) : rawRetry ? (Date.parse(rawRetry) - Date.now()) / 1000 : 60;
+      const retryAfter = Number.isFinite(seconds) ? Math.max(1, Math.ceil(seconds)) : 60;
       if (Number(response.headers.get('content-length')) > 4 * 1024 * 1024) return;
       const body = await response.text();
       if (body.length > 4 * 1024 * 1024) return;
-      const envelope = JSON.parse(body);
+      let envelope = {};
+      try { envelope = JSON.parse(body); } catch (_) { /* HTTP errors may return HTML. */ }
       const source = envelope.data ?? {};
       const data = pick(source);
+      data.passwordRequired = source.password === true;
+      data.passwordWrong = source.passwordStatus === 'passwordWrong';
+      data.expired = Boolean(source.expire) && source.public !== false && source.canAccess === false;
       const children = source.canAccess === false ? [] : (source.type === 'file' ? [source] : Object.values(source.children ?? {}));
       // No account data, tokens, request headers, passwords, or server messages cross the bridge.
       data.children = children.length > 1000 ? [] : children.map(pick);
@@ -28,7 +36,9 @@
         generation,
         contentId: decodeURIComponent(url.pathname.split('/')[2]),
         page: Number(url.searchParams.get('page') || 1),
-        status: envelope.status === 'ok' && children.length <= 1000 ? 'ok' : 'error',
+        status: children.length > 1000 ? 'error' :
+          ['ok', 'error-notFound', 'error-notPremium', 'error-rateLimit'].includes(envelope.status) ? envelope.status : 'error',
+        httpStatus, retryAfter,
         totalPages: Number(envelope.metadata?.totalPages || 1), data
       });
     } catch (_) { /* The native timeout offers the website when the format changes. */ }
