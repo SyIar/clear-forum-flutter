@@ -14,7 +14,8 @@ final class PageCacheTests: XCTestCase {
     XCTAssertNil(result.fragment)
     XCTAssertEqual(URLComponents(url: result, resolvingAgainstBaseURL: false)?.queryItems,
                    [URLQueryItem(name: "prefix_id[0]", value: "23"), URLQueryItem(name: "order", value: "post_date")])
-    XCTAssertEqual(SitePolicy.pageURL(result, number: 1)?.path, "/forums/example.12/")
+    let firstPage = try XCTUnwrap(SitePolicy.pageURL(result, number: 1))
+    XCTAssertEqual(URLComponents(url: firstPage, resolvingAgainstBaseURL: false)?.path, "/forums/example.12/")
     let watched = URL(string: "https://simpcity.cr/watched/threads/?page=3")!
     XCTAssertEqual(SitePolicy.pageURL(watched, number: 9)?.query, "page=9")
     XCTAssertNil(SitePolicy.pageURL(watched, number: 1)?.query)
