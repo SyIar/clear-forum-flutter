@@ -1,5 +1,7 @@
 # Gofile 原生文件查看器
 
+后续交付：查看器和递归串行下载已包含在 [build 1027](BUILD_1027.md)，云端检查与 iPhoneOS 编译通过，实际真机效果待验收。
+
 ## 调研结果（2026-09-29）
 
 用户明确授权检查提供的 Gofile 测试目录。Chrome 实际读取到 6 个图片条目；下载首个 PNG 得到 **70,932 bytes**，文件头为有效 PNG。没有读取或导出浏览器 Cookie、账号 token 或 localStorage。

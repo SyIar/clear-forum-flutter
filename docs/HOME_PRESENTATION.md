@@ -1,5 +1,7 @@
 # Home presentation and media return retention
 
+The compact logo/compass banner is included in [build 1027](BUILD_1027.md); device presentation awaits acceptance.
+
 ## Changes
 
 - Both forum homes show a compact logo banner without the `Open forum` caption or automatic navigation chevron. Tapping the logo opens the native reader. A separate 44-point native glass `safari` compass opens that forum's original start page in the app's existing site browser, sharing its isolated login session. Choosing `Read page` returns to native reading; `Done` returns home. Purchase and poll pages are fetched afresh to preserve their original form markup.
