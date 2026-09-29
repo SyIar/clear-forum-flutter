@@ -56,3 +56,13 @@ The probe and its throwing startup gate have been removed entirely. `BrowserIden
 Regression coverage now includes first install with no saved identity or cookies, relaunch/OS update, upgrade from an existing identity, forum isolation and invalid stored values. A macOS WebKit test loads a local HTML fixture and checks that `navigator.userAgent` equals the native reader request's header. It uses a nonpersistent fixture store, makes no website request and is not an iOS simulator. The test reads JavaScript only after `didFinish`; production startup no longer requires JavaScript at all.
 
 The previous pure request tests accepted an already supplied identity and therefore did not cover identity initialization. Compilation and those tests did not establish that the 1015 startup path worked on iPhone. This distinction is retained in the delivery record.
+
+### Corrective build 1016
+
+- Source commit: `ed0847db57d888afaea974c1dd31ac04cb53a0f3`.
+- [GitHub Actions run 36532712641](https://github.com/SyIar/clear-forum-flutter/actions/runs/36532712641) succeeded: 56 Swift tests, media checks and arm64 iPhoneOS Release compilation. The real macOS WebKit local-page test passed in 1.973 seconds.
+- IPA: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1016-unsigned.ipa`, 2,480,756 bytes.
+- SHA-256: `060eb99b8030932469fa4044737f7a028e75eeb6d74193ebe07846082e66b8f4`.
+- The downloaded archive passed ZIP CRC, source/run/version checks, arm64 Mach-O, assets/media presence and SHA-256 verification. The former startup alert is absent from the executable.
+- Not signed or installed in this turn. iPhone guest-page access and South login handoff remain pending device acceptance. No simulator, browser account inspection or Cookie export was used.
+- If a prior session was already invalidated, or no matching User-Agent was ever stored for it, the user may need to sign in again once. This build does not clear the existing WebKit profiles.
