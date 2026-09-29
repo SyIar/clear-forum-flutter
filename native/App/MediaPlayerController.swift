@@ -28,6 +28,14 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private let waitingView = UIView()
   private let messageLabel = UILabel()
   private let hintLabel = UILabel()
+  private let bufferLabel = UILabel()
+  private let transferLabel = UILabel()
+  private let bufferProgress = UIProgressView(progressViewStyle: .default)
+  private var loadingTimer: Timer?
+  private var loadingStarted: TimeInterval = 0
+  private var loadingHint = ""
+  private var transferRate = PlaybackTransferRate()
+  private var bufferReport = "No playback buffer metrics yet."
   private let spinner = UIActivityIndicatorView(style: .large)
   private let retryButton = UIButton(type: .system)
   private let webButton = UIButton(type: .system)
@@ -221,7 +229,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     let controller = MediaDetailsController { [weak self] in
       guard let self else { return "Playback closed." }
       let available = self.downloadSource != nil ? "available" : "not available (web-only or still resolving)"
-      return self.diagnostics.report + "\n\nDownload source: " + available + "\n" + self.download.diagnostics.report
+      return self.diagnostics.report + "\n\n" + self.bufferReport + "\n\nDownload source: " + available + "\n" + self.download.diagnostics.report
     }
     present(UINavigationController(rootViewController: controller), animated: true)
   }
@@ -258,6 +266,14 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     hintLabel.textColor = .secondaryLabel
     hintLabel.numberOfLines = 0
     hintLabel.textAlignment = .center
+    for label in [bufferLabel, transferLabel] {
+      label.font = .preferredFont(forTextStyle: .subheadline)
+      label.adjustsFontForContentSizeCategory = true
+      label.textColor = .secondaryLabel
+      label.numberOfLines = 0
+      label.textAlignment = .center
+    }
+    bufferProgress.accessibilityLabel = "Buffered portion of video"
     retryButton.configuration = .filled()
     retryButton.setTitle("Retry", for: .normal)
     retryButton.addTarget(self, action: #selector(reload), for: .touchUpInside)
@@ -265,7 +281,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     webButton.setTitle("Web player", for: .normal)
     webButton.addTarget(self, action: #selector(showWeb), for: .touchUpInside)
     webButton.isHidden = direct
-    let stack = UIStackView(arrangedSubviews: [spinner, messageLabel, hintLabel, retryButton, webButton])
+    let stack = UIStackView(arrangedSubviews: [spinner, messageLabel, hintLabel, bufferLabel, bufferProgress, transferLabel, retryButton, webButton])
     stack.axis = .vertical
     stack.alignment = .fill
     stack.spacing = 20
@@ -287,6 +303,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   }
 
   private func waiting(_ title: String, hint: String, busy: Bool) {
+    loadingHint = hint
     messageLabel.text = title
     hintLabel.text = hint
     waitingView.isHidden = false
@@ -295,8 +312,59 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     spinner.isHidden = !busy
     retryButton.isHidden = busy
     webButton.isHidden = direct
+    bufferLabel.isHidden = true
+    bufferProgress.isHidden = true
+    transferLabel.isHidden = true
+  }
+  private func startLoadingMetrics() {
+    loadingTimer?.invalidate()
+    loadingStarted = ProcessInfo.processInfo.systemUptime
+    transferRate = PlaybackTransferRate()
+    bufferReport = "Resolving playback source; buffer and transfer speed are not available yet."
+    loadingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      self?.updateLoadingMetrics()
+    }
+    updateLoadingMetrics()
+  }
+  private func updateLoadingMetrics() {
+    guard !closed, !failed, !hasPlayed, !waitingView.isHidden else { return }
+    let now = ProcessInfo.processInfo.systemUptime
+    let elapsed = max(0, Int(now - loadingStarted))
+    hintLabel.text = "\(loadingHint)\nWaiting \(elapsed)s"
+    guard let item = playerController.player?.currentItem else { return }
+    let ranges = item.loadedTimeRanges.map { value -> (start: Double, end: Double) in
+      let range = value.timeRangeValue
+      return (range.start.seconds, CMTimeRangeGetEnd(range).seconds)
+    }
+    let metrics = PlaybackBufferMetrics(ranges: ranges, duration: item.duration.seconds, position: item.currentTime().seconds)
+    let ahead = String(format: "%.1f s ready ahead", metrics.secondsAhead)
+    bufferLabel.isHidden = false
+    if let fraction = metrics.fraction {
+      let percent = String(format: "%.1f%% of video buffered", fraction * 100)
+      bufferLabel.text = "\(percent)\n\(ahead)"
+      bufferProgress.isHidden = false
+      bufferProgress.setProgress(Float(fraction), animated: !UIAccessibility.isReduceMotionEnabled)
+    } else {
+      bufferLabel.text = ahead
+      bufferProgress.isHidden = true
+    }
+    let events = item.accessLog()?.events ?? []
+    let available = !events.isEmpty && events.allSatisfy { $0.numberOfBytesTransferred >= 0 && $0.transferDuration.isFinite && $0.transferDuration >= 0 }
+    let bytes = available ? events.reduce(Int64(0)) { $0 + $1.numberOfBytesTransferred } : nil
+    let duration = available ? events.reduce(0.0) { $0 + $1.transferDuration } : nil
+    let rate = transferRate.sample(bytes: bytes, transferDuration: duration, now: now)
+    if let rate {
+      let formatted = ByteCountFormatter.string(fromByteCount: Int64(min(rate, 1e15)), countStyle: .decimal)
+      transferLabel.text = "Recent transfer ~\(formatted)/s"
+    } else {
+      transferLabel.text = "Transfer speed unavailable"
+    }
+    transferLabel.isHidden = false
+    bufferReport = "Waiting \(elapsed)s\n\(bufferLabel.text ?? "")\n\(transferLabel.text ?? "")\nPercent measures buffered video time, not readiness to start. Speed uses recent access-log transfer counters."
   }
   private func resetPlayer() {
+    loadingTimer?.invalidate()
+    loadingTimer = nil
     timeout?.invalidate()
     timeout = nil
     statusObservation?.invalidate()
@@ -333,6 +401,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     webView.isHidden = false
     diagnostics.record("attempt", "Reload")
     waiting("Preparing video", hint: "Please wait for the video to load.", busy: true)
+    startLoadingMetrics()
     if direct {
       startPlayer(initialURL, cookies: [])
     } else if let id = MediaPolicy.turboID(initialURL) {
@@ -396,7 +465,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     let epoch = generation
     diagnostics.record("avkit", "Preparing validated HTTPS candidate")
     if !genericEmbed {
-      waiting("Opening system player", hint: "Waiting for the video to start.", busy: true)
+      waiting("Buffering video", hint: "Playback starts when enough data is ready.", busy: true)
     }
     scheduleTimeout("The stream did not start. Please refresh to try again.", stage: "avkit")
     let applicable = cookies.filter { MediaPolicy.cookieMatches($0, url) }
@@ -430,6 +499,10 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
           }
           self.webView.isHidden = true
           self.playerController.view.isHidden = false
+          if self.genericEmbed {
+            self.waiting("Buffering video", hint: "Playback starts when enough data is ready.", busy: true)
+          }
+          self.updateLoadingMetrics()
           do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
             try AVAudioSession.sharedInstance().setActive(true)
@@ -447,6 +520,8 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
           self.timeout?.invalidate()
           if !self.hasPlayed { self.diagnostics.record("playback", "playing") }
           self.hasPlayed = true
+          self.loadingTimer?.invalidate()
+          self.loadingTimer = nil
           self.waitingView.isHidden = true
           self.spinner.stopAnimating()
         } else if player.timeControlStatus == .waitingToPlayAtSpecifiedRate {

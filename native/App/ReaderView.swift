@@ -4,8 +4,8 @@ import WebKit
 struct ReaderView: View {
   let initialURL: URL
   var home: () -> Void
-  @EnvironmentObject private var library: LibraryStore
-  @EnvironmentObject private var session: ForumSession
+  @ObservedObject var library: LibraryStore
+  @ObservedObject var session: ForumSession
   @State private var url: URL?
   @State private var page: ForumPage?
   @State private var error: String?
@@ -24,6 +24,12 @@ struct ReaderView: View {
   @State private var external: URL?
   @StateObject private var posters = PosterStore()
   private var current: URL { url ?? initialURL }
+  init(initialURL: URL, library: LibraryStore, session: ForumSession, home: @escaping () -> Void) {
+    self.initialURL = initialURL
+    self.library = library
+    self.session = session
+    self.home = home
+  }
   var body: some View {
     ScrollViewReader { proxy in
       ScrollView {
@@ -129,7 +135,11 @@ struct ReaderView: View {
         // Keep the immediate return destination while its media viewer is open.
         if !isVisible && media == nil { page = nil; completedRequestID = nil; posters.cancel() }
       }
-      .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }
+      .navigationDestination(item: $destination) { item in
+        // A pushed destination is hosted by NavigationStack, outside the source
+        // destination's environment scope. Carry the same site objects explicitly.
+        ReaderView(initialURL: item.url, library: library, session: session, home: home)
+      }
       .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
       .fullScreenCover(item: $presentation) { item in
         ReaderController(presentation: item, session: session) { captured in
@@ -158,6 +168,8 @@ struct ReaderView: View {
         if let external { Link("Open \(external.host ?? "link")", destination: external) }
       }
     }
+    .environmentObject(library)
+    .environmentObject(session)
   }
   private func savePosition() {
     guard loadedGeneration == session.generation, let page else { return }

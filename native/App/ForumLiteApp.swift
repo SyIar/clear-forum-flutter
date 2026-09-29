@@ -18,7 +18,10 @@ struct ForumLiteApp: App {
               case .home:
                 HomeView(path: $path)
               case .reader(let url):
-                ReaderView(initialURL: url, home: { path = [.home(site)] })
+                ReaderView(initialURL: url,
+                           library: site == .simp ? simpLibrary : southLibrary,
+                           session: site == .simp ? simpSession : southSession,
+                           home: { path = [.home(site)] })
               }
             }
             .environmentObject(site == .simp ? simpLibrary : southLibrary)
