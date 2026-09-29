@@ -54,9 +54,9 @@ Additional device acceptance: tap a tag in each view, verify the filtered native
 
 ## Verified delivery
 
-- Native version: `0.2.0 (1007)`; source `14c9923f1a287f6cf8bf63990481adeb731b3e62`.
-- [macOS run 36436554872](https://github.com/SyIar/clear-forum-flutter/actions/runs/36436554872) passed all 16 Swift core tests, existing media probe/support checks, arm64 Release compilation and packaging. No simulator checks ran.
-- Local IPA: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1007-unsigned.ipa`.
-- SHA-256: `6ff4402b23b0b8864d60ed7675c3ad275fe517e0ad42b5cc15f43d36718ac5a2`; size `3,305,977` bytes.
+- Native version: `0.2.0 (1008)`; source `7e6fb9a5c1916caca453f70570ef250ea60c1a93`.
+- [macOS run 36516687512](https://github.com/SyIar/clear-forum-flutter/actions/runs/36516687512) passed Swift core tests, existing media probe/support checks, arm64 Release compilation and packaging. No simulator checks ran.
+- Local IPA: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1008-unsigned.ipa`.
+- SHA-256: `84f9b8737c4788b21f731b0b9cde986ce601faa46a9847ee5fcf394a8dfd36e9`; size `3,317,212` bytes.
 - Downloaded source/run metadata, ZIP integrity, arm64 executable, bundle identity, display name/version, AppIcon assets and MediaProbe.js were verified. No Flutter runtime is packaged. The copied install-folder file has the same checksum.
 - Not installed during this task. Physical-device gestures, live update refresh and rendering remain pending the user's acceptance.
