@@ -47,6 +47,8 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     originalButton.addTarget(self, action: #selector(loadOriginal), for: .touchUpInside)
     view.addSubview(originalButton)
     statusLabel.textColor = .white; statusLabel.font = .preferredFont(forTextStyle: .caption1)
+    statusLabel.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+    statusLabel.layer.cornerRadius = 6; statusLabel.clipsToBounds = true
     statusLabel.textAlignment = .right; statusLabel.numberOfLines = 3
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
     statusLabel.isAccessibilityElement = true
@@ -67,6 +69,13 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     if #available(iOS 26.0, *), let content = navigationController?.interactiveContentPopGestureRecognizer {
       content.require(toFail: scroll.panGestureRecognizer)
     }
+  }
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    guard let image = imageView.image, image.size.width > 0, image.size.height > 0,
+          scroll.bounds.width > 0, scroll.bounds.height > 0 else { return }
+    let fit = min(scroll.bounds.width / image.size.width, scroll.bounds.height / image.size.height)
+    scroll.maximumZoomScale = max(8, image.scale / (fit * max(1, traitCollection.displayScale)))
   }
   func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
   @objc private func zoom() { scroll.setZoomScale(scroll.zoomScale > 1 ? 1 : 2.5, animated: true) }
@@ -108,6 +117,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
       case .success(let (image, width, height)):
         self.scroll.setZoomScale(1, animated: false)
         self.imageView.image = image; self.originalLoaded = true
+        self.view.setNeedsLayout()
         self.statusLabel.text = "Source \(width) \u{00D7} \(height)"
         self.originalButton.accessibilityLabel = "Zoom source image"
       case .failure(let error): self.failed(error)

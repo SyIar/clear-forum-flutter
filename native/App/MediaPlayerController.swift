@@ -135,6 +135,10 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   override var prefersStatusBarHidden: Bool { immersive }
   override var prefersHomeIndicatorAutoHidden: Bool { immersive }
   override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    updateDownloadButton()
+  }
 
   private func configureFullscreenButton() {
     fullscreenButton.addTarget(self, action: #selector(toggleFullscreen), for: .touchUpInside)
@@ -142,7 +146,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     let glass = UIGlassEffect(style: .regular)
     glass.isInteractive = true
     let group = UIVisualEffectView(effect: glass)
-    group.layer.cornerRadius = 24; group.clipsToBounds = true
+    // UIGlassEffect supplies its native capsule shape and optical edge.
     group.translatesAutoresizingMaskIntoConstraints = false
     let stack = UIStackView(arrangedSubviews: [downloadButton, fullscreenButton])
     stack.axis = .horizontal; stack.distribution = .fillEqually

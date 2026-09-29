@@ -38,6 +38,7 @@ struct MediaViewerDestination: View {
   var body: some View {
     MediaViewerContent(item: item, state: state)
       .ignoresSafeArea(.container, edges: state.immersive ? .all : .bottom)
+      .background(Color(uiColor: isImage || state.immersive ? .black : .systemBackground))
       .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
       .toolbarRole(.editor)
       .toolbar(state.immersive ? .hidden : .visible, for: .navigationBar)
