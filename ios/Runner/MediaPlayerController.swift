@@ -278,7 +278,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     store.httpCookieStore.getAllCookies { [weak self] cookies in
       DispatchQueue.main.async {
         guard let self = self, self.active(epoch) else { return }
-        let resolver = TurboResolver(id: id, cookies: cookies, referer: forumReferer, event: { [weak self] stage, detail in
+        let resolver = TurboResolver(id: id, cookies: cookies, referer: self.forumReferer, event: { [weak self] stage, detail in
           guard let self = self, self.active(epoch) else { return }
           self.diagnostics.record(stage, detail)
         }, completion: { [weak self] result in
