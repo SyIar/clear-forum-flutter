@@ -1,5 +1,7 @@
 # forum lite：合并交付记录
 
+后续版本 `0.3.0 (1015)` 已将分段选择器换成独立论坛入口，并修复浏览器/阅读器的 User-Agent 衔接；详见 [新首页与登录修复交付](ENTRY_AND_LOGIN_HANDOFF.md)。以下保留初次合并记录。
+
 ## 目标与安装身份
 
 - 一个原生 SwiftUI/UIKit App，首页通过 `SimpCity / South Plus` 分段选择器切换论坛。
