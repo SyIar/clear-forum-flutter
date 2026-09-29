@@ -21,3 +21,14 @@ Crash reports and the filtered live log are stored only on the user's computer u
 The browser tool blocked South page inspection under its site-safety policy. That restriction was respected. The fix is based on the actual app crash logs and local source, not an unperformed website inspection.
 
 Reference: [Apple EnvironmentObject](https://developer.apple.com/documentation/swiftui/environmentobject) requires the matching observable object to be supplied by an ancestor.
+
+## Build 1019 delivery
+
+- Source commit: `6b71ec55eba191f2d4a7061a8aa5dbb47e08a999`.
+- [GitHub Actions run 36539161138](https://github.com/SyIar/clear-forum-flutter/actions/runs/36539161138): 65 Swift Core tests, media checks, native arm64 iPhoneOS Release compilation, and packaging passed. No simulator.
+- Version `0.3.0 (1019)`, display name `forum lite`, bundle ID `dev.sylar.clearforum`.
+- Local IPA: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1019-unsigned.ipa`.
+- Size: `4,145,616` bytes. SHA-256: `2728a5d92fb8afe540ae2941588a4369e3a21efba87c48254a2c15d09f0095e4`.
+- Verified source/run metadata, checksum, ZIP CRC, version/bundle identity, arm64 executable, app icon declaration/assets, Photos usage description, MediaProbe resource, no Flutter runtime, and matching delivery copy.
+- Also includes the generated FORUM/LITE icon and [playback loading feedback](PLAYBACK_LOADING.md).
+- Not installed during this task. Device acceptance of the fixed navigation and provider-specific buffer/speed data remains pending.
