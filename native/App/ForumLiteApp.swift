@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct ForumLiteApp: App {
+  @StateObject private var downloads = VideoDownloadManager.shared
+  @Environment(\.scenePhase) private var scenePhase
   @StateObject private var simpLibrary = LibraryStore(site: .simp)
   @StateObject private var southLibrary = LibraryStore(site: .south)
   @StateObject private var simpSession = ForumSession(site: .simp)
@@ -28,6 +30,12 @@ struct ForumLiteApp: App {
             .environmentObject(site == .simp ? simpSession : southSession)
           }
       }.tint(.blue)
+        .overlay(alignment: .trailing) { FloatingVideoDownloads(manager: downloads) }
+        .sheet(isPresented: $downloads.showingManager) { VideoDownloadsView(manager: downloads) }
+        .onChange(of: scenePhase) { _, value in
+          if value == .background { downloads.backgrounded() }
+          else if value == .active { downloads.foregrounded() }
+        }
     }
   }
 }

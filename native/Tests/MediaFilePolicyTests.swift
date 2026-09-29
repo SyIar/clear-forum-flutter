@@ -24,6 +24,27 @@ final class MediaFilePolicyTests: XCTestCase {
     XCTAssertNotNil(MediaFilePolicy.responseError(status: 200, mime: "application/x-mpegurl", url: opaque, bytes: 1024, limit: 4096))
     XCTAssertFalse(MediaFilePolicy.isHLS(URL(string: "https://media.example/clip.mp4?name=index.m3u8")!, mime: "video/mp4"))
   }
+  func testResumedResponseRequiresACompleteAssembledFile() {
+    let url = URL(string: "https://media.example/file.mp4")!
+    XCTAssertNil(MediaFilePolicy.responseError(status: 206, mime: "video/mp4", url: url, bytes: 1000, limit: 2000,
+      resumed: true, contentRange: "bytes 400-999/1000"))
+    XCTAssertNotNil(MediaFilePolicy.responseError(status: 206, mime: "video/mp4", url: url, bytes: 600, limit: 2000,
+      resumed: true, contentRange: "bytes 400-999/1000"))
+    XCTAssertNotNil(MediaFilePolicy.responseError(status: 206, mime: "video/mp4", url: url, bytes: 1000, limit: 2000,
+      resumed: false, contentRange: "bytes 400-999/1000"))
+    XCTAssertNotNil(MediaFilePolicy.responseError(status: 206, mime: "text/html", url: url, bytes: 1000, limit: 2000,
+      resumed: true, contentRange: "bytes 400-999/1000"))
+    for range in ["bytes 400-998/1000", "bytes 1000-999/1000", "bytes 0-bad-999/1000", "bytes */1000", "bytes 400-999/*"] {
+      XCTAssertFalse(MediaFilePolicy.completeRange(range, bytes: 1000), range)
+    }
+  }
+  func testRestartedResumeStillRequiresTheFullDeclaredLength() {
+    let url = URL(string: "https://media.example/file.mp4")!
+    XCTAssertNil(MediaFilePolicy.responseError(status: 200, mime: "video/mp4", url: url, bytes: 1000, limit: 2000,
+      resumed: true, expectedBytes: 1000))
+    XCTAssertNotNil(MediaFilePolicy.responseError(status: 200, mime: "video/mp4", url: url, bytes: 600, limit: 2000,
+      resumed: true, expectedBytes: 1000))
+  }
   func testExplicitImageOriginalAndSafeFallback() throws {
     let page = URL(string: "https://simpcity.cr/threads/example.1/")!
     let preview = URL(string: "https://images.example/preview.jpg")!

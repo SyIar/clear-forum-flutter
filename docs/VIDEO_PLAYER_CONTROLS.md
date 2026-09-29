@@ -6,7 +6,7 @@
 - The navigation title is always `Video` for every provider and direct stream; it never displays a CDN or provider hostname.
 - Top right: download, then refresh. No overflow menu and no Details action.
 - Download uses a clockwise ring starting at twelve o'clock, with an integer percentage in its center. It uses received bytes versus the response's expected byte count. Unknown length and source preparation use an indeterminate indicator, not a fabricated percentage.
-- Tapping an active ring offers cancellation. At transfer completion, keep 100 while Photos imports; show a checkmark only after a successful import. Import failures retain the existing Save to Files recovery action.
+- Tapping an active ring opens the global download manager, with pause, continue and cancel per task. At transfer completion, keep 100 while Photos imports; show a checkmark only after a successful import. Import failures retain the Save to Files recovery action in the manager.
 - Bottom right: one native Liquid Glass fullscreen button. Hiding the navigation bar does not recreate the player or cancel a download.
 - Loading has only a centered activity indicator. Playback diagnostics, elapsed time, buffer percentage, throughput, and the report/copy screen are removed from the native player UI and its diagnostic event collection.
 - Playback errors show a concise message and Open in browser, presented inside the app with SFSafariViewController. Refresh remains in the top bar.
@@ -14,6 +14,8 @@
 ## Playback and downloads
 
 The user's build 1023 report confirmed successful Turbo and non-Turbo downloads to Photos. The transfer, validation, isolated media cookies, Turbo source refresh, and Photos import paths are preserved. The viewer and its navigation button observe the same download instance, including after returning to an active transfer. Refreshing playback does not cancel a download.
+
+The current unbuilt changes add an app-owned queue, a floating native glass progress button and resumable transfers. See [Global video downloads](GLOBAL_VIDEO_DOWNLOADS.md) for lifecycle, persistence, limitations and pending device checks. These changes are not part of the user's build 1023 acceptance.
 
 The report also showed a 25-second application buffering timer interrupting an otherwise prepared AVPlayer item. Remove that timer; waitingToPlay is not itself an error. AVPlayer retains control of buffering and resumption, and actual item/transport failures still produce an error. A network path monitor displays an offline message only after an unsatisfied path persists for three seconds while loading/buffering. It leaves the player alive, ignores short path changes, and permits playback recovery. A satisfied path alone is not treated as proof that the remote server is reachable.
 

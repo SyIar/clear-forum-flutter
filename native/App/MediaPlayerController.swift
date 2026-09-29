@@ -2,7 +2,6 @@ import AVKit
 import AVFoundation
 import UIKit
 import WebKit
-import Combine
 import Network
 
 final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -18,9 +17,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private let playerController = AVPlayerViewController()
   private let fullscreenButton = UIButton(type: .system)
   private let download: VideoDownload
-  private var downloadObservation: AnyCancellable?
   private var downloadSource: (url: URL, cookies: [HTTPCookie])?
-  private var downloadFailureShown = false
   private var immersive = false
   private var regularBounds: [NSLayoutConstraint] = []
   private var fullscreenBounds: [NSLayoutConstraint] = []
@@ -152,9 +149,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       fullscreenButton.heightAnchor.constraint(equalToConstant: 48),
       fullscreenButton.widthAnchor.constraint(equalToConstant: 48),
     ])
-    downloadObservation = download.objectWillChange.sink { [weak self] in
-      DispatchQueue.main.async { self?.updateDownloadButton() }
-    }
     updateDownloadButton()
     updateFullscreenButton()
   }
@@ -172,22 +166,10 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private func updateDownloadButton() {
     guard !closed else { return }
     downloadAvailabilityChanged?(downloadSource != nil)
-    if download.phase == .failed, !downloadFailureShown, viewIfLoaded?.window != nil, presentedViewController == nil {
-      downloadFailureShown = true
-      let alert = UIAlertController(title: "Video download", message: download.message, preferredStyle: .alert)
-      if let file = download.exportFile {
-        alert.addAction(UIAlertAction(title: "Save to Files", style: .default) { [weak self] _ in
-          self?.present(UIDocumentPickerViewController(forExporting: [file], asCopy: true), animated: true)
-        })
-      }
-      alert.addAction(UIAlertAction(title: "OK", style: .cancel))
-      present(alert, animated: true)
-    }
   }
   func downloadVideo() {
     guard !download.busy, let source = downloadSource else { return }
-    downloadFailureShown = false
-    download.start(url: source.url, cookies: source.cookies, turboID: MediaPolicy.turboID(initialURL), referer: forumReferer)
+    download.start(url: source.url, cookies: source.cookies, turboID: MediaPolicy.turboID(initialURL), referer: forumReferer, direct: direct)
   }
   @objc func openInBrowser() {
     guard !closed, presentedViewController == nil, let browser = ExternalBrowser.make(initialURL) else { return }
@@ -451,7 +433,6 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     guard !closed else { return }
     closed = true
     networkMonitor.cancel()
-    downloadObservation?.cancel()
     generation += 1
     guard isViewLoaded else { return }
     stopWork()

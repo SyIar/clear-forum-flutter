@@ -3,22 +3,17 @@ import SwiftUI
 struct VideoDownloadButton: View {
   @ObservedObject var state: MediaViewerState
   @ObservedObject var download: VideoDownload
-  @State private var cancelDownload = false
 
   var body: some View {
     Button {
-      if download.canCancel { cancelDownload = true }
-      else { state.player?.downloadVideo() }
+      if [.idle, .failed, .cancelled].contains(download.phase), state.downloadReady { state.player?.downloadVideo() }
+      else { VideoDownloadManager.shared.showingManager = true }
     } label: {
       DownloadIndicator(phase: download.phase, progress: download.progress)
     }
-    .disabled(download.phase == .saving || (!download.canCancel && !state.downloadReady))
-    .accessibilityLabel(download.canCancel ? "Cancel video download" : download.phase == .saved ? "Saved to Photos" : "Download video")
+    .disabled(download.phase == .idle && !state.downloadReady)
+    .accessibilityLabel(download.phase == .idle ? "Download video" : "Manage video download")
     .accessibilityValue(download.busy ? progressDescription : "")
-    .confirmationDialog("Cancel video download?", isPresented: $cancelDownload, titleVisibility: .visible) {
-      Button("Cancel download", role: .destructive) { download.cancel() }
-      Button("Keep downloading", role: .cancel) {}
-    }
   }
 
   private var progressDescription: String {
@@ -39,7 +34,7 @@ private struct DownloadIndicator: View {
   var body: some View {
     ZStack {
       switch phase {
-      case .authorizing, .downloading, .saving:
+      case .queued, .authorizing, .downloading, .pausing, .saving:
         Circle().stroke(.primary.opacity(0.16), lineWidth: 2)
         if let fraction {
           Circle().trim(from: 0, to: fraction)
@@ -53,7 +48,8 @@ private struct DownloadIndicator: View {
           ProgressView().controlSize(.mini)
         }
       case .saved: Image(systemName: "checkmark")
-      case .idle, .failed: Image(systemName: "arrow.down.to.line")
+      case .paused: Image(systemName: "pause")
+      case .idle, .failed, .cancelled: Image(systemName: "arrow.down.to.line")
       }
     }.frame(width: 28, height: 28)
       .foregroundStyle(.primary)
