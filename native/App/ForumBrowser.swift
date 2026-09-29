@@ -57,7 +57,6 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
     super.viewDidLoad()
-    session.beginBrowsing()
     title = site.host
     view.backgroundColor = .systemBackground
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Done", style: .plain, target: self, action: #selector(close))

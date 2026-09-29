@@ -34,7 +34,7 @@ struct ReaderView: View {
               Label("Could not load page", systemImage: "wifi.exclamationmark")
             } description: { Text(error) } actions: {
               Button("Retry") { reload() }.buttonStyle(.borderedProminent)
-              Button("Site browser") { presentation = .browser(current) }.buttonStyle(.bordered)
+              Button("Site browser") { openBrowser(current) }.buttonStyle(.bordered)
             }
           } else if let page {
             if !page.breadcrumbs.isEmpty {
@@ -77,8 +77,8 @@ struct ReaderView: View {
           }.disabled(page == nil || loading)
           Menu {
             ShareLink(item: current) { Label("Share link", systemImage: "square.and.arrow.up") }
-            Button("Site browser", systemImage: "globe") { presentation = .browser(current) }
-            Button("Sign in", systemImage: "person.crop.circle") { presentation = .browser(session.site.login) }
+            Button("Site browser", systemImage: "globe") { openBrowser(current) }
+            Button("Sign in", systemImage: "person.crop.circle") { openBrowser(session.site.login) }
             Button("Clear session", systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
           } label: { Image(systemName: "ellipsis") }
         }
@@ -163,6 +163,11 @@ struct ReaderView: View {
     guard loadedGeneration == session.generation, let page else { return }
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
+  }
+  private func openBrowser(_ target: URL) {
+    guard session.site.sameOrigin(target) else { return }
+    session.beginBrowsing()
+    presentation = .browser(target)
   }
   private func reload() { savePosition(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL) {
