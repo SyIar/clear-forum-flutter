@@ -33,3 +33,12 @@ Swift core regression coverage includes page/filter URL construction, compact pa
 4. With an already cached page, disconnect the network and return to it. Explicit refresh should attempt the network; navigation to uncached pages still requires connectivity.
 5. Return to Home and verify no automatic update batch; its Refresh button must still update the thread badges.
 6. Test both light/dark mode, landscape, large text and selection-sheet dismissal. Memory-pressure UI behavior remains a device check; core tests cover deterministic cache eviction separately.
+
+## Verified delivery
+
+- Version `0.2.0 (1010)`, source `cfd50ab81b84ec8d9e3b5782b6e20e51b16a1151`.
+- [macOS run 36519314043](https://github.com/SyIar/clear-forum-flutter/actions/runs/36519314043) passed all 21 Swift core tests, media probe/support checks, arm64 Release compilation and packaging. No simulator checks ran.
+- IPA: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1010-unsigned.ipa`.
+- SHA-256: `de4f67b0682929b65b7b618e743ab384824974c1fbf51bb8bb0372f6a8b29d05`; size `3,372,887` bytes.
+- Verified downloaded source/run metadata, checksum, ZIP integrity, arm64 executable, bundle identity, version, display name, AppIcon assets and MediaProbe.js. No Flutter runtime is included. The install-folder copy has the same checksum.
+- Not installed during this task. Toolbar layout, selection-sheet interaction, retained scroll position and memory-pressure UI behavior await physical-device acceptance.
