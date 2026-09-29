@@ -25,6 +25,9 @@ struct ReaderView: View {
   @State private var purchasing = false
   @State private var purchaseMessage: String?
   @State private var purchaseTask: Task<Void, Never>?
+  @State private var authorSelection: SouthAuthorSelection?
+  @State private var showingAuthorActions = false
+  @State private var showingBlockedAuthors = false
   @StateObject private var posters = PosterStore()
   private var current: URL { url ?? initialURL }
   init(initialURL: URL, library: LibraryStore, session: ForumSession, home: @escaping () -> Void) {
@@ -46,6 +49,7 @@ struct ReaderView: View {
               Button("Site browser") { openBrowser(current) }.buttonStyle(.bordered)
             }
           } else if let page {
+            let visible = library.document.visibleContent(in: page)
             if !page.breadcrumbs.isEmpty {
               ScrollView(.horizontal) {
                 HStack(spacing: 6) {
@@ -62,19 +66,21 @@ struct ReaderView: View {
             Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
             Text(page.loggedIn.map { $0 ? "Signed in" : "Guest" } ?? "Clean view").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
-              if let poll = page.poll {
+              if let poll = visible.poll {
                 SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
               }
-              ForEach(page.posts) { post in
+              ForEach(visible.posts) { post in
                 PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }, purchase: buy,
                          purchasing: purchasing || loading,
-                         authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false).id(post.id)
+                         authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false,
+                         authorAction: authorAction(for: post)).id(post.id)
               }
+              if visible.posts.isEmpty { ContentUnavailableView("No visible replies", systemImage: "person.slash") }
             } else {
-              ForEach(page.entries) { entry in
+              ForEach(visible.entries) { entry in
                 ForumEntryCard(entry: entry, isForum: page.kind == .forums, navigate: navigate).id(entry.id)
               }
-              if page.entries.isEmpty { ContentUnavailableView("No threads yet", systemImage: "tray") }
+              if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? "No threads yet" : "No visible threads", systemImage: "tray") }
             }
           } else { ProgressView("Loading page...").frame(maxWidth: .infinity).padding(.top, 100) }
         }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 14)
@@ -82,7 +88,7 @@ struct ReaderView: View {
       .scrollPosition(id: $visibleID, anchor: .top)
       .background(Color(uiColor: .systemGroupedBackground))
       .refreshable { _ = await load(force: true) }
-      .navigationTitle(page?.kind == .posts ? "Thread" : "Forums").navigationBarTitleDisplayMode(.inline)
+      .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? "Author threads" : page?.kind == .posts ? "Thread" : "Forums").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           Button("Home", systemImage: "house", action: home)
@@ -93,6 +99,7 @@ struct ReaderView: View {
             ShareLink(item: current) { Label("Share link", systemImage: "square.and.arrow.up") }
             Button("Site browser", systemImage: "globe") { openBrowser(current) }
             Button("Sign in", systemImage: "person.crop.circle") { openBrowser(session.site.login) }
+            if session.site == .south { Button("Blocked authors", systemImage: "person.slash") { showingBlockedAuthors = true } }
             Button("Clear session", systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
           } label: { Image(systemName: "ellipsis") }.disabled(purchasing)
         }
@@ -123,8 +130,9 @@ struct ReaderView: View {
         completedRequestID = requestID
         guard error == nil else { return }
         let anchor = force ? previousID ?? "top" : current.fragment ?? restoredID ?? "top"
-        if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true || page?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && page?.poll != nil) { visibleID = anchor }
-        else if let entry = page?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
+        let visible = page.map { library.document.visibleContent(in: $0) }
+        if anchor != "top", visible?.posts.contains(where: { $0.id == anchor }) == true || visible?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && visible?.poll != nil) { visibleID = anchor }
+        else if let entry = visible?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
         else { visibleID = "top"; proxy.scrollTo("top", anchor: .top) }
       }
       .onAppear {
@@ -147,6 +155,17 @@ struct ReaderView: View {
         // A pushed destination is hosted by NavigationStack, outside the source
         // destination's environment scope. Carry the same site objects explicitly.
         ReaderView(initialURL: item.url, library: library, session: session, home: home)
+      }
+      .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
+      .confirmationDialog(authorSelection?.post.author ?? "Author", isPresented: $showingAuthorActions, titleVisibility: .visible, presenting: authorSelection) { selection in
+        Button("View full-size avatar") { openAvatar(selection) }.disabled(selection.post.avatarOriginal == nil && selection.post.avatar == nil)
+        Button("View author threads") {
+          if let id = selection.post.authorID, let target = SouthSitePolicy.authorTopics(id) { navigate(target) }
+        }.disabled(selection.post.authorID.flatMap(SouthSitePolicy.authorTopics) == nil)
+        Button("Block author", role: .destructive) {
+          if let id = selection.post.authorID { library.change { $0.blockAuthor(id: id, name: selection.post.author) } }
+        }.disabled(purchasing || (selection.post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true))
+        Button("Cancel", role: .cancel) {}
       }
       .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
       .fullScreenCover(item: $presentation) { item in
@@ -179,6 +198,9 @@ struct ReaderView: View {
       .alert("Purchase", isPresented: Binding(get: { purchaseMessage != nil }, set: { if !$0 { purchaseMessage = nil } })) {
         Button("OK", role: .cancel) { purchaseMessage = nil }
       } message: { Text(purchaseMessage ?? "") }
+      .alert("Reading library", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
+        Button("OK", role: .cancel) { library.error = nil }
+      } message: { Text(library.error ?? "") }
       .background(ExternalBrowserPresenter(url: $external).frame(width: 0, height: 0))
     }
     .environmentObject(library)
@@ -188,6 +210,18 @@ struct ReaderView: View {
     guard loadedGeneration == session.generation, let page else { return }
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
+  }
+  private func openAvatar(_ selection: SouthAuthorSelection) {
+    guard let url = selection.post.avatarOriginal ?? selection.post.avatar else { return }
+    let preview = selection.preview ?? UIImage(systemName: "person.crop.circle")?.withTintColor(.systemGray, renderingMode: .alwaysOriginal) ?? UIImage()
+    media = .image(UUID(), ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
+  }
+  private func authorAction(for post: ForumPost) -> ((UIImage?) -> Void)? {
+    guard session.site == .south else { return nil }
+    return { preview in
+      authorSelection = SouthAuthorSelection(post: post, preview: preview)
+      showingAuthorActions = true
+    }
   }
   private func openBrowser(_ target: URL) {
     guard !purchasing, session.site.sameOrigin(target) else { return }
@@ -220,9 +254,10 @@ struct ReaderView: View {
     purchaseTask = Task { @MainActor in
       defer { purchasing = false; purchaseTask = nil }
       do {
-        var result = try await session.purchaseContent(in: page, selected: offer)
-        if result.message == nil, result.page.purchaseOffers.contains(where: \.isFree) {
-          result = try await session.purchaseContent(in: result.page)
+        let blocked = library.document.blockedAuthorIDs
+        var result = try await session.purchaseContent(in: page, selected: offer, excludingAuthors: blocked)
+        if result.message == nil, result.page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
+          result = try await session.purchaseContent(in: result.page, excludingAuthors: blocked)
         }
         guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
         self.page = result.page; url = result.page.url
@@ -243,18 +278,19 @@ struct ReaderView: View {
     loading = true
     error = nil
     defer { if requestID == expected { loading = false } }
-    if !force, let cached = session.pages.value(for: current), !cached.page.purchaseOffers.contains(where: \.isFree) {
+    let blocked = library.document.blockedAuthorIDs
+    if !force, let cached = session.pages.value(for: current), !cached.page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
       page = cached.page; url = cached.page.url; loadedGeneration = epoch
       library.remember(cached.page, session: session, checkMaximum: false)
       return cached.visibleID
     }
     do {
       var parsed = try await session.load(current, cacheResult: true)
-      if session.site == .south, parsed.purchaseOffers.contains(where: \.isFree) {
+      if session.site == .south, parsed.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
         page = parsed; url = parsed.url; loadedGeneration = epoch
         purchasing = true
         defer { purchasing = false }
-        let result = try await session.purchaseContent(in: parsed)
+        let result = try await session.purchaseContent(in: parsed, excludingAuthors: blocked)
         parsed = result.page
         if !Task.isCancelled, expected == requestID, epoch == session.generation { purchaseMessage = result.message }
       }
@@ -268,6 +304,11 @@ struct ReaderView: View {
     }
     return nil
   }
+}
+
+private struct SouthAuthorSelection {
+  let post: ForumPost
+  let preview: UIImage?
 }
 
 enum ReaderPresentation: Identifiable {

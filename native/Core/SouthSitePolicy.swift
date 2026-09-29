@@ -28,7 +28,7 @@ enum SouthSitePolicy {
   }
   static func route(_ url: URL) -> Route? {
     guard sameOrigin(url), url.absoluteString.utf8.count < 8192,
-          ["", "/", "/index.php", "/thread.php", "/read.php"].contains(url.path) else { return nil }
+          ["", "/", "/index.php", "/thread.php", "/read.php", "/u.php"].contains(url.path) else { return nil }
     let path = ["", "/"].contains(url.path) ? "/index.php" : url.path
     let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery ?? ""
     var values: [String: String] = [:]
@@ -45,14 +45,19 @@ enum SouthSitePolicy {
         guard let value = item.value, values.updateValue(value, forKey: item.name) == nil else { return nil }
       }
     }
-    let permitted: Set<String> = path == "/read.php" ? ["tid", "fid", "uid", "page"] : path == "/thread.php" ? ["fid", "page", "type"] : []
+    let permitted: Set<String> = path == "/read.php" ? ["tid", "fid", "uid", "page"] : path == "/thread.php" ? ["fid", "page", "type"] : path == "/u.php" ? ["action", "uid", "page"] : []
     for (key, value) in values {
+      if key == "action" {
+        guard path == "/u.php", value == "topic" else { return nil }
+        continue
+      }
       guard permitted.contains(key), value.range(of: #"^(0|[1-9][0-9]{0,17})$"#, options: .regularExpression) != nil else { return nil }
       if key == "page", !(1...99_999).contains(Int(value) ?? 0) { return nil }
       if ["fid", "tid", "uid"].contains(key), value == "0" { return nil }
     }
     if path == "/thread.php" && values["fid"] == nil { return nil }
     if path == "/read.php" && values["tid"] == nil { return nil }
+    if path == "/u.php" && (values["action"] != "topic" || values["uid"] == nil) { return nil }
     return Route(path: path, parameters: values, legacy: legacy)
   }
   static func readable(_ url: URL) -> Bool { route(url) != nil }
@@ -60,6 +65,12 @@ enum SouthSitePolicy {
   static func isThread(_ url: URL) -> Bool { route(url)?.path == "/read.php" }
   static func threadKey(_ url: URL) -> String? { isThread(url) ? route(url)?.parameters["tid"] : nil }
   static func authorID(_ url: URL) -> String? { isThread(url) ? route(url)?.parameters["uid"] : nil }
+  static func topicAuthorID(_ url: URL) -> String? { route(url)?.path == "/u.php" ? route(url)?.parameters["uid"] : nil }
+  static func validAuthorID(_ id: String) -> Bool { id.range(of: #"^[1-9][0-9]{0,17}$"#, options: .regularExpression) != nil }
+  static func authorTopics(_ id: String) -> URL? {
+    guard validAuthorID(id) else { return nil }
+    return URL(string: "u.php?action-topic-uid-\(id).html", relativeTo: base)?.absoluteURL
+  }
   static func threadRoot(_ url: URL) -> URL? {
     guard let id = threadKey(url) else { return nil }
     return URL(string: "read.php?tid=\(id)", relativeTo: base)?.absoluteURL
@@ -73,7 +84,7 @@ enum SouthSitePolicy {
     guard var route = route(url), route.path != "/index.php", (1...99_999).contains(number) else { return nil }
     route.parameters["page"] = number == 1 ? nil : String(number)
     var parts = URLComponents(url: base.appendingPathComponent(String(route.path.dropFirst())), resolvingAgainstBaseURL: false)!
-    let keys = ["fid", "tid", "uid", "type", "page"].filter { route.parameters[$0] != nil }
+    let keys = ["action", "fid", "tid", "uid", "type", "page"].filter { route.parameters[$0] != nil }
     if route.legacy { parts.percentEncodedQuery = keys.map { "\($0)-\(route.parameters[$0]!)" }.joined(separator: "-") + ".html" }
     else { parts.queryItems = keys.map { URLQueryItem(name: $0, value: route.parameters[$0]) } }
     return parts.url

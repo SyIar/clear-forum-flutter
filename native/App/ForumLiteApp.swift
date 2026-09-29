@@ -111,7 +111,7 @@ final class LibraryStore: ObservableObject {
       $0.capturePresentation(page)
       if let key = SitePolicy.threadKey(page.url),
          let entry = directoryEntries.first(where: { SitePolicy.threadKey($0.url) == key }) {
-        $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : []), for: page.url)
+        $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : [], authorID: entry.authorID), for: page.url)
       }
     }
     guard checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
@@ -183,6 +183,9 @@ struct HomeView: View {
   @State private var adding = false
   @State private var clearHistory = false
   @State private var checkedUpdatesOnLaunch = false
+  @State private var showingBlockedAuthors = false
+  private var visibleBookmarks: [SavedPage] { library.document.bookmarks.filter { !library.document.hidesSavedPage($0) } }
+  private var visibleRecent: [SavedPage] { library.document.recent.filter { !library.document.hidesSavedPage($0) } }
   var body: some View {
       List {
         Section {
@@ -194,15 +197,15 @@ struct HomeView: View {
           }
         }
         Section("Bookmarks") {
-          if library.document.bookmarks.isEmpty { Text("Save a page, or add a URL using the bookmark button.").foregroundStyle(.secondary) }
-          ForEach(library.document.bookmarks) { entry in
+          if visibleBookmarks.isEmpty { Text("Save a page, or add a URL using the bookmark button.").foregroundStyle(.secondary) }
+          ForEach(visibleBookmarks) { entry in
             savedRow(entry)
               .swipeActions { Button("Remove", role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         }
         Section {
-          if library.document.recent.isEmpty { Text("Your last 10 visited pages will appear here.").foregroundStyle(.secondary) }
-          ForEach(library.document.recent) { entry in savedRow(entry) }
+          if visibleRecent.isEmpty { Text("Your last 10 visited pages will appear here.").foregroundStyle(.secondary) }
+          ForEach(visibleRecent) { entry in savedRow(entry) }
         } header: {
           HStack { Text("Recent reading"); Spacer(); if !library.document.recent.isEmpty { Button("Clear") { clearHistory = true } } }
         }
@@ -214,7 +217,12 @@ struct HomeView: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar(.visible, for: .navigationBar)
       .toolbarRole(.editor)
-      .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Add bookmark", systemImage: "bookmark.badge.plus") { adding = true } } }
+      .toolbar {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+          if session.site == .south { Button("Blocked authors", systemImage: "person.slash") { showingBlockedAuthors = true } }
+          Button("Add bookmark", systemImage: "bookmark.badge.plus") { adding = true }
+        }
+      }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
         Button { Task { await library.refresh(session: session) } } label: {
           Group {
@@ -233,6 +241,7 @@ struct HomeView: View {
         await library.refresh(session: session)
       }
       .sheet(isPresented: $adding) { BookmarkEditor() }
+      .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
       .confirmationDialog("Clear recent reading?", isPresented: $clearHistory, titleVisibility: .visible) {
         Button("Clear recent reading", role: .destructive) { library.change { $0.recent = [] } }
       }

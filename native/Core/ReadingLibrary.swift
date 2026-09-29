@@ -8,10 +8,12 @@ struct SavedPage: Codable, Identifiable, Equatable {
 struct ThreadPresentation: Codable, Equatable {
   var thumbnail: URL?
   var tags: [ForumTag] = []
+  var authorID: String?
 
   mutating func merge(_ incoming: ThreadPresentation) {
     if let thumbnail = incoming.thumbnail { self.thumbnail = thumbnail }
     if !incoming.tags.isEmpty { tags = incoming.tags }
+    if let authorID = incoming.authorID { self.authorID = authorID }
   }
 }
 struct ThreadReadState: Codable, Equatable {
@@ -40,8 +42,9 @@ struct LibraryDocument: Codable {
   var recent: [SavedPage] = []
   var threads: [String: ThreadReadState] = [:]
   var presentations: [String: ThreadPresentation] = [:]
+  var blockedAuthors: [String: String] = [:]
   static let key = "reading_library_v1"
-  private enum CodingKeys: String, CodingKey { case site, version, bookmarks, recent, threads, presentations }
+  private enum CodingKeys: String, CodingKey { case site, version, bookmarks, recent, threads, presentations, blockedAuthors }
   init(site: ForumSite = .simp) { self.site = site }
   static func key(for site: ForumSite) -> String { site == .simp ? key : "south_reading_library_v1" }
   init(from decoder: Decoder) throws {
@@ -52,6 +55,7 @@ struct LibraryDocument: Codable {
     recent = try values.decode([SavedPage].self, forKey: .recent)
     threads = try values.decodeIfPresent([String: ThreadReadState].self, forKey: .threads) ?? [:]
     presentations = try values.decodeIfPresent([String: ThreadPresentation].self, forKey: .presentations) ?? [:]
+    blockedAuthors = try values.decodeIfPresent([String: String].self, forKey: .blockedAuthors) ?? [:]
   }
   static func load(from defaults: UserDefaults, site: ForumSite = .simp) throws -> LibraryDocument {
     let storageKey = key(for: site)
@@ -65,6 +69,7 @@ struct LibraryDocument: Codable {
     document.bookmarks = unique(document.bookmarks) { $0.absoluteString }
     document.recent = Array(unique(document.recent, key: recentKey).prefix(10))
     document.pruneTracking()
+    document.blockedAuthors = site == .south ? document.blockedAuthors.filter { SouthSitePolicy.validAuthorID($0.key) } : [:]
     return document
   }
   func save(to defaults: UserDefaults) throws {
@@ -90,18 +95,20 @@ struct LibraryDocument: Codable {
   mutating func capturePresentation(_ page: ForumPage) {
     guard site.accepts(page.url) else { return }
     if page.kind == .posts {
-      mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags), for: page.url)
+      let owner = site == .south ? page.posts.first(where: { $0.number == "#0" })?.authorID : nil
+      mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags, authorID: owner), for: page.url)
     }
     for entry in page.entries {
-      mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: entry.tags), for: entry.url)
+      mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: entry.tags, authorID: entry.authorID), for: entry.url)
     }
   }
   mutating func mergePresentation(_ incoming: ThreadPresentation, for url: URL) {
     guard site.accepts(url), let key = SitePolicy.threadKey(url) else { return }
     let safe = ThreadPresentation(
       thumbnail: SitePolicy.resolve(incoming.thumbnail?.absoluteString, from: site.base),
-      tags: incoming.tags.filter { site.accepts($0.url) })
-    guard safe.thumbnail != nil || !safe.tags.isEmpty else { return }
+      tags: incoming.tags.filter { site.accepts($0.url) },
+      authorID: site == .south ? incoming.authorID.flatMap { SouthSitePolicy.validAuthorID($0) ? $0 : nil } : nil)
+    guard safe.thumbnail != nil || !safe.tags.isEmpty || safe.authorID != nil else { return }
     presentations[key, default: ThreadPresentation()].merge(safe)
   }
   mutating func remember(_ page: SavedPage) {

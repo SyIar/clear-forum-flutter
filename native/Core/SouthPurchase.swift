@@ -72,12 +72,14 @@ enum SouthPurchase {
 }
 
 extension ForumPage {
-  var purchaseOffers: [SouthPurchaseOffer] {
+  var purchaseOffers: [SouthPurchaseOffer] { purchaseOffers(excludingAuthors: []) }
+  func purchaseOffers(excludingAuthors blocked: Set<String>) -> [SouthPurchaseOffer] {
     func collect(_ blocks: [BodyBlock]) -> [SouthPurchaseOffer] {
       blocks.flatMap { block in block.purchase.map { [$0] } ?? collect(block.children) }
     }
     var seen = Set<String>()
-    return posts.flatMap { collect($0.blocks) }.filter { seen.insert($0.id).inserted }
+    return posts.filter { $0.authorID.map { !blocked.contains($0) } ?? true }
+      .flatMap { collect($0.blocks) }.filter { seen.insert($0.id).inserted }
   }
 }
 
@@ -93,23 +95,23 @@ final class SouthPurchaseService {
   typealias Submit = (SouthPurchaseOffer, URL) async throws -> Void
   private var busy = false
 
-  func buy(_ offer: SouthPurchaseOffer, page: ForumPage, load: Load, submit: Submit) async throws -> SouthPurchaseResult {
+  func buy(_ offer: SouthPurchaseOffer, page: ForumPage, excludingAuthors blocked: Set<String> = [], load: Load, submit: Submit) async throws -> SouthPurchaseResult {
     guard !busy else { throw SouthPurchaseIssue.busy }
     busy = true
     defer { busy = false }
-    return try await perform(offer, page: page, load: load, submit: submit)
+    return try await perform(offer, page: page, excludingAuthors: blocked, load: load, submit: submit)
   }
-  func unlockFree(in page: ForumPage, load: Load, submit: Submit) async throws -> SouthPurchaseResult {
+  func unlockFree(in page: ForumPage, excludingAuthors blocked: Set<String> = [], load: Load, submit: Submit) async throws -> SouthPurchaseResult {
     guard !busy else { throw SouthPurchaseIssue.busy }
     busy = true
     defer { busy = false }
     var result = SouthPurchaseResult(page: page)
     var attempted = Set<String>()
-    while let offer = result.page.purchaseOffers.first(where: { $0.isFree && !attempted.contains($0.id) }) {
+    while let offer = result.page.purchaseOffers(excludingAuthors: blocked).first(where: { $0.isFree && !attempted.contains($0.id) }) {
       guard attempted.count < 100 else { break }
       attempted.insert(offer.id)
       do {
-        let next = try await perform(offer, page: result.page, load: load, submit: submit)
+        let next = try await perform(offer, page: result.page, excludingAuthors: blocked, load: load, submit: submit)
         result.page = next.page
         if let message = next.message { result.message = message }
       } catch is CancellationError { throw CancellationError() }
@@ -117,13 +119,13 @@ final class SouthPurchaseService {
     }
     return result
   }
-  private func perform(_ accepted: SouthPurchaseOffer, page: ForumPage, load: Load, submit: Submit) async throws -> SouthPurchaseResult {
+  private func perform(_ accepted: SouthPurchaseOffer, page: ForumPage, excludingAuthors blocked: Set<String>, load: Load, submit: Submit) async throws -> SouthPurchaseResult {
     guard SouthPurchase.valid(accepted, page: page.url) else { throw ReaderFailure.unsupported }
     try Task.checkCancellation()
     let fresh = try await load(page.url)
     guard SitePolicy.pageCacheKey(fresh.url) == SitePolicy.pageCacheKey(page.url) else { throw ReaderFailure.unsupported }
     if fresh.loggedIn == false { throw ReaderFailure.login }
-    guard let offer = fresh.purchaseOffers.first(where: { $0.id == accepted.id }) else { return SouthPurchaseResult(page: fresh) }
+    guard let offer = fresh.purchaseOffers(excludingAuthors: blocked).first(where: { $0.id == accepted.id }) else { return SouthPurchaseResult(page: fresh) }
     guard offer.price == accepted.price else {
       return SouthPurchaseResult(page: fresh, message: SouthPurchaseIssue.changedPrice.localizedDescription)
     }

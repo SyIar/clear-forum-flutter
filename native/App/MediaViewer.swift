@@ -4,6 +4,7 @@ import UIKit
 struct ImageViewerSource {
   let preview: UIImage
   let url: URL
+  var loadOriginalOnOpen = false
 }
 
 enum MediaViewerItem: Identifiable, Hashable {

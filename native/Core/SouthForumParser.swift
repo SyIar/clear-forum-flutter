@@ -27,7 +27,7 @@ struct SouthForumParser {
       return candidate.path == "/login.php" && (candidate.query?.contains("quit") == true || candidate.query?.contains("logout") == true)
     }
     let loggedIn: Bool? = logout ? true : hasLoginForm ? false : nil
-    if bodies.isEmpty, hasLoginForm, first(doc, "#ajaxtable,.thread-list,#threadlist") == nil { throw ReaderFailure.login }
+    if bodies.isEmpty, hasLoginForm, first(doc, "#ajaxtable,.thread-list,#threadlist,#u-contentmain .u-table") == nil { throw ReaderFailure.login }
     if first(doc, ".error-message,[data-access-denied],#permission-denied") != nil { throw ReaderFailure.forbidden }
     try doc.select(unwanted).remove()
 
@@ -41,6 +41,7 @@ struct SouthForumParser {
       }
     }
     let thread = SouthSitePolicy.isThread(url)
+    let topicAuthorID = SouthSitePolicy.topicAuthorID(url)
     var posts: [ForumPost] = []
     if thread {
       var seen = Set<String>()
@@ -56,7 +57,7 @@ struct SouthForumParser {
         let blocks = try SouthBodyParser().parseBody(body, page: url)
         guard !blocks.isEmpty else { continue }
         posts.append(ForumPost(id: id, author: identity.name.isEmpty ? "Member" : identity.name, date: date,
-                              number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar,
+                              number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar, avatarOriginal: identity.original,
                               authorFilterURL: authorFilter(container, page: url, authorID: identity.id)))
       }
       guard !posts.isEmpty else { throw ReaderFailure.unsupported }
@@ -65,7 +66,8 @@ struct SouthForumParser {
     var entries: [ForumEntry] = []
     var seenEntries = Set<String>()
     if !thread {
-      let root = first(doc, "#ajaxtable,#threadlist,.thread-list,#main") ?? doc
+      if topicAuthorID != nil, first(doc, "#u-contentmain .u-table") == nil { throw ReaderFailure.unsupported }
+      let root = topicAuthorID != nil ? first(doc, "#u-contentmain")! : (first(doc, "#ajaxtable,#threadlist,.thread-list,#main") ?? doc)
       // Title selectors take precedence over last-reply and per-row page links.
       let preferred = links(root, "h3 a[href],.subject a[href],a.subject[href],a[id^=a_ajax_],.thread-title a[href]")
       for anchor in preferred + links(root) {
@@ -73,11 +75,14 @@ struct SouthForumParser {
               anchor.parents().allSatisfy({ !$0.hasClass("pages") && $0.id() != "breadCrumb" }),
               let row = anchor.parents().first(where: { $0.tagName() == "tr" || $0.hasClass("thread-row") || $0.tagName() == "article" }),
               seenEntries.insert(SouthSitePolicy.threadKey(link) ?? link.absoluteString).inserted else { continue }
-        let author = text(first(row, ".author,.username,a[href*=u.php],a[href*=uid]"))
+        let authorLink = links(row, ".author a[href],a.author[href],.username[href],a[href*=u.php]").first { profileID($0, page: url) != nil }
+        let authorID = topicAuthorID ?? authorLink.flatMap { profileID($0, page: url) }
+        let author = topicAuthorID != nil ? text(first(doc, "#u-top .u-h1")) : text(authorLink ?? first(row, ".author,.username"))
+        let subtitle = topicAuthorID != nil ? [text(first(row, "a.gray")), text(first(row, "span.f9"))].filter { !$0.isEmpty }.joined(separator: " \u{00B7} ") : author
         let pinned = row.hasClass("sticky") || row.hasClass("pinned") || first(row, "img[src*=headtopic],img[src*=top1],img[src*=top2],img[src*=top3],[data-sticky=true]") != nil
-        entries.append(ForumEntry(title: text(anchor), url: link, subtitle: author, pinned: pinned,
+        entries.append(ForumEntry(title: text(anchor), url: link, subtitle: subtitle, pinned: pinned,
                                   thumbnail: thumbnail(first(row, ".thread-thumbnail,.thumbnail,[data-cover]"), page: url),
-                                  tags: tags(row, page: url)))
+                                  tags: tags(row, page: url), authorID: authorID))
       }
       if entries.isEmpty, SouthSitePolicy.route(url)?.path == "/index.php" {
         for anchor in links(root, "h2 a[href],h3 a[href],.forum-name a[href],a.forum-name[href]") {
@@ -87,7 +92,7 @@ struct SouthForumParser {
         }
       }
       // Unknown markup must not look like a successfully loaded empty forum.
-      if entries.isEmpty, first(doc, "[data-empty-forum=true],.thread-list-empty") == nil { throw ReaderFailure.unsupported }
+      if entries.isEmpty, topicAuthorID == nil, first(doc, "[data-empty-forum=true],.thread-list-empty") == nil { throw ReaderFailure.unsupported }
     }
 
     let navigation = links(doc, ".pages a[href],.pagination a[href],.page-nav a[href],a[rel=next],a[rel=prev],a[rel=last],link[rel=next],link[rel=prev],link[rel=last]")
@@ -109,7 +114,8 @@ struct SouthForumParser {
     let maximum = maximumIsKnown ? posts.compactMap { Int($0.number.dropFirst()) }.max() : nil
     let heading = first(doc, thread ? "#subject_tpc,h1.thread-title,h1" : "h1,.forum-title,#thread-title")
     let fallbackTitle = breadcrumbs.last?.title ?? pageTitle.components(separatedBy: " - ").first ?? "Forum"
-    let title = text(heading).isEmpty ? fallbackTitle : text(heading)
+    let authorName = text(first(doc, "#u-top .u-h1"))
+    let title = topicAuthorID != nil ? (authorName.isEmpty ? "Author threads" : "\(authorName) - Threads") : (text(heading).isEmpty ? fallbackTitle : text(heading))
     let kind: PageKind = thread ? .posts : (SouthSitePolicy.route(url)?.path == "/index.php" ? .forums : .threads)
     return ForumPage(url: url, title: title.isEmpty ? "Forum" : title, kind: kind, entries: entries, posts: posts,
                      previous: previous, next: next, pageNumber: number, loggedIn: loggedIn,
@@ -135,7 +141,7 @@ struct SouthForumParser {
       !node.parents().contains { $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") }
     }
   }
-  private func postAuthor(_ container: Element, page: URL) -> (name: String, id: String?, avatar: URL?) {
+  private func postAuthor(_ container: Element, page: URL) -> (name: String, id: String?, avatar: URL?, original: URL?) {
     let root = first(container, "th.r_two,td.r_two,.post-author,.author-info") ?? container
     let profiles = links(root, "a[href*=u.php]").filter { profileID($0, page: page) != nil }
     // The first profile link wraps the avatar and has no text. Prefer the name link.
@@ -146,11 +152,14 @@ struct SouthForumParser {
     let metadata = first(container, ".tiptop [data-uid][data-name]")
     let name = [text(nameLink), text(explicitName), attr(metadata, "data-name")].first { !$0.isEmpty } ?? ""
     let id = (nameLink ?? profiles.first).flatMap { profileID($0, page: page) } ?? match(attr(metadata, "data-uid"), #"^([0-9]+)$"#)
-    let avatar = profiles.lazy.compactMap { profile -> URL? in
+    let avatarNode = profiles.lazy.compactMap { profile -> Element? in
       guard id == nil || profileID(profile, page: page) == id else { return nil }
-      return thumbnail(first(profile, "img"), page: page)
-    }.first ?? thumbnail(first(root, "img.avatar,.avatar img"), page: page)
-    return (name, id, avatar)
+      guard let node = first(profile, "img"), thumbnail(node, page: page) != nil else { return nil }
+      return node
+    }.first ?? first(root, "img.avatar,.avatar img")
+    let avatar = thumbnail(avatarNode, page: page)
+    let original = avatar.flatMap { preview in avatarNode.map { OriginalImageSource.resolve($0, page: page, preview: preview, link: nil) } }
+    return (name, id, avatar, original)
   }
   private func profileID(_ anchor: Element, page: URL) -> String? {
     guard let url = SouthSitePolicy.resolve(attr(anchor, "href"), from: page), SouthSitePolicy.sameOrigin(url), url.path == "/u.php" else { return nil }

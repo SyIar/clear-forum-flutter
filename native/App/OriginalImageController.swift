@@ -58,6 +58,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     if #available(iOS 26.0, *), let content = navigationController?.interactiveContentPopGestureRecognizer {
       content.require(toFail: scroll.panGestureRecognizer)
     }
+    if source.loadOriginalOnOpen && !originalLoaded { loadOriginal() }
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()

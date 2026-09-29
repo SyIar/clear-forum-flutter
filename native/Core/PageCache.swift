@@ -77,10 +77,10 @@ private extension ForumPage {
       for option in poll.options { cost += 128 + string(option.title) }
     }
     for entry in entries + breadcrumbs {
-      cost += 256 + string(entry.title) + string(entry.subtitle) + link(entry.url) + link(entry.thumbnail) + tags(entry.tags)
+      cost += 256 + string(entry.title) + string(entry.subtitle) + link(entry.url) + link(entry.thumbnail) + tags(entry.tags) + string(entry.authorID ?? "")
     }
     for post in posts {
-      cost += 256 + string(post.id) + string(post.author) + string(post.date) + string(post.authorID ?? "") + link(post.avatar) + link(post.authorFilterURL)
+      cost += 256 + string(post.id) + string(post.author) + string(post.date) + string(post.authorID ?? "") + link(post.avatar) + link(post.avatarOriginal) + link(post.authorFilterURL)
       for body in post.blocks { cost += block(body) }
     }
     return cost

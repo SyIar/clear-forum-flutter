@@ -84,6 +84,29 @@ final class SouthPurchaseTests: XCTestCase {
     XCTAssertEqual(result.page.purchaseOffers.first?.price, 3)
     XCTAssertNotNil(result.message)
   }
+  @MainActor func testBlockedAuthorsAreNeverAutomaticallyPurchasedAndStayInRawPage() async throws {
+    var current = page([offer(), offer(0, pid: "123")])
+    current.posts[0].authorID = "101"
+    current.posts[1].authorID = "102"
+    var submitted: [String] = []
+    let result = try await SouthPurchaseService().unlockFree(in: current, excludingAuthors: ["101"], load: { _ in current }, submit: { selected, _ in
+      submitted.append(selected.postID)
+      current.posts.removeAll { $0.id == "post_" + selected.postID }
+    })
+    XCTAssertEqual(submitted, ["123"])
+    XCTAssertEqual(result.page.posts.first?.authorID, "101")
+    XCTAssertEqual(result.page.purchaseOffers.count, 1)
+    XCTAssertTrue(result.page.purchaseOffers(excludingAuthors: ["101"]).isEmpty)
+  }
+  @MainActor func testFreshAuthorIdentityIsCheckedBeforePurchase() async throws {
+    let original = page([offer()])
+    var fresh = original
+    fresh.posts[0].authorID = "101"
+    var submitted = false
+    let result = try await SouthPurchaseService().unlockFree(in: original, excludingAuthors: ["101"], load: { _ in fresh }, submit: { _, _ in submitted = true })
+    XCTAssertFalse(submitted)
+    XCTAssertEqual(result.page.posts.first?.authorID, "101")
+  }
   @MainActor func testManualPurchaseUsesFreshTokenAndRefreshesAfterSubmitting() async throws {
     let accepted = offer(3, token: "old_token")
     let fresh = offer(3, token: "new_token")

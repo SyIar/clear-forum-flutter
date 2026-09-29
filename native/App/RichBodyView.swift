@@ -80,10 +80,11 @@ struct PostCard: View {
   let purchase: (SouthPurchaseOffer) -> Void
   let purchasing: Bool
   var authorFilterActive = false
+  var authorAction: ((UIImage?) -> Void)?
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
-        PostAvatar(url: post.avatar, author: post.author)
+        PostAvatar(url: post.avatar, author: post.author, action: authorAction).disabled(purchasing)
         VStack(alignment: .leading, spacing: 3) {
           Text(post.author).font(.subheadline.bold())
           if post.authorID != nil || !post.date.isEmpty {
@@ -116,15 +117,24 @@ struct PostCard: View {
 private struct PostAvatar: View {
   let url: URL?
   let author: String
+  var action: ((UIImage?) -> Void)?
   @EnvironmentObject private var session: ForumSession
   @State private var image: UIImage?
   @State private var imageURL: URL?
-  var body: some View {
+  private var avatar: some View {
     ZStack {
       Color.blue.opacity(0.12)
       if let image { Image(uiImage: image).resizable().scaledToFill() }
       else { Text(String(author.prefix(1)).uppercased()).font(.headline).foregroundStyle(.blue) }
-    }.frame(width: 36, height: 36).clipShape(Circle()).accessibilityHidden(true)
+    }.frame(width: 36, height: 36).clipShape(Circle())
+  }
+  var body: some View {
+    Group {
+      if let action {
+        Button { action(image) } label: { avatar.frame(width: 44, height: 44).contentShape(Rectangle()) }
+          .buttonStyle(.plain).accessibilityLabel("Actions for \(author)")
+      } else { avatar.accessibilityHidden(true) }
+    }
       .task(id: url) {
         guard image == nil || imageURL != url else { return }
         imageURL = url

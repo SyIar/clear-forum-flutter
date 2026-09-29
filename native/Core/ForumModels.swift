@@ -25,6 +25,7 @@ struct ForumEntry: Identifiable {
   var thumbnail: URL?
   var sectionAnchor: String?
   var tags: [ForumTag] = []
+  var authorID: String?
 }
 struct ForumTag: Identifiable, Codable, Equatable {
   var id: String { url.absoluteString + ":" + title }
@@ -60,6 +61,7 @@ struct ForumPost: Identifiable {
   var blocks: [BodyBlock]
   var authorID: String?
   var avatar: URL?
+  var avatarOriginal: URL?
   var authorFilterURL: URL?
 }
 struct ForumPage {
