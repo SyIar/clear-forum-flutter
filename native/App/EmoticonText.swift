@@ -5,7 +5,7 @@ struct EmoticonText: View {
   let runs: [TextRun]
   @EnvironmentObject private var session: ForumSession
   @Environment(\.displayScale) private var displayScale
-  @ScaledMetric(relativeTo: .body) private var side: CGFloat = 24
+  @ScaledMetric(relativeTo: .body) private var height: CGFloat = 24
   @State private var images: [URL: UIImage] = [:]
 
   private var sources: [URL] {
@@ -27,7 +27,7 @@ struct EmoticonText: View {
     runs.reduce(Text("")) { result, run in
       let part: Text
       if let source = run.emoticon, let image = images[source] {
-        part = Text(Image(uiImage: compact(image))).baselineOffset(-3)
+        part = Text(Image(uiImage: inlineImage(image))).baselineOffset(-3)
       } else if run.emoticon != nil {
         // A small text fallback never reserves a full photo-sized loading area.
         part = Text(Image(systemName: "face.smiling")).foregroundColor(.secondary)
@@ -43,11 +43,10 @@ struct EmoticonText: View {
       return Text("\(result)\(part)")
     }
   }
-  private func compact(_ image: UIImage) -> UIImage {
-    let longest = max(image.size.width, image.size.height)
-    guard longest > 0 else { return image }
-    let factor = min(1, side / longest)
-    let size = CGSize(width: image.size.width * factor, height: image.size.height * factor)
+  private func inlineImage(_ image: UIImage) -> UIImage {
+    guard image.size.width > 0, image.size.height > 0 else { return image }
+    // Use a consistent height; wide emoticons keep their natural aspect ratio.
+    let size = CGSize(width: height * image.size.width / image.size.height, height: height)
     let format = UIGraphicsImageRendererFormat()
     format.scale = displayScale
     return UIGraphicsImageRenderer(size: size, format: format).image { _ in

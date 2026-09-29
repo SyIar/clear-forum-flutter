@@ -4,7 +4,7 @@
 
 The South parser recognizes images on the exact `south-plus.net` origin under `/images/post/smile/`, including `smallface/face077.gif`. The existing URL resolver normalizes relative URLs, protocol-relative URLs, and legacy HTTP URLs on that origin. Other South images and lookalike domains remain ordinary photos.
 
-An emoticon stays in the paragraph as a `TextRun.emoticon`; it no longer flushes the paragraph or enters the large-image grid. The SwiftUI text renderer loads it through the site's existing bounded image cache, preserves its aspect ratio, and caps its longest side at 24 points at the default text size. Dynamic Type adjusts that cap. HTML width/height cannot enlarge it. Emoji-only paragraphs, quotes, and lazy sources are supported. A small symbol occupies the inline position if loading fails. As with the existing image decoder, GIFs currently use their first frame; this change does not add GIF animation.
+An emoticon stays in the paragraph as a `TextRun.emoticon`; it no longer flushes the paragraph or enters the large-image grid. The SwiftUI text renderer loads it through the site's existing bounded image cache and displays it at a fixed height of 24 points at the default text size. Width follows the decoded image's aspect ratio: a 3:1 emoticon displays at 72 by 24 points. Dynamic Type adjusts the shared height. The bitmap is rendered at the display's pixel scale. HTML width/height cannot enlarge it. Emoji-only paragraphs, quotes, and lazy sources are supported. A small symbol occupies the inline position if loading fails. As with the existing image decoder, GIFs currently use their first frame; this change does not add GIF animation.
 
 ## External links
 
@@ -16,11 +16,13 @@ This uses the [Apple SFSafariViewController API](https://developer.apple.com/doc
 
 ## Verification
 
+The 2026-09-29 fixed-height revision passed local Swift syntax parsing, repository policy checks, and whitespace checks. These do not constitute compilation or device validation. No cloud build, simulator, or IPA packaging was performed; this revision is pending the user's batch-build instruction.
+
 Parser regression cases use synthetic HTML only: inline ordering/formatting, emoji-only paragraphs, lazy/relative/HTTP source normalization, exact directory/host matching, ordinary photos, and quoted content. The existing media checks and native device build cover integration. No simulator or captured account data is used.
 
 Device checks after installation:
 
-1. Open a South post mixing text, built-in emoticons, and normal photos. Confirm the emoticons stay small and inline in light/dark mode and with larger system text.
+1. Open a South post mixing text, built-in emoticons, and normal photos. Confirm square, wide, and tall emoticons share the same height while retaining their aspect ratios, including emoji-only paragraphs and quotes, in light/dark mode and with larger system text.
 2. In both forums, tap an ordinary external link, browse another page, then close or swipe back. Confirm the original thread and reading position remain available.
 3. Repeat from Site browser and from a link opening a new window. Confirm forum login still works after returning.
 4. Open existing Turbo and non-Turbo media cards; their player flow should remain unchanged.
