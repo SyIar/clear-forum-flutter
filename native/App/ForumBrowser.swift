@@ -65,6 +65,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     configuration.websiteDataStore = dataStore
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
     webView = WKWebView(frame: .zero, configuration: configuration)
+    webView.customUserAgent = session.browserUserAgent
     webView.navigationDelegate = self
     webView.uiDelegate = self
     webView.allowsBackForwardNavigationGestures = true
@@ -78,13 +79,8 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "clear-forum-basic-v1", encodedContentRuleList: rules) { [weak self] list, _ in
       Task { @MainActor in
         guard let self, !self.finished else { return }
-        do {
-          let userAgent = try await self.session.browserUserAgent()
-          guard !self.finished else { return }
-          self.webView.customUserAgent = userAgent
-          if let list { self.webView.configuration.userContentController.add(list) }
-          self.webView.load(URLRequest(url: self.initialURL))
-        } catch { self.notice("Could not prepare the browser session. Close this browser and try again.") }
+        if let list { self.webView.configuration.userContentController.add(list) }
+        self.webView.load(URLRequest(url: self.initialURL))
       }
     }
   }

@@ -14,7 +14,7 @@ The user reported that South was signed in inside the app's browser, but returne
 
 The public [PHPWind 8.7 source mirror](https://github.com/old-blueday/phpwind/blob/master/upload/require/common.php) includes `HTTP_USER_AGENT` in `PwdCode`. This is a concrete upstream mechanism consistent with the reported failure. South's deployed version and account response have not been inspected, so this is not a claim of real-site verification.
 
-The reader now uses the same WebKit-derived User-Agent as the site browser. Each forum stores that non-secret string locally and reuses it across launches and OS updates. No Cookie values are copied to UserDefaults or committed to the repository.
+The reader now uses the same app-controlled, WebKit-compatible User-Agent as the site browser. Each forum stores that non-secret string locally and reuses it across launches and OS updates. A valid value from an earlier version is preserved exactly. No Cookie values are copied to UserDefaults or committed to the repository.
 
 Opening the site browser invalidates old page requests and pauses new native page loads. A response from the previous generation cannot apply cookies after the browser handoff. Closing the browser completes a cookie-store round trip before refreshing the reader. Saved scroll positions cannot reinsert pages from an older login generation.
 
@@ -37,6 +37,8 @@ No claim is made that an expired or server-revoked session can be recovered with
 
 ## Delivered build
 
+Build 1015 was subsequently rejected on the user's device because its User-Agent probe blocked both browser startup and guest reading. The entry interface and session isolation are retained; the startup regression is addressed below.
+
 - `forum lite 0.3.0 (1015)`, source commit `caecfd5fb9e4ccb6932a701e359f10f15b222587`.
 - [GitHub Actions run 36530472934](https://github.com/SyIar/clear-forum-flutter/actions/runs/36530472934) succeeded: 49 Swift tests, media observer and URLProtocol checks, and the arm64 iPhoneOS Release build.
 - Local IPA: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1015-unsigned.ipa`, 2,480,053 bytes.
@@ -44,3 +46,13 @@ No claim is made that an expired or server-revoked session can be recovered with
 - Download verification checked ZIP CRC, source/run identity, version, display name, bundle ID, arm64 Mach-O, primary icon, asset catalog and media script, and absence of Flutter runtime.
 - This IPA has not been signed or installed. Live South login acceptance remains pending on the user's device. No simulator was run.
 - The earlier run 36530091973 was superseded and canceled after moving the browser handoff into the user's button action, before UIKit presentation.
+
+## Startup regression after build 1015
+
+The user reported the exact alert `Could not prepare the browser session`. That alert existed only around `browserUserAgent()`, which evaluated `navigator.userAgent` on a new WKWebView without first loading a document. Both browser navigation and native guest requests awaited the same throwing probe. The screenshot establishes a startup failure before the forum loads, not a rejected login or a missing forum permission; its underlying WebKit error code was not captured.
+
+The probe and its throwing startup gate have been removed entirely. `BrowserIdentity` now resolves a valid saved value or builds and stores a WebKit-compatible identity from the local device version and form factor. `ForumSession` retains that value synchronously; the browser assigns it to `customUserAgent` before navigation, and native requests use the identical value. Failure to start a hidden JavaScript context can no longer block guest pages or the login browser. Existing cookies, profile identifiers, per-forum separation and previously saved valid identities are preserved.
+
+Regression coverage now includes first install with no saved identity or cookies, relaunch/OS update, upgrade from an existing identity, forum isolation and invalid stored values. A macOS WebKit test loads a local HTML fixture and checks that `navigator.userAgent` equals the native reader request's header. It uses a nonpersistent fixture store, makes no website request and is not an iOS simulator. The test reads JavaScript only after `didFinish`; production startup no longer requires JavaScript at all.
+
+The previous pure request tests accepted an already supplied identity and therefore did not cover identity initialization. Compilation and those tests did not establish that the 1015 startup path worked on iPhone. This distinction is retained in the delivery record.

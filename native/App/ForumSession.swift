@@ -6,15 +6,16 @@ import UIKit
 final class ForumSession: ObservableObject {
   let site: ForumSite
   let store: WKWebsiteDataStore
+  let browserUserAgent: String
   let images = ImageStore()
   let pages = PageCache()
   private var operations: [UUID: PageRequest] = [:]
   @Published private(set) var generation = 0
   private var memoryObserver: NSObjectProtocol?
-  private var userAgentTask: Task<String, Error>?
   private var browserActive = false
   init(site: ForumSite) {
     self.site = site
+    browserUserAgent = BrowserIdentity.userAgent(for: site, systemVersion: UIDevice.current.systemVersion, isPad: UIDevice.current.userInterfaceIdiom == .pad)
     // Keep the existing Simp login; South gets an isolated persistent WebKit profile.
     store = site == .simp ? .default() : WKWebsiteDataStore(forIdentifier: UUID(uuidString: "1F621C45-387F-478D-A8E2-56DB533EA481")!)
     memoryObserver = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
@@ -25,24 +26,6 @@ final class ForumSession: ObservableObject {
     }
   }
   deinit { if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) } }
-  func browserUserAgent() async throws -> String {
-    if let userAgentTask { return try await userAgentTask.value }
-    let key = "forum_\(site.rawValue)_browser_user_agent"
-    let task = Task { @MainActor () throws -> String in
-      if let saved = UserDefaults.standard.string(forKey: key), !saved.isEmpty { return saved }
-      let configuration = WKWebViewConfiguration()
-      configuration.websiteDataStore = store
-      let probe = WKWebView(frame: .zero, configuration: configuration)
-      // Ask the local WebKit engine; no website or credentials are involved.
-      guard let value = try await probe.evaluateJavaScript("navigator.userAgent") as? String, !value.isEmpty else { throw ReaderFailure.network }
-      // Keep the identity stable across app and OS updates for UA-bound sessions.
-      UserDefaults.standard.set(value, forKey: key)
-      return value
-    }
-    userAgentTask = task
-    do { return try await task.value }
-    catch { userAgentTask = nil; throw error }
-  }
   func beginBrowsing() {
     browserActive = true
     invalidatePages()
@@ -77,7 +60,7 @@ final class ForumSession: ObservableObject {
     guard site.accepts(url) else { throw ReaderFailure.unsupported }
     guard !browserActive else { throw CancellationError() }
     let epoch = generation
-    let userAgent = try await browserUserAgent()
+    let userAgent = browserUserAgent
     var current = SitePolicy.withoutFragment(url)
     for _ in 0..<6 {
       try Task.checkCancellation()
