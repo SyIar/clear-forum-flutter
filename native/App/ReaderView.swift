@@ -62,6 +62,9 @@ struct ReaderView: View {
             Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
             Text(page.loggedIn.map { $0 ? "Signed in" : "Guest" } ?? "Clean view").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
+              if let poll = page.poll {
+                SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
+              }
               ForEach(page.posts) { post in
                 PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }, purchase: buy, purchasing: purchasing || loading).id(post.id)
               }
@@ -118,7 +121,7 @@ struct ReaderView: View {
         completedRequestID = requestID
         guard error == nil else { return }
         let anchor = force ? previousID ?? "top" : current.fragment ?? restoredID ?? "top"
-        if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true || page?.entries.contains(where: { $0.id == anchor }) == true { visibleID = anchor }
+        if anchor != "top", page?.posts.contains(where: { $0.id == anchor }) == true || page?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && page?.poll != nil) { visibleID = anchor }
         else if let entry = page?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
         else { visibleID = "top"; proxy.scrollTo("top", anchor: .top) }
       }
@@ -151,7 +154,7 @@ struct ReaderView: View {
           loadedGeneration = session.generation
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              session.site.accepts(target), let html = captured["html"] as? String {
-            if session.site == .south, captured["hasPurchases"] as? Bool == true {
+            if session.site == .south, captured["hasPurchases"] as? Bool == true || captured["hasPoll"] as? Bool == true {
               url = target; page = nil; reload()
               return
             }

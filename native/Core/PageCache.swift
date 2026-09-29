@@ -72,6 +72,10 @@ private extension ForumPage {
       return cost
     }
     var cost = 2048 + string(title) + link(url) + link(thumbnail) + tags(self.tags)
+    if let poll {
+      cost += 256 + string(poll.notice) + string(poll.startsAt ?? "") + string(poll.endsAt ?? "")
+      for option in poll.options { cost += 128 + string(option.title) }
+    }
     for entry in entries + breadcrumbs {
       cost += 256 + string(entry.title) + string(entry.subtitle) + link(entry.url) + link(entry.thumbnail) + tags(entry.tags)
     }

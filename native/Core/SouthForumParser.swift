@@ -109,7 +109,7 @@ struct SouthForumParser {
     return ForumPage(url: url, title: title.isEmpty ? "Forum" : title, kind: kind, entries: entries, posts: posts,
                      previous: previous, next: next, pageNumber: number, loggedIn: loggedIn,
                      lastPage: last, maximumPostNumber: maximum, breadcrumbs: breadcrumbs,
-                     tags: tags(heading, page: url), totalPages: knownCount)
+                     tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url))
   }
 
   private func match(_ value: String, _ pattern: String) -> String? {
