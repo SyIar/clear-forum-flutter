@@ -2,7 +2,7 @@
 
 ## Changes
 
-- Home has one `Open forum` entry with the site's original skyline logo. The introductory copy is removed. The application icon and bundle identifier are unchanged.
+- Both forum homes show a compact logo banner without the `Open forum` caption or automatic navigation chevron. Tapping the logo opens the native reader. A separate 44-point native glass `safari` compass opens that forum's original start page in the app's existing site browser, sharing its isolated login session. Choosing `Read page` returns to native reading; `Done` returns home. Purchase and poll pages are fetched afresh to preserve their original form markup.
 - Thread rows in Bookmarks and Recent reading reuse the directory thumbnail and `ForumTagStrip`. Each tag opens its original prefix-filter URL independently of the thread row.
 - `LibraryDocument.presentations` stores thumbnail URLs and tags by stable thread ID. Older `reading_library_v1` records remain valid. Custom bookmark titles, saved page URLs, read baselines, and history order are preserved.
 - Visiting a directory supplies its row metadata; opening a thread supplies heading tags and `og:image`. The existing Home update check also fills metadata for older bookmarks. No additional per-row network crawler is added. Missing metadata does not erase known values, and removing the last saved/history reference prunes its presentation.

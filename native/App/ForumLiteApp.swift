@@ -264,17 +264,24 @@ struct HomeView: View {
   @State private var clearHistory = false
   @State private var checkedUpdatesOnLaunch = false
   @State private var showingBlockedAuthors = false
+  @State private var browserPresentation: ReaderPresentation?
   private var visibleBookmarks: [SavedPage] { library.document.bookmarks.filter { !library.document.hidesSavedPage($0) } }
   private var visibleRecent: [SavedPage] { library.document.recent.filter { !library.document.hidesSavedPage($0) } }
   var body: some View {
       List {
         Section {
-          NavigationLink(value: ForumDestination.reader(session.site.start)) {
-            VStack(alignment: .leading, spacing: 12) {
+          HStack(spacing: 12) {
+            Button { path.append(.reader(session.site.start)) } label: {
               ForumLogo(site: session.site)
-              Text("Open forum").font(.headline)
-            }.padding(.vertical, 6)
-          }
+            }.buttonStyle(.plain).accessibilityLabel("Open forum reader")
+            Button {
+              session.beginBrowsing()
+              browserPresentation = .browser(session.site.start)
+            } label: {
+              Image(systemName: "safari").font(.title3).frame(width: 44, height: 44)
+            }.buttonStyle(.glass).buttonBorderShape(.circle)
+              .accessibilityLabel("Open original forum website")
+          }.padding(.vertical, 6)
         }
         Section("Bookmarks") {
           if visibleBookmarks.isEmpty { Text("Save a page, or add a URL using the bookmark button.").foregroundStyle(.secondary) }
@@ -329,6 +336,22 @@ struct HomeView: View {
       }
       .sheet(isPresented: $adding) { BookmarkEditor() }
       .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
+      .fullScreenCover(item: $browserPresentation) { item in
+        ReaderController(presentation: item, session: session) { captured in
+          browserPresentation = nil
+          session.endBrowsing()
+          guard let captured, let address = captured["url"] as? String, let target = URL(string: address),
+                session.site.accepts(target), let html = captured["html"] as? String else { return }
+          // Purchase and poll forms need the original HTTP markup, not a sanitized browser capture.
+          let needsFreshPage = session.site == .south &&
+            (captured["hasPurchases"] as? Bool == true || captured["hasPoll"] as? Bool == true)
+          if !needsFreshPage, let parsed = try? ForumParser().parse(html, url: target) {
+            session.pages.store(parsed)
+            library.remember(parsed, session: session)
+          }
+          path.append(.reader(target))
+        }.ignoresSafeArea()
+      }
       .confirmationDialog("Clear recent reading?", isPresented: $clearHistory, titleVisibility: .visible) {
         Button("Clear recent reading", role: .destructive) { library.change { $0.recent = [] } }
       }
