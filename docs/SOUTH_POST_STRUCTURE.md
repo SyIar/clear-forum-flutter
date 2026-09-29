@@ -21,3 +21,14 @@ The old body selector counted both wrappers as posts. Its first author anchor wa
 The source attachment remains outside the public repository. The regression fixture reproduces its table layout with synthetic English names, IDs, timestamps, content, and resource URLs. No supplied account information, raw page capture, or real post content is published.
 
 Regression cases cover 31 posts staying 31 cards, metadata association, relative and external avatars, modern and legacy UID links, quoted profiles, emoji/media-only replies, and empty compatibility placeholders. Native device compilation runs in the existing GitHub macOS workflow. No simulator is used. The device should be checked with the supplied South thread after installing the updated package.
+
+## Build 1021 delivery
+
+- The local structural audit of the supplied HTML found all 31 unique body IDs with their corresponding name links, UIDs, avatar tags, timestamps, and floor labels. This audit is separate from the Swift regression suite, which uses synthetic fixtures.
+- Source commit: `1c1ef5a55c6178476ccfe705ae84d20f9afaacb8`.
+- [GitHub Actions run 36546385223](https://github.com/SyIar/clear-forum-flutter/actions/runs/36546385223) succeeded: 74 Swift Core tests, media checks, native arm64 iPhoneOS Release compilation, and packaging. No simulator.
+- Version `0.3.0 (1021)`, bundle ID `dev.sylar.clearforum`, display name `forum lite`.
+- Local IPA: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1021-unsigned.ipa`.
+- Size: `4,176,493` bytes. SHA-256: `6ce9d500ab74cd6d50d8f423cd3b0de32aa051ba67e9181cb5773c5c2154745b`.
+- Verified source/run metadata, checksum, ZIP CRC, version/bundle identity, arm64 executable, icon assets, Photos usage description, MediaProbe, no Flutter runtime, and matching delivery copy.
+- Not installed during this task. Device acceptance of the corrected post layout and avatar downloads remains pending.
