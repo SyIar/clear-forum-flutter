@@ -18,3 +18,14 @@ The user-supplied PHPWind HTML contains a `form[name=vote]` outside the post bod
 ## Verification
 
 Synthetic English fixtures reproduce the supplied malformed table closing tag and the poll's location outside the post body. Tests cover hidden results, numeric/zero results, multiselect proportions, radio/selected state, results-only/disabled polls, unknown metadata, unrelated forms, and cache restoration. No live vote is submitted during development. Device presentation and post-vote refresh require user testing.
+
+## Build 1023 delivery
+
+- Source: `41ac2ac3c1bc9a915e380fd24866d8a1c42b2795`.
+- [GitHub Actions run 36551043078](https://github.com/SyIar/clear-forum-flutter/actions/runs/36551043078) succeeded: 93 Swift Core tests with zero failures, media checks, native arm64 iPhoneOS Release compilation, and packaging. No simulator.
+- Includes this poll display and the [South purchase flow](SOUTH_PURCHASES.md).
+- Version `0.3.0 (1023)`, bundle ID `dev.sylar.clearforum`, display name `forum lite`.
+- Local IPA: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1023-unsigned.ipa`.
+- Size: `4,261,191` bytes. SHA-256: `a106280d0538b176835204f15797d1bce2f2d01091343d3d9eefda4855b698a2`.
+- Verified source/run metadata, checksum, ZIP CRC, bundle/version, arm64 executable, icon assets, native resources, and matching delivery copy.
+- Not installed during this task. Native poll presentation, post-vote refresh, and real site purchases await user device testing.

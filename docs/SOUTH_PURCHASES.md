@@ -26,3 +26,7 @@ The observed endpoint contains no atomic maximum-price parameter. Fresh-page rev
 ## Validation
 
 Synthetic fixtures cover the supplied button structure, zero/positive/unknown prices, quoted markup, mismatched IDs, foreign origins, duplicate parameters, script rejection, cookie scoping, free-only batches, both zero-to-paid and paid price changes, fresh verification values, already-unlocked content, failed unlocks, concurrent submission rejection, and thread-scoped cache invalidation. No real purchase or simulator is used during development. Site-specific transaction success remains a device acceptance check.
+
+## Build 1023 delivery
+
+The purchase flow is included with poll display in `0.3.0 (1023)`, source `41ac2ac3c1bc9a915e380fd24866d8a1c42b2795`. The cloud workflow passed all 93 Swift Core tests, including 12 purchase tests, and built the native iPhoneOS Release app. The downloaded IPA passed package and checksum validation. See [the shared build record](SOUTH_POLLS.md#build-1023-delivery) for the run, local path, and SHA-256. Actual transactions were not executed during development and remain a device acceptance check.
