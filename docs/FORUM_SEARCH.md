@@ -1,6 +1,6 @@
 # Forum search
 
-Status: source changes only. Not packaged or verified on an iPhone.
+Included in [build 1030](BUILD_1030.md). macOS CI and IPA verification passed; physical-device acceptance remains pending.
 
 ## Home entries
 
@@ -37,4 +37,5 @@ The user supplied both HTML pages after browser inspection was blocked. No brows
 
 - Synthetic Swift regression cases cover form encoding, live token extraction, same-origin validation, cookies, multiple matching replies, empty results, error responses, pagination, and redirect fragments. They contain no browser session data.
 - Local Swift syntax parsing and repository checks are available on Windows; they do not compile or run the Swift tests.
-- macOS CI and device checks remain required for native networking, POST redirects, keyboard/navigation behavior, and website verification flows.
+- Build 1030 passed all 192 Swift Core tests and arm64 iPhoneOS Release compilation in macOS CI. The downloaded IPA passed integrity and metadata verification.
+- Physical-device checks remain required for native networking, POST redirects, keyboard/navigation behavior, and website verification flows.
