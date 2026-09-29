@@ -67,7 +67,7 @@ enum SouthPollParser {
       hasRadio = hasRadio || controls.contains { attr($0, "type").lowercased() == "radio" }
     }
     guard !options.isEmpty else { return nil }
-    let header = (try? form.select("th.h,td.h").first()).map(text) ?? ""
+    let header = text(try? form.select("th.h,td.h").first())
     let participants = capture(header, #"\u603b\u5171\u6709\s*([0-9]+(?:,[0-9]{3})*)\s*\u4eba\u53c2\u4e0e"#).flatMap(number)
     let allText = text(form)
     let limit = capture(allText, #"\u9650\u9009\u4e2a\u6570\s*[:\uff1a]\s*([0-9]+)"#).flatMap(number)
