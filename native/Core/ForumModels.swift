@@ -25,7 +25,7 @@ struct ForumEntry: Identifiable {
   var sectionAnchor: String?
   var tags: [ForumTag] = []
 }
-struct ForumTag: Identifiable {
+struct ForumTag: Identifiable, Codable, Equatable {
   var id: String { url.absoluteString + ":" + title }
   let title: String
   let url: URL
@@ -70,6 +70,7 @@ struct ForumPage {
   var breadcrumbs: [ForumEntry] = []
   var tags: [ForumTag] = []
   var totalPages: Int?
+  var thumbnail: URL?
   var pageCount: Int {
     min(99_999, [pageNumber, totalPages ?? 1, lastPage.map(SitePolicy.pageNumber) ?? 1, next.map(SitePolicy.pageNumber) ?? 1].max() ?? 1)
   }

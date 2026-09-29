@@ -47,6 +47,7 @@ struct ForumThumbnail: View {
   var compact = false
   @State private var image: UIImage?
   @State private var loading = true
+  @State private var imageURL: URL?
   var body: some View {
     ZStack {
       Color(uiColor: .tertiarySystemFill)
@@ -56,7 +57,16 @@ struct ForumThumbnail: View {
     }.frame(width: compact ? 28 : 72, height: compact ? 28 : 50)
       .clipShape(RoundedRectangle(cornerRadius: compact ? 6 : 9))
       .accessibilityHidden(true)
-      .task(id: url) { loading = true; image = await ImageStore.shared.load(url, referer: SitePolicy.base); loading = false }
+      .task(id: url) {
+        guard image == nil || imageURL != url else { return }
+        imageURL = url
+        loading = true
+        image = nil
+        let loaded = await ImageStore.shared.load(url, referer: SitePolicy.base)
+        guard !Task.isCancelled, imageURL == url else { return }
+        image = loaded
+        loading = false
+      }
   }
 }
 
@@ -197,6 +207,7 @@ struct MediaRow: View {
   @EnvironmentObject private var session: ForumSession
   @State private var poster: URL?
   @State private var fetching = true
+  @State private var posterSource: URL?
   var body: some View {
     HStack(spacing: 10) {
       ZStack {
@@ -213,7 +224,16 @@ struct MediaRow: View {
           .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
           .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.1)))
       }.buttonStyle(.plain).disabled(block.url == nil)
-    }.task(id: block.url) { fetching = true; poster = await posters.resolve(block, session: session); fetching = false }
+    }.task(id: block.url) {
+      guard poster == nil || posterSource != block.url else { return }
+      posterSource = block.url
+      poster = nil
+      fetching = true
+      let resolved = await posters.resolve(block, session: session)
+      guard !Task.isCancelled, posterSource == block.url else { return }
+      poster = resolved
+      fetching = false
+    }
   }
 }
 
@@ -274,6 +294,7 @@ struct RemoteImageView: View {
   @State private var image: UIImage?
   @State private var loading = true
   @State private var attempt = 0
+  @State private var imageURL: URL?
   private var displayRatio: CGFloat { max(0.75, min(2.5, ratio ?? image.map { $0.size.width / max(1, $0.size.height) } ?? 1.5)) }
   var body: some View {
     Group {
@@ -289,9 +310,14 @@ struct RemoteImageView: View {
       }
     }.clipShape(RoundedRectangle(cornerRadius: 10))
       .task(id: "\(url?.absoluteString ?? ""):\(attempt)") {
+        // SwiftUI can restart this task after a full-screen viewer is dismissed.
+        guard image == nil || imageURL != url else { return }
+        imageURL = url
         loading = true
         image = nil
-        if let url { image = await ImageStore.shared.load(url) }
+        let loaded = if let url { await ImageStore.shared.load(url) } else { nil as UIImage? }
+        guard !Task.isCancelled, imageURL == url else { return }
+        image = loaded
         loading = false
       }
   }

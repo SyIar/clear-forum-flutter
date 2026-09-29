@@ -5,6 +5,15 @@ struct SavedPage: Codable, Identifiable, Equatable {
   var url: URL
   var title: String
 }
+struct ThreadPresentation: Codable, Equatable {
+  var thumbnail: URL?
+  var tags: [ForumTag] = []
+
+  mutating func merge(_ incoming: ThreadPresentation) {
+    if let thumbnail = incoming.thumbnail { self.thumbnail = thumbnail }
+    if !incoming.tags.isEmpty { tags = incoming.tags }
+  }
+}
 struct ThreadReadState: Codable, Equatable {
   var seenMaximum: Int?
   var latestMaximum: Int?
@@ -29,8 +38,9 @@ struct LibraryDocument: Codable {
   var bookmarks: [SavedPage] = []
   var recent: [SavedPage] = []
   var threads: [String: ThreadReadState] = [:]
+  var presentations: [String: ThreadPresentation] = [:]
   static let key = "reading_library_v1"
-  private enum CodingKeys: String, CodingKey { case version, bookmarks, recent, threads }
+  private enum CodingKeys: String, CodingKey { case version, bookmarks, recent, threads, presentations }
   init() {}
   init(from decoder: Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -38,6 +48,7 @@ struct LibraryDocument: Codable {
     bookmarks = try values.decode([SavedPage].self, forKey: .bookmarks)
     recent = try values.decode([SavedPage].self, forKey: .recent)
     threads = try values.decodeIfPresent([String: ThreadReadState].self, forKey: .threads) ?? [:]
+    presentations = try values.decodeIfPresent([String: ThreadPresentation].self, forKey: .presentations) ?? [:]
   }
   static func load(from defaults: UserDefaults) throws -> LibraryDocument {
     guard let raw = defaults.string(forKey: key) ?? defaults.string(forKey: "flutter." + key) else { return LibraryDocument() }
@@ -69,6 +80,23 @@ struct LibraryDocument: Codable {
   mutating func pruneTracking() {
     let keys = Set(trackedThreads.compactMap(SitePolicy.threadKey))
     threads = threads.filter { keys.contains($0.key) }
+    presentations = presentations.filter { keys.contains($0.key) }
+  }
+  mutating func capturePresentation(_ page: ForumPage) {
+    if page.kind == .posts {
+      mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags), for: page.url)
+    }
+    for entry in page.entries {
+      mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: entry.tags), for: entry.url)
+    }
+  }
+  mutating func mergePresentation(_ incoming: ThreadPresentation, for url: URL) {
+    guard let key = SitePolicy.threadKey(url) else { return }
+    let safe = ThreadPresentation(
+      thumbnail: SitePolicy.resolve(incoming.thumbnail?.absoluteString, from: SitePolicy.base),
+      tags: incoming.tags.filter { SitePolicy.readable($0.url) })
+    guard safe.thumbnail != nil || !safe.tags.isEmpty else { return }
+    presentations[key, default: ThreadPresentation()].merge(safe)
   }
   mutating func remember(_ page: SavedPage) {
     guard SitePolicy.readable(page.url) else { return }

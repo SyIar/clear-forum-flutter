@@ -20,6 +20,7 @@ final class LibraryStore: ObservableObject {
   private var ready = false
   private var visitTokens: [String: UUID] = [:]
   private var visitTasks: [String: Task<Void, Never>] = [:]
+  private var directoryEntries: [ForumEntry] = []
   init() { reload() }
   func reload() {
     do { document = try LibraryDocument.load(from: .standard); ready = true; error = nil }
@@ -34,7 +35,15 @@ final class LibraryStore: ObservableObject {
     catch { self.error = "Could not save your reading library." }
   }
   func remember(_ page: ForumPage, session: ForumSession, checkMaximum: Bool = true) {
-    change { $0.remember(SavedPage(url: page.url, title: page.title)) }
+    if page.kind != .posts { directoryEntries = Array(page.entries.prefix(200)) }
+    change {
+      $0.remember(SavedPage(url: page.url, title: page.title))
+      $0.capturePresentation(page)
+      if let key = SitePolicy.threadKey(page.url),
+         let entry = directoryEntries.first(where: { SitePolicy.threadKey($0.url) == key }) {
+        $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : []), for: page.url)
+      }
+    }
     guard checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
     visitTasks[key]?.cancel()
     let token = UUID()
@@ -70,6 +79,8 @@ final class LibraryStore: ObservableObject {
       refreshMessage = "Checking \(index + 1) of \(targets.count)..."
       do {
         let page = try await session.load(url)
+        guard !Task.isCancelled else { return }
+        change { $0.capturePresentation(page) }
         let maximum = try await session.maximumPostNumber(from: page)
         guard !Task.isCancelled else { refreshMessage = "Refresh paused. Existing records are kept."; return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.
@@ -106,22 +117,26 @@ struct HomeView: View {
     NavigationStack(path: $path) {
       List {
         Section {
-          VStack(alignment: .leading, spacing: 12) {
-            Text("Pick up where you left off.").font(.title2.bold())
-            Text("Your links. Your reading space.").foregroundStyle(.secondary)
-            NavigationLink(value: ReaderDestination(url: SitePolicy.base)) { Label("Open forum", systemImage: "globe") }
-          }.padding(.vertical, 8)
+          NavigationLink(value: ReaderDestination(url: SitePolicy.base)) {
+            VStack(alignment: .leading, spacing: 12) {
+              Image("ForumLogo").resizable().scaledToFit()
+                .frame(maxWidth: .infinity).padding(10)
+                .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
+              Text("Open forum").font(.headline)
+            }.padding(.vertical, 6)
+          }
         }
         Section("Bookmarks") {
           if library.document.bookmarks.isEmpty { Text("Save a page, or add a URL using the bookmark button.").foregroundStyle(.secondary) }
           ForEach(library.document.bookmarks) { entry in
-            NavigationLink(value: ReaderDestination(url: entry.url)) { savedRow(entry) }
+            savedRow(entry)
               .swipeActions { Button("Remove", role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         }
         Section {
           if library.document.recent.isEmpty { Text("Your last 10 visited pages will appear here.").foregroundStyle(.secondary) }
-          ForEach(library.document.recent) { entry in NavigationLink(value: ReaderDestination(url: entry.url)) { savedRow(entry) } }
+          ForEach(library.document.recent) { entry in savedRow(entry) }
         } header: {
           HStack { Text("Recent reading"); Spacer(); if !library.document.recent.isEmpty { Button("Clear") { clearHistory = true } } }
         }
@@ -161,24 +176,40 @@ struct HomeView: View {
     }
   }
   private func savedRow(_ entry: SavedPage) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack(alignment: .top, spacing: 8) {
-        Text(entry.title).lineLimit(2)
-        if let key = SitePolicy.threadKey(entry.url), library.document.threads[key]?.updated == true {
-          Text("Updated").font(.caption2.weight(.semibold)).foregroundStyle(.blue)
-            .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.12), in: Capsule())
-            .fixedSize()
-        }
+    let key = SitePolicy.threadKey(entry.url)
+    let presentation = key.flatMap { library.document.presentations[$0] }
+    let state = key.flatMap { library.document.threads[$0] }
+    return VStack(alignment: .leading, spacing: 6) {
+      if let tags = presentation?.tags, !tags.isEmpty {
+        ForumTagStrip(tags: tags) { path.append(ReaderDestination(url: $0)) }
       }
-      Text(entry.url.path).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-      if let key = SitePolicy.threadKey(entry.url), let state = library.document.threads[key] {
-        if let seen = state.seenMaximum {
-          Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : "Seen #\(seen)")
-            .font(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
-        } else if let latest = state.latestMaximum {
-          Text("#\(latest) · Open to start tracking").font(.caption).foregroundStyle(.secondary)
+      Button { path.append(ReaderDestination(url: entry.url)) } label: {
+        HStack(spacing: 10) {
+          if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
+          else { Image(systemName: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }
+          VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+              Text(entry.title).lineLimit(2).foregroundStyle(.primary)
+              if state?.updated == true {
+                Text("Updated").font(.caption2.weight(.semibold)).foregroundStyle(.blue)
+                  .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.12), in: Capsule())
+                  .fixedSize()
+              }
+            }
+            Text(entry.url.path).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            if let state {
+              if let seen = state.seenMaximum {
+                Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : "Seen #\(seen)")
+                  .font(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
+              } else if let latest = state.latestMaximum {
+                Text("#\(latest) · Open to start tracking").font(.caption).foregroundStyle(.secondary)
+              }
+            }
+          }.frame(maxWidth: .infinity, alignment: .leading)
+          Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }
-      }
+        .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+      }.buttonStyle(.plain)
     }.padding(.vertical, 3)
   }
 }

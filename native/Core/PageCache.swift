@@ -65,7 +65,7 @@ private extension ForumPage {
       for child in value.children { cost += block(child) }
       return cost
     }
-    var cost = 2048 + string(title) + link(url) + tags(self.tags)
+    var cost = 2048 + string(title) + link(url) + link(thumbnail) + tags(self.tags)
     for entry in entries + breadcrumbs {
       cost += 256 + string(entry.title) + string(entry.subtitle) + link(entry.url) + link(entry.thumbnail) + tags(entry.tags)
     }

@@ -81,7 +81,19 @@ struct ForumParser {
     return ForumPage(url: url, title: title.isEmpty ? "Forums" : title, kind: kind, entries: forums + threads, posts: posts,
                      previous: try paging("prev"), next: next, pageNumber: pageNumber,
                      loggedIn: try doc.select("html").first()?.attr("data-logged-in") == "true",
-                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs, tags: headingTags, totalPages: totalPages)
+                     lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs, tags: headingTags, totalPages: totalPages,
+                     thumbnail: kind == .posts ? threadThumbnail(doc, page: url) : nil)
+  }
+  private func threadThumbnail(_ doc: Document, page: URL) -> URL? {
+    let logos = ((try? doc.select(".p-header-logo img,.p-nav-smallLogo img").array()) ?? [])
+      .compactMap { thumbnailURL(try? $0.attr("src"), page: page) }
+    for selector in ["meta[property=og:image]", "meta[name=twitter:image]", "link[rel=image_src]"] {
+      guard let node = try? doc.select(selector).first(),
+            let url = thumbnailURL(try? node.attr(node.tagName() == "link" ? "href" : "content"), page: page),
+            !logos.contains(url), !url.path.lowercased().contains("/logo_default/") else { continue }
+      return url
+    }
+    return nil
   }
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
   private func tags(_ node: Element?, page: URL) throws -> [ForumTag] {

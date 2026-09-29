@@ -126,7 +126,8 @@ struct ReaderView: View {
         page = nil; error = nil; completedRequestID = nil; posters.cancel()
       }
       .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
-        if !isVisible { page = nil; completedRequestID = nil; posters.cancel() }
+        // Keep the immediate return destination while its media viewer is open.
+        if !isVisible && media == nil { page = nil; completedRequestID = nil; posters.cancel() }
       }
       .navigationDestination(item: $destination) { item in ReaderView(initialURL: item.url, home: home) }
       .background(MediaViewerPresenter(item: $media))

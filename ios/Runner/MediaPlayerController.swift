@@ -134,7 +134,8 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       fullscreenButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
       // Leave the AVKit transport/scrubber touch region unobstructed.
       fullscreenButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -76),
-      fullscreenButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
+      fullscreenButton.heightAnchor.constraint(equalToConstant: 48),
+      fullscreenButton.widthAnchor.constraint(equalToConstant: 48),
     ])
     updateFullscreenButton()
   }
@@ -142,14 +143,12 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     var configuration: UIButton.Configuration
     if #available(iOS 26.0, *) { configuration = .glass() }
     else { configuration = .tinted() }
-    configuration.title = immersive ? "Exit full screen" : "Full screen"
     configuration.image = UIImage(systemName: immersive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-    configuration.imagePadding = 7
     configuration.cornerStyle = .capsule
     configuration.baseForegroundColor = .label
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
     fullscreenButton.configuration = configuration
-    fullscreenButton.accessibilityLabel = configuration.title
+    fullscreenButton.accessibilityLabel = immersive ? "Exit full screen" : "Full screen"
     fullscreenButton.accessibilityHint = immersive ? "Restore the title bar" : "Hide the title bar without restarting playback"
   }
   @objc private func toggleFullscreen() {

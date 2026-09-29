@@ -57,6 +57,62 @@ final class ForumCoreTests: XCTestCase {
     XCTAssertThrowsError(try LibraryDocument.load(from: defaults))
     XCTAssertEqual(defaults.string(forKey: LibraryDocument.key), "invalid")
   }
+  func testSavedThreadPresentationMigratesAndSurvivesPageAndSlugChanges() throws {
+    let defaults = UserDefaults(suiteName: "ForumCoreTests.\(UUID())")!
+    defaults.set(#"{"version":1,"bookmarks":[{"url":"https://simpcity.cr/threads/old.123/page-48","title":"My title"}],"recent":[]}"#, forKey: LibraryDocument.key)
+    var library = try LibraryDocument.load(from: defaults)
+    XCTAssertTrue(library.presentations.isEmpty)
+    let url = URL(string: "https://simpcity.cr/threads/new.123/")!
+    let cover = URL(string: "https://images.example/cover.jpg")!
+    let tags = [ForumTag(title: "Photo", url: URL(string: "https://simpcity.cr/forums/example.12/?prefix_id=3")!)]
+    var page = try ForumParser().parse(threadHTML([1]), url: url)
+    page.thumbnail = cover
+    page.tags = tags
+    library.capturePresentation(page)
+    library.pruneTracking()
+    XCTAssertEqual(library.presentations["123"]?.thumbnail, cover)
+    XCTAssertEqual(library.bookmarks.first?.title, "My title")
+    XCTAssertEqual(library.bookmarks.first?.url.lastPathComponent, "page-48")
+    XCTAssertTrue(library.recent.isEmpty)
+    XCTAssertTrue(library.threads.isEmpty)
+    library.remember(SavedPage(url: URL(string: "https://simpcity.cr/threads/new.123/page-47")!, title: "New"))
+    try library.save(to: defaults)
+    let restored = try LibraryDocument.load(from: defaults)
+    XCTAssertEqual(restored.presentations["123"]?.tags, tags)
+    XCTAssertEqual(restored.presentations["123"]?.thumbnail, cover)
+    XCTAssertEqual(restored.recent.count, 1)
+  }
+  func testPresentationKeepsKnownFieldsAndPrunesUnreferencedThreads() throws {
+    var library = LibraryDocument()
+    let url = URL(string: "https://simpcity.cr/threads/example.123/")!
+    let cover = URL(string: "https://images.example/cover.jpg")!
+    let tag = ForumTag(title: "Photo", url: URL(string: "https://simpcity.cr/forums/example.12/?prefix_id=3")!)
+    library.toggle(SavedPage(url: url, title: "Saved"))
+    library.mergePresentation(ThreadPresentation(thumbnail: cover, tags: [tag]), for: url)
+    library.mergePresentation(ThreadPresentation(), for: url)
+    library.mergePresentation(ThreadPresentation(thumbnail: URL(string: "https://user:pass@images.example/private.jpg"),
+                                               tags: [ForumTag(title: "Unsafe", url: URL(string: "https://simpcity.cr/logout/")!)]), for: url)
+    XCTAssertEqual(library.presentations["123"]?.thumbnail, cover)
+    XCTAssertEqual(library.presentations["123"]?.tags, [tag])
+    let unrelated = URL(string: "https://simpcity.cr/threads/other.456/")!
+    library.mergePresentation(ThreadPresentation(thumbnail: cover), for: unrelated)
+    library.pruneTracking()
+    XCTAssertEqual(library.presentations.count, 1)
+    library.toggle(SavedPage(url: url, title: "Saved"))
+    library.pruneTracking()
+    XCTAssertTrue(library.presentations.isEmpty)
+  }
+  func testThreadCoverUsesSocialMetadataButRejectsSiteLogo() throws {
+    let url = URL(string: "https://simpcity.cr/threads/example.123/")!
+    let content = threadHTML([1])
+    let cover = "<meta property='og:image' content='https://images.example/cover.jpg'>"
+    XCTAssertEqual(try ForumParser().parse(cover + content, url: url).thumbnail?.absoluteString, "https://images.example/cover.jpg")
+    let fallback = "<meta property='og:image' content='/data/assets/logo_default/logo.png'><meta name='twitter:image' content='/cover.jpg'>"
+    XCTAssertEqual(try ForumParser().parse(fallback + content, url: url).thumbnail?.path, "/cover.jpg")
+    let sharedLogo = "<meta property='og:image' content='/branding.png'><div class='p-header-logo'><img src='/branding.png'></div>"
+    XCTAssertNil(try ForumParser().parse(sharedLogo + content, url: url).thumbnail)
+    XCTAssertNil(try ForumParser().parse(cover + "<html data-template='forum_view'></html>", url: URL(string: "https://simpcity.cr/forums/example.12/")!).thumbnail)
+  }
   private func threadHTML(_ numbers: [Int], navigation: String = "") -> String {
     let posts = numbers.map { number in
       "<article id='post-\(9000 + number)' class='message--post'><div class='message-attribution-opposite'><a>#\(number)</a></div><div class='message-body'><div class='bbWrapper'>Post</div></div></article>"
