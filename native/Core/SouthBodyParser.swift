@@ -11,14 +11,17 @@ struct SouthBodyParser {
   func parseBody(_ root: Element, page: URL) throws -> [BodyBlock] {
     var blocks: [BodyBlock] = []
     var runs: [TextRun] = []
+    var literalRuns = Set<Int>()
     func flush() {
       if runs.contains(where: { $0.emoticon != nil || !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-        blocks.append(BodyBlock(kind: .paragraph, runs: runs))
+        blocks.append(BodyBlock(kind: .paragraph, runs: SouthTextLinks.detect(in: runs, excluding: literalRuns)))
       }
       runs = []
+      literalRuns = []
     }
-    func walk(_ node: Node, bold: Bool = false, italic: Bool = false, href: URL? = nil) throws {
+    func walk(_ node: Node, bold: Bool = false, italic: Bool = false, href: URL? = nil, detectLinks: Bool = true) throws {
       if let node = node as? TextNode {
+        if !detectLinks { literalRuns.insert(runs.count) }
         runs.append(TextRun(text: node.getWholeText().replacingOccurrences(of: #"[\t\r\n ]+"#, with: " ", options: .regularExpression), bold: bold, italic: italic, url: href))
         return
       }
@@ -74,7 +77,7 @@ struct SouthBodyParser {
       if node.hasClass("bbCodeSpoiler") || node.hasClass("bbCodeInlineSpoiler") {
         flush()
         let children: [BodyBlock]
-        if node.hasClass("bbCodeInlineSpoiler") { children = [BodyBlock(kind: .paragraph, runs: [TextRun(text: text(node))])] }
+        if node.hasClass("bbCodeInlineSpoiler") { children = try parseBody(node, page: page) }
         else if let content = try node.select(".bbCodeSpoiler-content").first() { children = try parseBody(content, page: page) }
         else { children = [] }
         blocks.append(BodyBlock(kind: .spoiler, children: children, label: "Spoiler"))
@@ -85,9 +88,14 @@ struct SouthBodyParser {
       let boundary = ["p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "table", "tr"].contains(tag)
       if boundary { flush() }
       if tag == "li" { runs.append(TextRun(text: "\u{2022} ")) }
-      let link = tag == "a" ? SouthSitePolicy.resolve(try node.attr("href"), from: page) : href
+      let link: URL?
+      if tag == "a" {
+        let address = try node.attr("href")
+        link = SouthSitePolicy.resolve(address, from: page) ?? SouthTextLinks.destination(address, from: page)
+      } else { link = href }
       for child in node.getChildNodes() {
-        try walk(child, bold: bold || ["b", "strong", "h1", "h2", "h3", "h4"].contains(tag), italic: italic || ["i", "em"].contains(tag), href: link)
+        try walk(child, bold: bold || ["b", "strong", "h1", "h2", "h3", "h4"].contains(tag), italic: italic || ["i", "em"].contains(tag), href: link,
+                 detectLinks: detectLinks && tag != "code")
       }
       if boundary { flush() }
     }
