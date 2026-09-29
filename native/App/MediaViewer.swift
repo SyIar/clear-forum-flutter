@@ -22,15 +22,25 @@ enum MediaViewerItem: Identifiable, Hashable {
 @MainActor
 final class MediaViewerState: ObservableObject {
   @Published var immersive = false
+  @Published var downloadReady = false
+  let download: VideoDownload?
   weak var player: MediaPlayerController?
   weak var image: OriginalImageController?
+  init(item: MediaViewerItem) {
+    if case .video(let url, _, _) = item { download = VideoDownload.existingOrNew(for: url) }
+    else { download = nil }
+  }
 }
 
 // Media is a destination in the reader's existing stack. UIKit/SwiftUI owns
 // recognition, interactive cancellation, and the horizontal pop animation.
 struct MediaViewerDestination: View {
   let item: MediaViewerItem
-  @StateObject private var state = MediaViewerState()
+  @StateObject private var state: MediaViewerState
+  init(item: MediaViewerItem) {
+    self.item = item
+    _state = StateObject(wrappedValue: MediaViewerState(item: item))
+  }
   private var isImage: Bool { if case .image = item { return true }; return false }
   private var title: String {
     switch item { case .image: return "Image"; case .video(let url, _, _): return url.host ?? "Video" }
@@ -49,8 +59,8 @@ struct MediaViewerDestination: View {
         ToolbarItemGroup(placement: .topBarTrailing) {
           if isImage {
             Button("Share image", systemImage: "square.and.arrow.up") { state.image?.shareImage() }
-          } else {
-            Button("Details") { state.player?.showDetails() }
+          } else if let download = state.download {
+            VideoDownloadButton(state: state, download: download)
             Button("Refresh video", systemImage: "arrow.clockwise") { state.player?.reload() }
           }
         }
@@ -68,8 +78,12 @@ private struct MediaViewerContent: UIViewControllerRepresentable {
       state.image = controller
       return controller
     case .video(let url, let direct, let referer):
-      let controller = MediaPlayerController(url: url, direct: direct, referer: referer, completion: {})
+      let download = state.download ?? VideoDownload.existingOrNew(for: url)
+      let controller = MediaPlayerController(url: url, direct: direct, referer: referer, download: download, completion: {})
       controller.immersiveChanged = { [weak state] value in state?.immersive = value }
+      controller.downloadAvailabilityChanged = { [weak state] value in
+        if state?.downloadReady != value { state?.downloadReady = value }
+      }
       state.player = controller
       return controller
     }
