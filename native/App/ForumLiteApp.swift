@@ -94,10 +94,14 @@ final class LibraryStore: ObservableObject {
   @Published var error: String?
   @Published private(set) var refreshing = false
   @Published private(set) var refreshMessage: String?
+  @Published private(set) var refreshingAuthors: Set<String> = []
+  @Published private(set) var authorErrors: [String: String] = [:]
   private var ready = false
   private var visitTokens: [String: UUID] = [:]
   private var visitTasks: [String: Task<Void, Never>] = [:]
   private var directoryEntries: [ForumEntry] = []
+  private var authorTasks: [String: Task<ReaderFailure?, Never>] = [:]
+  private var authorTokens: [String: UUID] = [:]
   init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
     do { document = try LibraryDocument.load(from: .standard, site: site); ready = true; error = nil }
@@ -119,7 +123,8 @@ final class LibraryStore: ObservableObject {
       $0.capturePresentation(page)
       if let key = SitePolicy.threadKey(page.url),
          let entry = directoryEntries.first(where: { SitePolicy.threadKey($0.url) == key }) {
-        $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : [], authorID: entry.authorID), for: page.url)
+        $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : [],
+                                                authorID: entry.authorID, authorName: entry.authorName), for: page.url)
       }
     }
     guard checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
@@ -142,7 +147,7 @@ final class LibraryStore: ObservableObject {
   func refresh(session: ForumSession) async {
     guard session.site == site, ready, !refreshing else { return }
     let targets = document.trackedThreads
-    guard !targets.isEmpty else { refreshMessage = nil; return }
+    guard document.hasRefreshTargets else { refreshMessage = nil; return }
     refreshing = true
     defer { refreshing = false }
     var checked = 0
@@ -174,7 +179,74 @@ final class LibraryStore: ObservableObject {
         failed += 1
       }
     }
-    refreshMessage = failed == 0 ? "Checked \(checked) threads just now." : "Checked \(checked) threads. \(failed) could not be checked; previous records are kept."
+    var authorsChecked = 0
+    for author in document.following {
+      if Task.isCancelled { refreshMessage = "Refresh paused. Existing records are kept."; return }
+      refreshMessage = "Checking topics by \(author.name)..."
+      if let failure = await refreshAuthor(author.id, session: session) {
+        failed += 1
+        if [.login, .verification, .rateLimit].contains(failure) {
+          refreshMessage = failure.localizedDescription + " Existing records are kept."
+          return
+        }
+      } else { authorsChecked += 1 }
+    }
+    let summary = authorsChecked == 0 ? "Checked \(checked) threads." : "Checked \(checked) threads and \(authorsChecked) followed authors."
+    refreshMessage = failed == 0 ? summary : summary + " \(failed) could not be checked; previous records are kept."
+  }
+  func follow(_ post: ForumPost, session: ForumSession) {
+    guard session.site == site, site == .south, let id = post.authorID else { return }
+    change { $0.followAuthor(id: id, name: post.author, avatar: post.avatar) }
+    guard document.followsAuthor(id) else { return }
+    Task { await refreshAuthor(id, session: session) }
+  }
+  func unfollow(_ id: String) {
+    change { $0.unfollowAuthor(id) }
+    guard !document.followsAuthor(id) else { return }
+    authorTokens.removeValue(forKey: id)
+    authorTasks.removeValue(forKey: id)?.cancel()
+    refreshingAuthors.remove(id)
+    authorErrors.removeValue(forKey: id)
+  }
+  @discardableResult
+  func refreshAuthor(_ id: String, session: ForumSession) async -> ReaderFailure? {
+    guard ready, session.site == site, site == .south, let author = document.followedAuthors[id],
+          !document.blocksAuthor(id), let url = SouthSitePolicy.authorTopics(id) else { return nil }
+    if let task = authorTasks[id] { return await task.value }
+    let token = UUID()
+    authorTokens[id] = token
+    refreshingAuthors.insert(id)
+    authorErrors.removeValue(forKey: id)
+    let task = Task { [weak self] () -> ReaderFailure? in
+      guard let self else { return nil }
+      defer {
+        if self.authorTokens[id] == token {
+          self.authorTokens.removeValue(forKey: id)
+          self.authorTasks.removeValue(forKey: id)
+          self.refreshingAuthors.remove(id)
+        }
+      }
+      do {
+        let page = try await session.load(url)
+        guard !Task.isCancelled, self.authorTokens[id] == token,
+              self.document.followedAuthors[id]?.followedAt == author.followedAt else { return nil }
+        guard self.ready else { throw ReaderFailure.storage }
+        let checkedAt = Date()
+        var accepted = false
+        self.change { accepted = $0.updateFollowing(page, authorID: id, followedAt: author.followedAt, at: checkedAt) }
+        guard accepted else { throw ReaderFailure.unsupported }
+        guard self.document.followedAuthors[id]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
+        return nil
+      } catch {
+        guard !Task.isCancelled, self.authorTokens[id] == token,
+              self.document.followedAuthors[id]?.followedAt == author.followedAt else { return nil }
+        let failure = error as? ReaderFailure ?? .network
+        self.authorErrors[id] = failure.localizedDescription
+        return failure
+      }
+    }
+    authorTasks[id] = task
+    return await task.value
   }
   func toggle(_ url: URL, title: String) { change { $0.toggle(SavedPage(url: url, title: title)) } }
   func contains(_ url: URL) -> Bool { document.bookmarks.contains { $0.url == url } }
@@ -217,6 +289,9 @@ struct HomeView: View {
         } header: {
           HStack { Text("Recent reading"); Spacer(); if !library.document.recent.isEmpty { Button("Clear") { clearHistory = true } } }
         }
+        if session.site == .south {
+          SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
+        }
         if let message = library.refreshMessage {
           Section { Text(message).font(.caption).foregroundStyle(.secondary) }
         }
@@ -227,8 +302,12 @@ struct HomeView: View {
       .toolbarRole(.editor)
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          if session.site == .south { Button("Blocked authors", systemImage: "person.slash") { showingBlockedAuthors = true } }
-          Button("Add bookmark", systemImage: "bookmark.badge.plus") { adding = true }
+          if session.site == .south {
+            Button { showingBlockedAuthors = true } label: { Image(systemName: "person.slash") }
+              .accessibilityLabel("Blocked authors")
+          }
+          Button { adding = true } label: { Image(systemName: "bookmark.badge.plus") }
+            .accessibilityLabel("Add bookmark")
         }
       }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
@@ -238,8 +317,8 @@ struct HomeView: View {
             else { Image(systemName: "arrow.clockwise").font(.title3.weight(.semibold)) }
           }.frame(width: 52, height: 52)
         }.buttonStyle(.glass).buttonBorderShape(.circle)
-          .disabled(library.refreshing || library.document.trackedThreads.isEmpty)
-          .accessibilityLabel("Refresh thread updates")
+          .disabled(library.refreshing || !library.document.hasRefreshTargets)
+          .accessibilityLabel("Refresh thread and author updates")
           .padding(.trailing, 16).padding(.bottom, 8)
       }
       .refreshable { await library.refresh(session: session) }
@@ -279,7 +358,9 @@ struct HomeView: View {
                   .fixedSize()
               }
             }
-            Text(entry.url.path).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            if let subtitle = library.document.subtitle(for: entry), !subtitle.isEmpty {
+              Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
             if let state {
               if let seen = state.seenMaximum {
                 Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : "Seen #\(seen)")

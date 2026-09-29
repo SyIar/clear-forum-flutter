@@ -26,6 +26,7 @@ struct ForumEntry: Identifiable {
   var sectionAnchor: String?
   var tags: [ForumTag] = []
   var authorID: String?
+  var authorName: String?
 }
 struct ForumTag: Identifiable, Codable, Equatable {
   var id: String { url.absoluteString + ":" + title }

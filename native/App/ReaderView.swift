@@ -212,6 +212,13 @@ struct ReaderView: View {
         Button("View author threads") {
           if let id = selection.post.authorID, let target = SouthSitePolicy.authorTopics(id) { navigate(target) }
         }.disabled(selection.post.authorID.flatMap(SouthSitePolicy.authorTopics) == nil)
+        if let id = selection.post.authorID, SouthSitePolicy.validAuthorID(id) {
+          if library.document.followsAuthor(id) {
+            Button("Unfollow author") { library.unfollow(id) }
+          } else {
+            Button("Follow author") { library.follow(selection.post, session: session) }
+          }
+        }
         Button("Block author", role: .destructive) {
           if let id = selection.post.authorID { library.change { $0.blockAuthor(id: id, name: selection.post.author) } }
         }.disabled(purchasing || (selection.post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true))

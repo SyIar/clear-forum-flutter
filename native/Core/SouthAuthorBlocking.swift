@@ -6,6 +6,7 @@ extension LibraryDocument {
   mutating func blockAuthor(id: String, name: String) {
     guard site == .south, SouthSitePolicy.validAuthorID(id) else { return }
     blockedAuthors[id] = name.isEmpty ? "UID \(id)" : name
+    unfollowAuthor(id)
   }
   mutating func unblockAuthor(_ id: String) { blockedAuthors.removeValue(forKey: id) }
   func hidesSavedPage(_ page: SavedPage) -> Bool {

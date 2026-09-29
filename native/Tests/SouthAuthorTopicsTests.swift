@@ -46,6 +46,7 @@ final class SouthAuthorTopicsTests: XCTestCase {
     XCTAssertEqual(page.title, "Sample author - Threads")
     XCTAssertEqual(page.entries.map(\.title), ["First topic", "Second topic"])
     XCTAssertEqual(page.entries.compactMap(\.authorID), ["101", "101"])
+    XCTAssertEqual(page.entries.compactMap(\.authorName), ["Sample author", "Sample author"])
     XCTAssertEqual(page.entries[0].subtitle, "Tea room \u{00B7} 2026-09-29")
     XCTAssertEqual(page.pageCount, 11)
     XCTAssertEqual(page.next?.query, "action-topic-uid-101-page-2.html")
@@ -63,13 +64,15 @@ final class SouthAuthorTopicsTests: XCTestCase {
     let source = """
       <div id="ajaxtable"><table><tr>
         <td><h3><a href="read.php?tid-20.html">Topic</a></h3></td>
-        <td><a href="u.php?action-show-uid-101.html">Creator</a></td>
+        <td><a href="u.php?action-show-uid-101.html"><img src="images/avatar.png"></a>
+          <a href="u.php?action-show-uid-101.html">Creator</a></td>
         <td><a href="u.php?action-show-uid-999.html">Last reply author</a></td>
       </tr></table></div>
       """
     let entry = try XCTUnwrap(ForumParser().parse(source, url: SouthSitePolicy.start).entries.first)
     XCTAssertEqual(entry.authorID, "101")
     XCTAssertEqual(entry.subtitle, "Creator")
+    XCTAssertEqual(entry.authorName, "Creator")
   }
   func testOriginalAvatarUsesExplicitSourceWithoutGuessingFileNames() throws {
     let source = """

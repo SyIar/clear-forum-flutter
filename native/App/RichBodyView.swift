@@ -114,7 +114,7 @@ struct PostCard: View {
   }
 }
 
-private struct PostAvatar: View {
+struct PostAvatar: View {
   let url: URL?
   let author: String
   var action: ((UIImage?) -> Void)?

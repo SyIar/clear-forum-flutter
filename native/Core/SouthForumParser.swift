@@ -75,14 +75,15 @@ struct SouthForumParser {
               anchor.parents().allSatisfy({ !$0.hasClass("pages") && $0.id() != "breadCrumb" }),
               let row = anchor.parents().first(where: { $0.tagName() == "tr" || $0.hasClass("thread-row") || $0.tagName() == "article" }),
               seenEntries.insert(SouthSitePolicy.threadKey(link) ?? link.absoluteString).inserted else { continue }
-        let authorLink = links(row, ".author a[href],a.author[href],.username[href],a[href*=u.php]").first { profileID($0, page: url) != nil }
-        let authorID = topicAuthorID ?? authorLink.flatMap { profileID($0, page: url) }
+        let authorLinks = links(row, ".author a[href],a.author[href],.username[href],a[href*=u.php]").filter { profileID($0, page: url) != nil }
+        let authorID = topicAuthorID ?? authorLinks.first.flatMap { profileID($0, page: url) }
+        let authorLink = authorLinks.first { profileID($0, page: url) == authorID && !text($0).isEmpty }
         let author = topicAuthorID != nil ? text(first(doc, "#u-top .u-h1")) : text(authorLink ?? first(row, ".author,.username"))
         let subtitle = topicAuthorID != nil ? [text(first(row, "a.gray")), text(first(row, "span.f9"))].filter { !$0.isEmpty }.joined(separator: " \u{00B7} ") : author
         let pinned = row.hasClass("sticky") || row.hasClass("pinned") || first(row, "img[src*=headtopic],img[src*=top1],img[src*=top2],img[src*=top3],[data-sticky=true]") != nil
         entries.append(ForumEntry(title: text(anchor), url: link, subtitle: subtitle, pinned: pinned,
                                   thumbnail: thumbnail(first(row, ".thread-thumbnail,.thumbnail,[data-cover]"), page: url),
-                                  tags: tags(row, page: url), authorID: authorID))
+                                  tags: tags(row, page: url), authorID: authorID, authorName: author.isEmpty ? nil : author))
       }
       if entries.isEmpty, SouthSitePolicy.route(url)?.path == "/index.php" {
         for anchor in links(root, "h2 a[href],h3 a[href],.forum-name a[href],a.forum-name[href]") {
