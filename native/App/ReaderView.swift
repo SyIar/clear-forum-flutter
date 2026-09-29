@@ -164,9 +164,7 @@ struct ReaderView: View {
       .confirmationDialog("Clear forum session?", isPresented: $clearSession, titleVisibility: .visible) {
         Button("Clear session", role: .destructive) { Task { await session.clear(); reload() } }
       }
-      .confirmationDialog("Open external link?", isPresented: Binding(get: { external != nil }, set: { if !$0 { external = nil } }), titleVisibility: .visible) {
-        if let external { Link("Open \(external.host ?? "link")", destination: external) }
-      }
+      .background(ExternalBrowserPresenter(url: $external).frame(width: 0, height: 0))
     }
     .environmentObject(library)
     .environmentObject(session)

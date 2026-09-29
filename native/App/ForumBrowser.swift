@@ -113,17 +113,24 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     alert.addAction(UIAlertAction(title: "OK", style: .default))
     present(alert, animated: true)
   }
+  private func openExternal(_ url: URL) {
+    guard !finished, presentedViewController == nil, let browser = ExternalBrowser.make(url) else { return }
+    present(browser, animated: true)
+  }
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
     if navigationAction.targetFrame?.isMainFrame == true && !site.sameOrigin(url) {
       decisionHandler(.cancel)
-      if navigationAction.navigationType == .linkActivated { notice("External links open from the clean reader. This browser keeps your forum session on the forum domain.") }
+      if navigationAction.navigationType == .linkActivated { openExternal(url) }
       return
     }
     decisionHandler(url.scheme == "https" || url.scheme == "about" ? .allow : .cancel)
   }
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-    if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url, site.sameOrigin(url) { webView.load(navigationAction.request) }
+    if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
+      if site.sameOrigin(url) { webView.load(navigationAction.request) }
+      else { openExternal(url) }
+    }
     return nil
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { notice("Could not load this page. Check the connection and try again.") } }

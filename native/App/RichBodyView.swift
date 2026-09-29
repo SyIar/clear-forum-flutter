@@ -141,7 +141,8 @@ struct RichBodyView: View {
   @ViewBuilder private func blockView(_ block: BodyBlock) -> some View {
     switch block.kind {
     case .paragraph:
-      if let url = standaloneLink(block.runs) { CompactLink(url: url, label: block.runs.map(\.text).joined(), navigate: navigate) }
+      if block.runs.contains(where: { $0.emoticon != nil }) { EmoticonText(runs: block.runs) }
+      else if let url = standaloneLink(block.runs) { CompactLink(url: url, label: block.runs.map(\.text).joined(), navigate: navigate) }
       else { Text(attributed(block.runs)).font(.body).lineSpacing(2).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
     case .link:
       if let url = block.url { CompactLink(url: url, label: block.label, navigate: navigate) }

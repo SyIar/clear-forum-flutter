@@ -36,6 +36,7 @@ struct TextRun {
   var bold = false
   var italic = false
   var url: URL?
+  var emoticon: URL?
 }
 enum BlockKind { case paragraph, quote, spoiler, code, image, link, media }
 struct BodyBlock: Identifiable {

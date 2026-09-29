@@ -22,6 +22,10 @@ enum SouthSitePolicy {
   static func sameOrigin(_ url: URL) -> Bool {
     url.scheme == "https" && url.host?.lowercased() == host && (url.port == nil || url.port == 443) && url.user == nil && url.password == nil
   }
+  static func isEmoticon(_ url: URL) -> Bool {
+    sameOrigin(url) && url.standardized.path.hasPrefix("/images/post/smile/") &&
+      ["gif", "png", "jpg", "jpeg", "webp"].contains(url.pathExtension.lowercased())
+  }
   static func route(_ url: URL) -> Route? {
     guard sameOrigin(url), url.absoluteString.utf8.count < 8192,
           ["", "/", "/index.php", "/thread.php", "/read.php"].contains(url.path) else { return nil }

@@ -12,7 +12,7 @@ struct SouthBodyParser {
     var blocks: [BodyBlock] = []
     var runs: [TextRun] = []
     func flush() {
-      if runs.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+      if runs.contains(where: { $0.emoticon != nil || !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
         blocks.append(BodyBlock(kind: .paragraph, runs: runs))
       }
       runs = []
@@ -37,10 +37,15 @@ struct SouthBodyParser {
       }
       if tag == "img" {
         let alt = try node.attr("alt")
+        let lazy = try node.attr("data-src")
+        let source = SouthSitePolicy.resolve(lazy.isEmpty ? try node.attr("src") : lazy, from: page)
+        if let source, SouthSitePolicy.isEmoticon(source) {
+          runs.append(TextRun(text: alt.isEmpty ? "Emoticon" : alt, bold: bold, italic: italic, url: href, emoticon: source))
+          return
+        }
         if node.hasClass("smilie") { runs.append(TextRun(text: alt)); return }
         flush()
-        let lazy = try node.attr("data-src")
-        if let url = SouthSitePolicy.resolve(lazy.isEmpty ? try node.attr("src") : lazy, from: page) {
+        if let url = source {
           blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? "Image" : alt, url: url,
                                   original: OriginalImageSource.resolve(node, page: page, preview: url, link: href), aspectRatio: ratio(node)))
         }
