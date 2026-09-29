@@ -7,11 +7,20 @@ extension ForumPage {
     guard kind == .posts, previous.kind == .posts,
           SitePolicy.pageCacheKey(url) == SitePolicy.pageCacheKey(previous.url) else { return self }
     var result = self
-    let existing = Dictionary(previous.posts.map { ($0.id, $0.blocks) }, uniquingKeysWith: { first, _ in first })
+    let existing = Dictionary(previous.posts.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     for index in result.posts.indices {
-      guard let blocks = existing[result.posts[index].id] else { continue }
-      result.posts[index].blocks = BodyBlock.reusingUnchanged(result.posts[index].blocks, from: blocks)
+      guard let post = existing[result.posts[index].id] else { continue }
+      result.posts[index] = result.posts[index].preservingBodyIdentity(from: post)
     }
+    return result
+  }
+}
+
+extension ForumPost {
+  func preservingBodyIdentity(from previous: ForumPost) -> ForumPost {
+    guard id == previous.id else { return self }
+    var result = self
+    result.blocks = BodyBlock.reusingUnchanged(blocks, from: previous.blocks)
     return result
   }
 }

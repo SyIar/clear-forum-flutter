@@ -30,10 +30,20 @@ struct ReaderView: View {
   @State private var showingBlockedAuthors = false
   @State private var showingPinnedThreads = false
   @State private var selectedPinnedThread: URL?
+  @State private var readingPages = ReaderPageWindow()
+  @State private var edgeTrigger = ReaderEdgeTrigger()
+  @State private var edgePull = ReaderEdgePull()
+  @State private var scrollPhase: ScrollPhase = .idle
+  @State private var edgeLoading: ReaderEdge?
+  @State private var edgeFailure: ReaderEdgeFailure?
+  @State private var edgeTask: Task<Void, Never>?
+  @State private var edgeRequestID = UUID()
+  @State private var pendingPage: ForumPage?
   @StateObject private var posters = PosterStore()
   private var current: URL { url ?? initialURL }
+  private var displayPage: ForumPage? { page.map { readingPages.combined(active: $0) } }
   private var pinnedThreads: [ForumEntry] {
-    guard session.site == .south, let page, page.kind == .threads else { return [] }
+    guard session.site == .south, let page = displayPage, page.kind == .threads else { return [] }
     return library.document.visibleContent(in: page).entries.filter(\.pinned)
   }
   init(initialURL: URL, library: LibraryStore, session: ForumSession, home: @escaping () -> Void) {
@@ -54,7 +64,7 @@ struct ReaderView: View {
               Button("Retry") { reload() }.buttonStyle(.borderedProminent)
               Button("Site browser") { openBrowser(current) }.buttonStyle(.bordered)
             }
-          } else if let page {
+          } else if let page = displayPage {
             let visible = library.document.visibleContent(in: page)
             if !page.breadcrumbs.isEmpty {
               ScrollView(.horizontal) {
@@ -90,8 +100,18 @@ struct ReaderView: View {
         }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 14)
       }
       .scrollPosition(id: $visibleID, anchor: .top)
+      .scrollBounceBehavior(.always, axes: .vertical)
+      .onScrollGeometryChange(for: ReaderEdgePull.self) { ReaderEdgePull($0) } action: { _, pull in
+        edgePull = pull
+        checkEdgeDrag()
+      }
+      .onScrollPhaseChange { old, phase in
+        scrollPhase = phase
+        if phase == .tracking || (phase == .interacting && old != .tracking) { edgeTrigger.beginDrag() }
+        if phase == .interacting { checkEdgeDrag() }
+        if phase == .idle { applyAdjacentPage() }
+      }
       .background(Color(uiColor: .systemGroupedBackground))
-      .refreshable { _ = await load(force: true) }
       .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? "Author threads" : page?.kind == .posts ? "Thread" : "Forums").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
@@ -120,7 +140,7 @@ struct ReaderView: View {
         }
       }
       .sheet(isPresented: $selectingPage) {
-        if let page { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
+        if let page = displayPage { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
       }
       .sheet(isPresented: $showingPinnedThreads, onDismiss: {
         guard let target = selectedPinnedThread else { return }
@@ -132,7 +152,13 @@ struct ReaderView: View {
           showingPinnedThreads = false
         }
       }
-      .overlay(alignment: .top) { if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) } }
+      .overlay(alignment: .top) {
+        if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) }
+        else { ReaderEdgeIndicator(edge: .previous, loading: edgeLoading == .previous, failure: edgeFailure) { loadAdjacent(.previous) } }
+      }
+      .overlay(alignment: .bottom) {
+        ReaderEdgeIndicator(edge: .next, loading: edgeLoading == .next, failure: edgeFailure) { loadAdjacent(.next) }.padding(.bottom, 6)
+      }
       .task(id: requestID) {
         guard completedRequestID != requestID else { return }
         let expected = requestID
@@ -154,17 +180,25 @@ struct ReaderView: View {
         isVisible = true
         if page == nil { completedRequestID = nil; requestID = UUID() }
       }
-      .onDisappear { purchaseTask?.cancel(); savePosition(); isVisible = false }
-      .onChange(of: visibleID) { _, value in
-        if !loading, let page { session.pages.savePosition(value, for: page.url) }
+      .onDisappear { purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
+      .onChange(of: visibleID) { old, value in
+        guard !loading else { return }
+        if let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
+        if let active = readingPages.page(containing: value) {
+          if SitePolicy.pageCacheKey(active.url) != SitePolicy.pageCacheKey(current) {
+            page = active; url = active.url
+            library.remember(active, session: session, checkMaximum: false)
+          }
+          session.pages.savePosition(value, for: active.url)
+        }
       }
       .onChange(of: session.generation) { _, generation in
         guard loadedGeneration != generation else { return }
-        page = nil; error = nil; completedRequestID = nil; posters.cancel()
+        page = nil; readingPages.reset(); cancelAdjacent(); error = nil; completedRequestID = nil; posters.cancel()
       }
       .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
         // Keep the immediate return destination while its media viewer is open.
-        if !isVisible && media == nil { page = nil; completedRequestID = nil; posters.cancel() }
+        if !isVisible && media == nil { page = nil; readingPages.reset(); cancelAdjacent(); completedRequestID = nil; posters.cancel() }
       }
       .navigationDestination(item: $destination) { item in
         // A pushed destination is hosted by NavigationStack, outside the source
@@ -191,7 +225,7 @@ struct ReaderView: View {
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              session.site.accepts(target), let html = captured["html"] as? String {
             if session.site == .south, captured["hasPurchases"] as? Bool == true || captured["hasPoll"] as? Bool == true {
-              url = target; page = nil; reload()
+              url = target; page = nil; readingPages.reset(); reload()
               return
             }
             do {
@@ -199,12 +233,12 @@ struct ReaderView: View {
               requestID = UUID(); completedRequestID = requestID; forceNextLoad = false; loading = false
               loadedGeneration = session.generation
               session.pages.store(parsed)
-              page = parsed; url = target; error = nil
+              page = parsed; readingPages.reset(parsed); url = target; error = nil
               library.remember(parsed, session: session)
               proxy.scrollTo("top", anchor: .top)
             }
             catch { self.error = error.localizedDescription }
-          } else { page = nil; reload() }
+          } else { page = nil; readingPages.reset(); reload() }
         }.ignoresSafeArea()
       }
       .confirmationDialog("Clear forum session?", isPresented: $clearSession, titleVisibility: .visible) {
@@ -248,6 +282,7 @@ struct ReaderView: View {
   }
   private func savePosition() {
     guard loadedGeneration == session.generation, let page else { return }
+    readingPages.pages.forEach { session.pages.store($0) }
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
   }
@@ -268,10 +303,11 @@ struct ReaderView: View {
     session.beginBrowsing()
     presentation = .browser(target)
   }
-  private func reload() { guard !purchasing else { return }; savePosition(); forceNextLoad = true; requestID = UUID() }
+  private func reload() { guard !purchasing else { return }; savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL) {
     guard !purchasing, session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
     savePosition()
+    cancelAdjacent()
     forceNextLoad = false
     url = target
     requestID = UUID()
@@ -285,11 +321,11 @@ struct ReaderView: View {
     media = .video(url, block.direct, session.site.base)
   }
   private func buy(_ offer: SouthPurchaseOffer) {
-    guard !loading else { return }
+    guard !loading, edgeLoading == nil else { return }
     startPurchase(selected: offer)
   }
-  private func startPurchase(selected offer: SouthPurchaseOffer? = nil) {
-    guard !purchasing, let page else { return }
+  private func startPurchase(selected offer: SouthPurchaseOffer? = nil, in source: ForumPage? = nil) {
+    guard !purchasing, let page = source ?? offer.flatMap({ readingPages.page(offering: $0) }) ?? self.page else { return }
     let blocked = library.document.blockedAuthorIDs
     guard offer != nil || (session.site == .south && page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree)) else { return }
     purchasing = true
@@ -302,11 +338,15 @@ struct ReaderView: View {
         let update: SouthPurchaseService.Update = { fresh in
           guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
           let position = visibleID
-          let merged = fresh.preservingPurchaseContent(from: self.page ?? page)
-          self.page = merged; url = merged.url
+          let merged = fresh.preservingPurchaseContent(from: readingPages.page(for: fresh.url) ?? page)
+          readingPages.replace(merged)
+          readingPages.trim(keeping: current)
           session.pages.store(merged)
-          session.pages.savePosition(position, for: merged.url)
-          library.remember(merged, session: session, checkMaximum: false)
+          if SitePolicy.pageCacheKey(current) == SitePolicy.pageCacheKey(merged.url) {
+            self.page = merged; url = merged.url
+            session.pages.savePosition(position, for: merged.url)
+            library.remember(merged, session: session, checkMaximum: false)
+          }
         }
         var result = try await session.purchaseContent(in: page, selected: offer, excludingAuthors: blocked, onUpdate: update)
         if offer != nil, result.message == nil, result.page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree) {
@@ -328,7 +368,7 @@ struct ReaderView: View {
     error = nil
     defer { if requestID == expected { loading = false } }
     if !force, let cached = session.pages.value(for: current) {
-      page = cached.page; url = cached.page.url; loadedGeneration = epoch
+      page = cached.page; readingPages.reset(cached.page); url = cached.page.url; loadedGeneration = epoch
       library.remember(cached.page, session: session, checkMaximum: false)
       startPurchase()
       return cached.visibleID
@@ -338,13 +378,84 @@ struct ReaderView: View {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       posters.cancel()
       loadedGeneration = epoch
-      page = parsed; url = parsed.url; library.remember(parsed, session: session)
+      page = parsed; readingPages.reset(parsed); url = parsed.url; library.remember(parsed, session: session)
       startPurchase()
     } catch {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       self.error = error.localizedDescription
     }
     return nil
+  }
+  private func checkEdgeDrag() {
+    guard isVisible, !loading, !purchasing, edgeLoading == nil, error == nil else { return }
+    if let edge = edgeTrigger.update(topPull: Double(edgePull.top), bottomPull: Double(edgePull.bottom),
+                                    interacting: scrollPhase == .interacting,
+                                    previous: readingPages.target(.previous) != nil, next: readingPages.target(.next) != nil) {
+      loadAdjacent(edge)
+    }
+  }
+  private func loadAdjacent(_ edge: ReaderEdge) {
+    guard !loading, !purchasing, edgeLoading == nil, let target = readingPages.target(edge) else { return }
+    edgeFailure = nil
+    edgeLoading = edge
+    let token = UUID()
+    edgeRequestID = token
+    let epoch = session.generation
+    let expected = requestID
+    edgeTask = Task { @MainActor in
+      defer {
+        if edgeRequestID == token {
+          edgeTask = nil
+          if pendingPage == nil { edgeLoading = nil }
+        }
+      }
+      do {
+        let incoming: ForumPage
+        if let cached = session.pages.value(for: target) { incoming = cached.page }
+        else { incoming = try await session.load(target) }
+        guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
+        guard SitePolicy.pageCacheKey(incoming.url) == SitePolicy.pageCacheKey(target), incoming.kind == page?.kind else { throw ReaderFailure.unsupported }
+        pendingPage = incoming
+        if scrollPhase == .idle { applyAdjacentPage() }
+      } catch {
+        guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
+        edgeFailure = ReaderEdgeFailure(edge: edge, message: error.localizedDescription)
+      }
+    }
+  }
+  private func applyAdjacentPage() {
+    guard let incoming = pendingPage, let edge = edgeLoading, let page else { return }
+    // Commit only after the drag/bounce ends, keeping a real content ID pinned.
+    // New pages reuse existing post/block identities instead of rebuilding them.
+    let visible = library.document.visibleContent(in: readingPages.combined(active: page))
+    let fallback = visible.posts.first?.id ?? visible.entries.first?.id
+    let anchor = visibleID.flatMap { $0 == "top" ? fallback : $0 } ?? fallback
+    let protected = readingPages.page(containing: anchor)?.url ?? (fallback == nil ? incoming.url : page.url)
+    var updated = readingPages
+    guard updated.insert(incoming, at: edge, keeping: protected) else {
+      pendingPage = nil; edgeLoading = nil
+      edgeFailure = ReaderEdgeFailure(edge: edge, message: "Could not join this page. Try again.")
+      return
+    }
+    session.pages.store(updated.page(for: incoming.url) ?? incoming)
+    let active = updated.page(for: protected) ?? page
+    let changedPage = SitePolicy.pageCacheKey(current) != SitePolicy.pageCacheKey(active.url)
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      visibleID = anchor
+      readingPages = updated
+      self.page = active; url = active.url
+      pendingPage = nil
+      edgeLoading = nil
+    }
+    if changedPage { library.remember(active, session: session, checkMaximum: false) }
+    if readingPages.page(for: incoming.url) != nil { startPurchase(in: incoming) }
+  }
+  private func cancelAdjacent() {
+    edgeRequestID = UUID()
+    edgeTask?.cancel(); edgeTask = nil
+    pendingPage = nil; edgeLoading = nil; edgeFailure = nil
   }
 }
 

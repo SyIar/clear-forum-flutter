@@ -59,7 +59,7 @@ final class PageCache {
   }
 }
 
-private extension ForumPage {
+extension ForumPage {
   var estimatedCacheCost: Int {
     func string(_ value: String) -> Int { value.utf8.count * 2 + 64 }
     func link(_ value: URL?) -> Int { value.map { string($0.absoluteString) } ?? 0 }
