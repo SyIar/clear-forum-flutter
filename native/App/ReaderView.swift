@@ -55,6 +55,12 @@ struct ReaderView: View {
   }
   var body: some View {
     ScrollViewReader { proxy in
+      presentedReader(proxy: proxy)
+    }
+    .environmentObject(library)
+    .environmentObject(session)
+  }
+  private var scrollingReader: some View {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
           Color.clear.frame(height: 0).id("top")
@@ -114,7 +120,8 @@ struct ReaderView: View {
       }
       .background(Color(uiColor: .systemGroupedBackground))
       .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? "Author threads" : page?.kind == .posts ? "Thread" : "Forums").navigationBarTitleDisplayMode(.inline)
-      .toolbar {
+  }
+  @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
           Button("Home", systemImage: "house", action: home)
           Button("Bookmark", systemImage: library.contains(current) ? "bookmark.fill" : "bookmark") {
@@ -139,7 +146,9 @@ struct ReaderView: View {
         ToolbarItem(placement: .bottomBar) {
           Button("Refresh", systemImage: "arrow.clockwise") { reload() }.disabled(loading || purchasing)
         }
-      }
+  }
+  private func activeReader(proxy: ScrollViewProxy) -> some View {
+    scrollingReader.toolbar { readerToolbar }
       .sheet(isPresented: $selectingPage) {
         if let page = displayPage { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
       }
@@ -201,6 +210,9 @@ struct ReaderView: View {
         // Keep the immediate return destination while its media viewer is open.
         if !isVisible && media == nil { page = nil; readingPages.reset(); cancelAdjacent(); completedRequestID = nil; posters.cancel() }
       }
+  }
+  private func routedReader(proxy: ScrollViewProxy) -> some View {
+    activeReader(proxy: proxy)
       .navigationDestination(item: $destination) { item in
         // A pushed destination is hosted by NavigationStack, outside the source
         // destination's environment scope. Carry the same site objects explicitly.
@@ -226,6 +238,9 @@ struct ReaderView: View {
       }
       .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
       .navigationDestination(item: $gofile) { item in GofileBrowserView(url: item.url) }
+  }
+  private func presentedReader(proxy: ScrollViewProxy) -> some View {
+    routedReader(proxy: proxy)
       .fullScreenCover(item: $presentation) { item in
         ReaderController(presentation: item, session: session) { captured in
           presentation = nil
@@ -260,9 +275,6 @@ struct ReaderView: View {
         Button("OK", role: .cancel) { library.error = nil }
       } message: { Text(library.error ?? "") }
       .background(ExternalBrowserPresenter(url: $external).frame(width: 0, height: 0))
-    }
-    .environmentObject(library)
-    .environmentObject(session)
   }
   @ViewBuilder private func directoryEntries(in page: ForumPage) -> some View {
     if session.site == .south, page.kind == .threads {

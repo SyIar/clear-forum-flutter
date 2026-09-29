@@ -23,6 +23,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
   private var generation = 0
   private var timer: Task<Void, Never>?
   private var transfers: [String: GofileFileTransfer] = [:]
+  private var downloadedFiles: Set<URL> = []
   private var thumbnailTransfers: [UUID: GofileFileTransfer] = [:]
   private let thumbnails = NSCache<NSString, UIImage>()
   private var cookies: [HTTPCookie] = []
@@ -175,6 +176,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
         self.transfers[entry.id] = nil
         switch result {
         case .success(let file):
+          self.downloadedFiles.insert(file)
           self.downloads[entry.id] = .init(file: file)
           if self.preview == nil && self.export == nil && self.video == nil && !self.showingWebsite {
             if previewWhenReady { self.preview = GofileLocalFile(url: file) }
@@ -242,7 +244,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
   deinit {
     timer?.cancel()
     Array(transfers.values).forEach { $0.cancel() }; Array(thumbnailTransfers.values).forEach { $0.cancel() }
-    downloads.values.compactMap(\.file).forEach(GofileFileTransfer.remove)
+    downloadedFiles.forEach(GofileFileTransfer.remove)
   }
 }
 
