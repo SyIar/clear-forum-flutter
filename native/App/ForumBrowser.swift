@@ -99,7 +99,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     guard !capturing, let url = webView.url, site.accepts(url) else { notice("Open a forum or thread before choosing Read page."); return }
     capturing = true
     // Keep login/logout structure for the parser, but never copy entered form values.
-    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,textarea,select,svg,noscript').forEach(e=>e.remove());root.querySelectorAll('input').forEach(e=>{const marker=document.createElement('input');for(const name of ['name','type']){if(e.hasAttribute(name))marker.setAttribute(name,e.getAttribute(name));}e.replaceWith(marker);});return {url:location.href,html:root.outerHTML};})()"#
+    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,textarea,select,svg,noscript').forEach(e=>e.remove());root.querySelectorAll('input').forEach(e=>{const marker=document.createElement('input');for(const name of ['name','type']){if(e.hasAttribute(name))marker.setAttribute(name,e.getAttribute(name));}e.replaceWith(marker);});return {url:location.href,html:root.outerHTML,hasPurchases:!!root.querySelector('h6.quote.jumbotron input[type=button]')};})()"#
     webView.evaluateJavaScript(script) { [weak self] value, error in
       guard let self = self else { return }
       self.capturing = false

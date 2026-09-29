@@ -38,7 +38,7 @@ struct TextRun {
   var url: URL?
   var emoticon: URL?
 }
-enum BlockKind { case paragraph, quote, spoiler, code, image, link, media }
+enum BlockKind { case paragraph, quote, spoiler, code, image, link, media, purchase }
 struct BodyBlock: Identifiable {
   let id = UUID()
   var kind: BlockKind
@@ -50,6 +50,7 @@ struct BodyBlock: Identifiable {
   var original: URL?
   var aspectRatio: Double?
   var direct = false
+  var purchase: SouthPurchaseOffer?
 }
 struct ForumPost: Identifiable {
   let id: String

@@ -22,6 +22,9 @@ struct ReaderView: View {
   @State private var clearSession = false
   @State private var destination: ReaderDestination?
   @State private var external: URL?
+  @State private var purchasing = false
+  @State private var purchaseMessage: String?
+  @State private var purchaseTask: Task<Void, Never>?
   @StateObject private var posters = PosterStore()
   private var current: URL { url ?? initialURL }
   init(initialURL: URL, library: LibraryStore, session: ForumSession, home: @escaping () -> Void) {
@@ -60,7 +63,7 @@ struct ReaderView: View {
             Text(page.loggedIn.map { $0 ? "Signed in" : "Guest" } ?? "Clean view").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 4)
             if page.kind == .posts {
               ForEach(page.posts) { post in
-                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }).id(post.id)
+                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }, purchase: buy, purchasing: purchasing || loading).id(post.id)
               }
             } else {
               ForEach(page.entries) { entry in
@@ -86,18 +89,18 @@ struct ReaderView: View {
             Button("Site browser", systemImage: "globe") { openBrowser(current) }
             Button("Sign in", systemImage: "person.crop.circle") { openBrowser(session.site.login) }
             Button("Clear session", systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
-          } label: { Image(systemName: "ellipsis") }
+          } label: { Image(systemName: "ellipsis") }.disabled(purchasing)
         }
         ToolbarItemGroup(placement: .bottomBar) {
-          Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading)
+          Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
             Text("Page \(page?.pageNumber ?? 1)").font(.subheadline.weight(.semibold)).monospacedDigit()
-          }.disabled(page == nil || loading || page?.pageCount == 1).accessibilityLabel("Choose page")
-          Button("Next page", systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading)
+          }.disabled(page == nil || loading || purchasing || page?.pageCount == 1).accessibilityLabel("Choose page")
+          Button("Next page", systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
-          Button("Refresh", systemImage: "arrow.clockwise") { reload() }.disabled(loading)
+          Button("Refresh", systemImage: "arrow.clockwise") { reload() }.disabled(loading || purchasing)
         }
       }
       .sheet(isPresented: $selectingPage) {
@@ -123,7 +126,7 @@ struct ReaderView: View {
         isVisible = true
         if page == nil { completedRequestID = nil; requestID = UUID() }
       }
-      .onDisappear { savePosition(); isVisible = false }
+      .onDisappear { purchaseTask?.cancel(); savePosition(); isVisible = false }
       .onChange(of: visibleID) { _, value in
         if !loading, let page { session.pages.savePosition(value, for: page.url) }
       }
@@ -148,6 +151,10 @@ struct ReaderView: View {
           loadedGeneration = session.generation
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              session.site.accepts(target), let html = captured["html"] as? String {
+            if session.site == .south, captured["hasPurchases"] as? Bool == true {
+              url = target; page = nil; reload()
+              return
+            }
             do {
               let parsed = try ForumParser().parse(html, url: target)
               requestID = UUID(); completedRequestID = requestID; forceNextLoad = false; loading = false
@@ -164,6 +171,9 @@ struct ReaderView: View {
       .confirmationDialog("Clear forum session?", isPresented: $clearSession, titleVisibility: .visible) {
         Button("Clear session", role: .destructive) { Task { await session.clear(); reload() } }
       }
+      .alert("Purchase", isPresented: Binding(get: { purchaseMessage != nil }, set: { if !$0 { purchaseMessage = nil } })) {
+        Button("OK", role: .cancel) { purchaseMessage = nil }
+      } message: { Text(purchaseMessage ?? "") }
       .background(ExternalBrowserPresenter(url: $external).frame(width: 0, height: 0))
     }
     .environmentObject(library)
@@ -175,13 +185,13 @@ struct ReaderView: View {
     session.pages.savePosition(visibleID, for: page.url)
   }
   private func openBrowser(_ target: URL) {
-    guard session.site.sameOrigin(target) else { return }
+    guard !purchasing, session.site.sameOrigin(target) else { return }
     session.beginBrowsing()
     presentation = .browser(target)
   }
-  private func reload() { savePosition(); forceNextLoad = true; requestID = UUID() }
+  private func reload() { guard !purchasing else { return }; savePosition(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL) {
-    guard session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+    guard !purchasing, session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
     savePosition()
     forceNextLoad = false
     url = target
@@ -195,19 +205,54 @@ struct ReaderView: View {
     guard let url = block.url, MediaPolicy.allowed(url) else { return }
     media = .video(url, block.direct, session.site.base)
   }
+  private func buy(_ offer: SouthPurchaseOffer) {
+    guard !purchasing, !loading, let page else { return }
+    purchasing = true
+    purchaseMessage = nil
+    let expected = requestID
+    let epoch = session.generation
+    let position = visibleID
+    purchaseTask = Task { @MainActor in
+      defer { purchasing = false; purchaseTask = nil }
+      do {
+        var result = try await session.purchaseContent(in: page, selected: offer)
+        if result.message == nil, result.page.purchaseOffers.contains(where: \.isFree) {
+          result = try await session.purchaseContent(in: result.page)
+        }
+        guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
+        self.page = result.page; url = result.page.url
+        session.pages.store(result.page)
+        visibleID = position
+        library.remember(result.page, session: session, checkMaximum: false)
+        purchaseMessage = result.message
+      } catch {
+        guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
+        purchaseMessage = error.localizedDescription
+      }
+    }
+  }
   @MainActor private func load(force: Bool) async -> String? {
+    guard !purchasing else { return visibleID }
     let expected = requestID
     let epoch = session.generation
     loading = true
     error = nil
     defer { if requestID == expected { loading = false } }
-    if !force, let cached = session.pages.value(for: current) {
+    if !force, let cached = session.pages.value(for: current), !cached.page.purchaseOffers.contains(where: \.isFree) {
       page = cached.page; url = cached.page.url; loadedGeneration = epoch
       library.remember(cached.page, session: session, checkMaximum: false)
       return cached.visibleID
     }
     do {
-      let parsed = try await session.load(current, cacheResult: true)
+      var parsed = try await session.load(current, cacheResult: true)
+      if session.site == .south, parsed.purchaseOffers.contains(where: \.isFree) {
+        page = parsed; url = parsed.url; loadedGeneration = epoch
+        purchasing = true
+        defer { purchasing = false }
+        let result = try await session.purchaseContent(in: parsed)
+        parsed = result.page
+        if !Task.isCancelled, expected == requestID, epoch == session.generation { purchaseMessage = result.message }
+      }
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       posters.cancel()
       loadedGeneration = epoch

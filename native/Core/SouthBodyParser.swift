@@ -24,6 +24,11 @@ struct SouthBodyParser {
       }
       guard let node = node as? Element else { return }
       let tag = node.tagName()
+      if let purchase = SouthPurchase.offer(node, page: page) {
+        flush()
+        blocks.append(BodyBlock(kind: .purchase, purchase: purchase))
+        return
+      }
       if ["script", "style", "object", "embed", "form", "input", "textarea", "select", "svg", "noscript"].contains(tag) ||
           node.hasAttr("hidden") || node.hasAttr("data-ad") || node.hasAttr("data-ad-slot") ||
           ["advertisement", "ad-container", "adContainer", "ad-block", "adsbygoogle", "sponsor"].contains(where: node.hasClass) { return }

@@ -47,6 +47,11 @@ final class PageCache {
     entries[SitePolicy.pageCacheKey(url)]?.snapshot.visibleID = id
   }
   func removeAll() { entries.removeAll(); order.removeAll(); totalCost = 0 }
+  func removeThread(_ url: URL) {
+    guard let root = SitePolicy.threadRoot(url) else { return }
+    let keys = entries.filter { SitePolicy.threadRoot($0.value.snapshot.page.url) == root }.map(\.key)
+    keys.forEach(remove)
+  }
   private func touch(_ key: String) { order.removeAll { $0 == key }; order.append(key) }
   private func remove(_ key: String) {
     if let old = entries.removeValue(forKey: key) { totalCost -= old.cost }
@@ -61,6 +66,7 @@ private extension ForumPage {
     func tags(_ values: [ForumTag]) -> Int { values.reduce(0) { $0 + string($1.title) + link($1.url) + 128 } }
     func block(_ value: BodyBlock) -> Int {
       var cost = 256 + string(value.label) + link(value.url) + link(value.poster) + link(value.original)
+      if let purchase = value.purchase { cost += 256 + link(purchase.action) }
       for run in value.runs { cost += string(run.text) + link(run.url) + link(run.emoticon) + 96 }
       for child in value.children { cost += block(child) }
       return cost

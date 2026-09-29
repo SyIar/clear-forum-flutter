@@ -9,6 +9,7 @@ final class ForumSession: ObservableObject {
   let browserUserAgent: String
   let images = ImageStore()
   let pages = PageCache()
+  private let purchases = SouthPurchaseService()
   private var operations: [UUID: PageRequest] = [:]
   @Published private(set) var generation = 0
   private var memoryObserver: NSObjectProtocol?
@@ -108,6 +109,43 @@ final class ForumSession: ObservableObject {
     query.setValue(site.base.absoluteString, forHTTPHeaderField: "Referer")
     guard let (response, data) = try? await request(query, maxBytes: 2 * 1024 * 1024, htmlOnly: true), (200..<300).contains(response.statusCode) else { return nil }
     return String(data: data, encoding: .utf8)
+  }
+  func purchaseContent(in page: ForumPage, selected: SouthPurchaseOffer? = nil) async throws -> SouthPurchaseResult {
+    guard site == .south, site.accepts(page.url), !browserActive else { throw ReaderFailure.unsupported }
+    let epoch = generation
+    let read: SouthPurchaseService.Load = { [self] url in
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      return try await load(url, cacheResult: true)
+    }
+    let submit: SouthPurchaseService.Submit = { [self] offer, url in
+      let cookies = await store.httpCookieStore.allCookies()
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      let query = try SouthPurchase.request(offer, page: url, userAgent: browserUserAgent, cookies: cookies)
+      pages.removeThread(url)
+      // PageRequest never follows redirects or replays the mutation automatically.
+      let (response, _) = try await request(query, maxBytes: 2 * 1024 * 1024)
+      try Task.checkCancellation()
+      guard generation == epoch, !browserActive else { throw CancellationError() }
+      var headers: [String: String] = [:]
+      for (key, value) in response.allHeaderFields { headers[String(describing: key)] = String(describing: value) }
+      for cookie in HTTPCookie.cookies(withResponseHeaderFields: headers, for: offer.action).filter({ site.domainMatches($0) }) {
+        guard generation == epoch, !browserActive else { throw CancellationError() }
+        if cookie.expiresDate.map({ $0 <= Date() }) ?? false { await store.httpCookieStore.deleteCookie(cookie) }
+        else { await store.httpCookieStore.saveCookie(cookie) }
+      }
+      if response.statusCode == 429 { throw ReaderFailure.rateLimit }
+      if response.statusCode == 401 { throw ReaderFailure.login }
+      if response.statusCode == 403 { throw ReaderFailure.forbidden }
+      guard (200..<400).contains(response.statusCode) else { throw ReaderFailure.network }
+      if let location = response.value(forHTTPHeaderField: "Location") {
+        guard let target = SouthSitePolicy.resolve(location, from: offer.action), site.sameOrigin(target) else { throw ReaderFailure.unsupported }
+        if site.isLogin(target) { throw ReaderFailure.login }
+      }
+    }
+    if let selected { return try await purchases.buy(selected, page: page, load: read, submit: submit) }
+    return try await purchases.unlockFree(in: page, load: read, submit: submit)
   }
   func maximumPostNumber(from initial: ForumPage) async throws -> Int {
     guard site.accepts(initial.url), let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }

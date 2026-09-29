@@ -77,6 +77,8 @@ struct PostCard: View {
   let navigate: (URL) -> Void
   let play: (BodyBlock) -> Void
   let openImage: (ImageViewerSource) -> Void
+  let purchase: (SouthPurchaseOffer) -> Void
+  let purchasing: Bool
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
@@ -95,7 +97,7 @@ struct PostCard: View {
         if !post.number.isEmpty { Text(post.number).font(.caption.weight(.semibold)).foregroundStyle(.blue) }
       }
       Divider()
-      RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: openImage)
+      RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: openImage, purchase: purchase, purchasing: purchasing)
     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
       .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.05)))
@@ -136,6 +138,8 @@ struct RichBodyView: View {
   let navigate: (URL) -> Void
   let play: (BodyBlock) -> Void
   let openImage: (ImageViewerSource) -> Void
+  let purchase: (SouthPurchaseOffer) -> Void
+  let purchasing: Bool
   private var groups: [BodyGroup] {
     var result: [BodyGroup] = []
     var images: [BodyBlock] = []
@@ -182,17 +186,29 @@ struct RichBodyView: View {
         RoundedRectangle(cornerRadius: 2).fill(.blue.opacity(0.4)).frame(width: 3)
         VStack(alignment: .leading, spacing: 6) {
           if !block.label.isEmpty { Text(block.label).font(.caption.bold()).foregroundStyle(.secondary) }
-          AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage))
+          AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage, purchase: purchase, purchasing: purchasing))
         }
       }.padding(10).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
     case .spoiler:
       DisclosureGroup(block.label) {
-        AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage)).padding(.top, 8)
+        AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage, purchase: purchase, purchasing: purchasing)).padding(.top, 8)
       }.font(.subheadline)
     case .code:
       ScrollView(.horizontal) { Text(block.label).font(.system(.caption, design: .monospaced)).textSelection(.enabled).padding(10) }
         .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
     case .image: EmptyView()
+    case .purchase:
+      if let offer = block.purchase {
+        HStack(spacing: 12) {
+          Image(systemName: "lock.fill").foregroundStyle(.secondary)
+          Text("\(offer.priceText) SP").font(.subheadline.weight(.semibold))
+          Spacer(minLength: 0)
+          Button { purchase(offer) } label: {
+            if purchasing { ProgressView().controlSize(.small) }
+            else { Text(offer.isFree ? "Unlock free" : "Buy for \(offer.priceText) SP") }
+          }.buttonStyle(.glass).disabled(purchasing)
+        }.padding(12).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+      }
     }
   }
   private func standaloneLink(_ runs: [TextRun]) -> URL? {

@@ -3,7 +3,7 @@ import SwiftSoup
 
 // PHPWind post structure verified against user-supplied South HTML.
 struct SouthForumParser {
-  private let unwanted = "script,style,object,embed,input,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]"
+  private let unwanted = "script,style,object,embed,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]"
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
   private func first(_ root: Element, _ selector: String) -> Element? { try? root.select(selector).first() }
   private func attr(_ node: Element?, _ name: String) -> String { (try? node?.attr(name)) ?? "" }
