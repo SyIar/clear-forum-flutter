@@ -28,8 +28,14 @@ struct ReaderView: View {
   @State private var authorSelection: SouthAuthorSelection?
   @State private var showingAuthorActions = false
   @State private var showingBlockedAuthors = false
+  @State private var showingPinnedThreads = false
+  @State private var selectedPinnedThread: URL?
   @StateObject private var posters = PosterStore()
   private var current: URL { url ?? initialURL }
+  private var pinnedThreads: [ForumEntry] {
+    guard session.site == .south, let page, page.kind == .threads else { return [] }
+    return library.document.visibleContent(in: page).entries.filter(\.pinned)
+  }
   init(initialURL: URL, library: LibraryStore, session: ForumSession, home: @escaping () -> Void) {
     self.initialURL = initialURL
     self.library = library
@@ -77,9 +83,7 @@ struct ReaderView: View {
               }
               if visible.posts.isEmpty { ContentUnavailableView("No visible replies", systemImage: "person.slash") }
             } else {
-              ForEach(visible.entries) { entry in
-                ForumEntryCard(entry: entry, isForum: page.kind == .forums, navigate: navigate).id(entry.id)
-              }
+              directoryEntries(in: visible)
               if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? "No threads yet" : "No visible threads", systemImage: "tray") }
             }
           } else { ProgressView("Loading page...").frame(maxWidth: .infinity).padding(.top, 100) }
@@ -118,6 +122,16 @@ struct ReaderView: View {
       .sheet(isPresented: $selectingPage) {
         if let page { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
       }
+      .sheet(isPresented: $showingPinnedThreads, onDismiss: {
+        guard let target = selectedPinnedThread else { return }
+        selectedPinnedThread = nil
+        navigate(target)
+      }) {
+        SouthPinnedThreadsView(entries: pinnedThreads) { target in
+          selectedPinnedThread = target
+          showingPinnedThreads = false
+        }
+      }
       .overlay(alignment: .top) { if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) } }
       .task(id: requestID) {
         guard completedRequestID != requestID else { return }
@@ -131,7 +145,8 @@ struct ReaderView: View {
         guard error == nil else { return }
         let anchor = force ? previousID ?? "top" : current.fragment ?? restoredID ?? "top"
         let visible = page.map { library.document.visibleContent(in: $0) }
-        if anchor != "top", visible?.posts.contains(where: { $0.id == anchor }) == true || visible?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && visible?.poll != nil) { visibleID = anchor }
+        if pinnedThreads.dropFirst(2).contains(where: { $0.id == anchor }) { visibleID = "south-pinned-more" }
+        else if anchor != "top", visible?.posts.contains(where: { $0.id == anchor }) == true || visible?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && visible?.poll != nil) { visibleID = anchor }
         else if let entry = visible?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
         else { visibleID = "top"; proxy.scrollTo("top", anchor: .top) }
       }
@@ -205,6 +220,31 @@ struct ReaderView: View {
     }
     .environmentObject(library)
     .environmentObject(session)
+  }
+  @ViewBuilder private func directoryEntries(in page: ForumPage) -> some View {
+    if session.site == .south, page.kind == .threads {
+      let pinned = page.entries.filter(\.pinned)
+      ForEach(pinned.prefix(2)) { entry in
+        ForumEntryCard(entry: entry, isForum: false, navigate: navigate).id(entry.id)
+      }
+      if pinned.count > 2 {
+        HStack {
+          Spacer()
+          Button { selectedPinnedThread = nil; showingPinnedThreads = true } label: {
+            Image(systemName: "ellipsis").font(.headline).frame(width: 40, height: 28)
+          }.buttonStyle(.glass).buttonBorderShape(.capsule)
+            .disabled(loading).accessibilityLabel("Show all \(pinned.count) pinned threads")
+          Spacer()
+        }.id("south-pinned-more")
+      }
+      ForEach(page.entries.filter { !$0.pinned }) { entry in
+        ForumEntryCard(entry: entry, isForum: false, navigate: navigate).id(entry.id)
+      }
+    } else {
+      ForEach(page.entries) { entry in
+        ForumEntryCard(entry: entry, isForum: page.kind == .forums, navigate: navigate).id(entry.id)
+      }
+    }
   }
   private func savePosition() {
     guard loadedGeneration == session.generation, let page else { return }
