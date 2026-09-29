@@ -150,7 +150,8 @@ final class ForumSession: ObservableObject {
   func maximumPostNumber(from initial: ForumPage) async throws -> Int {
     guard site.accepts(initial.url), let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }
     var page = initial
-    if URLComponents(url: page.url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "order" }) == true,
+    let filteredAuthor = SouthSitePolicy.authorID(page.url) != nil
+    if filteredAuthor || URLComponents(url: page.url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "order" }) == true,
        let root = SitePolicy.threadRoot(page.url) { page = try await load(root) }
     // Follow the last-page link, including a page added while this request is in flight.
     for attempt in 0..<3 {

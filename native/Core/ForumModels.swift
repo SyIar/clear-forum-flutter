@@ -60,6 +60,7 @@ struct ForumPost: Identifiable {
   var blocks: [BodyBlock]
   var authorID: String?
   var avatar: URL?
+  var authorFilterURL: URL?
 }
 struct ForumPage {
   var url: URL

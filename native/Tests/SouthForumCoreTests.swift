@@ -49,7 +49,7 @@ final class SouthForumCoreTests: XCTestCase {
     XCTAssertNil(SouthSitePolicy.pageURL(legacy, number: 100_000))
   }
   func testRejectsActionsAmbiguousParametersAndForeignOrigins() {
-    for address in ["login.php?action=quit", "post.php?tid=20", "read.php?tid=20&action=delete", "read.php?tid=20&tid=30", "read.php?tid-20-tid-30.html", "thread.php?fid=9&page=-1", "read.php?tid-20-page-0.html", "read.php?tid=20&uid=2", "read.php?tid-20-extra.html", "https://south-plus.net.evil.example/read.php?tid=20", "https://user@south-plus.net/read.php?tid=20", "https://south-plus.net:8443/read.php?tid=20", "javascript:alert(1)"] {
+    for address in ["login.php?action=quit", "post.php?tid=20", "read.php?tid=20&action=delete", "read.php?tid=20&tid=30", "read.php?tid-20-tid-30.html", "thread.php?fid=9&page=-1", "read.php?tid-20-page-0.html", "read.php?tid=20&uid=0", "read.php?tid-20-extra.html", "https://south-plus.net.evil.example/read.php?tid=20", "https://user@south-plus.net/read.php?tid=20", "https://south-plus.net:8443/read.php?tid=20", "javascript:alert(1)"] {
       XCTAssertFalse(SouthSitePolicy.readable(url(address)), address)
     }
   }

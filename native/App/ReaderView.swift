@@ -66,7 +66,9 @@ struct ReaderView: View {
                 SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
               }
               ForEach(page.posts) { post in
-                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }, purchase: buy, purchasing: purchasing || loading).id(post.id)
+                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }, purchase: buy,
+                         purchasing: purchasing || loading,
+                         authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false).id(post.id)
               }
             } else {
               ForEach(page.entries) { entry in

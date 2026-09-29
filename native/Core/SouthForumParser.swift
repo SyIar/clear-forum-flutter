@@ -56,7 +56,8 @@ struct SouthForumParser {
         let blocks = try SouthBodyParser().parseBody(body, page: url)
         guard !blocks.isEmpty else { continue }
         posts.append(ForumPost(id: id, author: identity.name.isEmpty ? "Member" : identity.name, date: date,
-                              number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar))
+                              number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar,
+                              authorFilterURL: authorFilter(container, page: url, authorID: identity.id)))
       }
       guard !posts.isEmpty else { throw ReaderFailure.unsupported }
     }
@@ -99,8 +100,12 @@ struct SouthForumParser {
     let next = pageLinks.first { SouthSitePolicy.pageNumber($0) == number + 1 } ?? (knownCount > number ? SouthSitePolicy.pageURL(url, number: number + 1) : nil)
     let previous = pageLinks.first { SouthSitePolicy.pageNumber($0) == number - 1 } ?? (number > 1 ? SouthSitePolicy.pageURL(url, number: number - 1) : nil)
     // A missing pager is not proof that this is the last page.
-    let explicitLast = navigation.contains { attr($0, "rel").split(separator: " ").contains("last") && target($0, page: url).map(SouthSitePolicy.pageNumber) == number }
-    let maximumIsKnown = thread && next == nil && (declaredTotals.contains(number) || explicitLast)
+    let explicitLast = navigation.contains { node in
+      guard attr(node, "rel").split(separator: " ").contains("last"), let link = target(node, page: url) else { return false }
+      return SouthSitePolicy.pageRoot(link) == SouthSitePolicy.pageRoot(url) && SouthSitePolicy.pageNumber(link) == number
+    }
+    // An author's final reply is not the thread's latest floor.
+    let maximumIsKnown = thread && SouthSitePolicy.authorID(url) == nil && next == nil && (declaredTotals.contains(number) || explicitLast)
     let maximum = maximumIsKnown ? posts.compactMap { Int($0.number.dropFirst()) }.max() : nil
     let heading = first(doc, thread ? "#subject_tpc,h1.thread-title,h1" : "h1,.forum-title,#thread-title")
     let fallbackTitle = breadcrumbs.last?.title ?? pageTitle.components(separatedBy: " - ").first ?? "Forum"
@@ -153,6 +158,17 @@ struct SouthForumParser {
       return match(uid, #"^([0-9]+)$"#)
     }
     return match(url.query ?? "", #"(?:^|-)uid-([0-9]+)(?:-|\.html$)"#)
+  }
+  private func authorFilter(_ container: Element, page: URL, authorID: String?) -> URL? {
+    for anchor in links(container, ".tiptop a[href]") {
+      // Quotes and body markup cannot supply a post-header action.
+      guard !anchor.parents().contains(where: { $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") || $0.tagName() == "blockquote" }),
+            let link = target(anchor, page: page), let uid = SouthSitePolicy.authorID(link),
+            SouthSitePolicy.threadKey(link) == SouthSitePolicy.threadKey(page),
+            authorID == nil || uid == authorID else { continue }
+      return SouthSitePolicy.pageURL(link, number: 1)
+    }
+    return nil
   }
   private func postDate(_ container: Element) -> String {
     let candidates = links(container, "time,.tiptop span[title],.tiptop span.gray,.post-date,.post-time")

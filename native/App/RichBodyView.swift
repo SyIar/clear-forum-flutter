@@ -79,6 +79,7 @@ struct PostCard: View {
   let openImage: (ImageViewerSource) -> Void
   let purchase: (SouthPurchaseOffer) -> Void
   let purchasing: Bool
+  var authorFilterActive = false
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
@@ -94,6 +95,14 @@ struct PostCard: View {
           }
         }
         Spacer(minLength: 8)
+        if let target = post.authorFilterURL {
+          Button { navigate(target) } label: {
+            Image(systemName: "scope").font(.system(size: 17, weight: .medium)).frame(width: 30, height: 30)
+          }.buttonStyle(.glass).buttonBorderShape(.circle)
+            .disabled(purchasing || authorFilterActive)
+            .accessibilityLabel("Only posts by \(post.author)")
+            .accessibilityValue(authorFilterActive ? "Active" : "")
+        }
         if !post.number.isEmpty { Text(post.number).font(.caption.weight(.semibold)).foregroundStyle(.blue) }
       }
       Divider()

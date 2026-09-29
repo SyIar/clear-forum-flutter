@@ -80,7 +80,7 @@ private extension ForumPage {
       cost += 256 + string(entry.title) + string(entry.subtitle) + link(entry.url) + link(entry.thumbnail) + tags(entry.tags)
     }
     for post in posts {
-      cost += 256 + string(post.id) + string(post.author) + string(post.date) + string(post.authorID ?? "") + link(post.avatar)
+      cost += 256 + string(post.id) + string(post.author) + string(post.date) + string(post.authorID ?? "") + link(post.avatar) + link(post.authorFilterURL)
       for body in post.blocks { cost += block(body) }
     }
     return cost

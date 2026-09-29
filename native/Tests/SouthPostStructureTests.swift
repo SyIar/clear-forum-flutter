@@ -51,6 +51,7 @@ final class SouthPostStructureTests: XCTestCase {
       XCTAssertEqual(value.blocks.count, 1)
       XCTAssertEqual(value.blocks.flatMap(\.runs).map(\.text).joined(), "Reply \(index)")
       XCTAssertNotNil(value.avatar)
+      XCTAssertEqual(value.authorFilterURL?.query, "tid-20-uid-\(100 + index).html")
     }
   }
   func testRelativeAndExternalAvatarsUseTheCorrectAuthor() throws {
@@ -70,6 +71,22 @@ final class SouthPostStructureTests: XCTestCase {
     XCTAssertEqual(value.authorID, "101")
     XCTAssertEqual(value.date, "2026-09-18 14:59")
     XCTAssertEqual(value.number, "#1")
+  }
+  func testAuthorFilterRejectsOtherThreadsAuthorsAndBodyLinks() throws {
+    let original = "read.php?tid-20-uid-101.html"
+    let quote = "<blockquote><div class='tiptop'><a href='\(original)'>Quoted action</a></div></blockquote>"
+    for replacement in ["read.php?tid-99-uid-101.html", "read.php?tid-20-uid-999.html",
+                        "read.php?tid-20-uid-0.html", "https://example.org/read.php?tid-20-uid-101.html", "#"] {
+      let html = post(1).replacingOccurrences(of: original, with: replacement)
+        .replacingOccurrences(of: "Reply 1", with: quote + "Reply 1")
+      XCTAssertNil(try parse(html).posts.first?.authorFilterURL, replacement)
+    }
+  }
+  func testAuthorFilterStartsAtFirstPageWithoutFragment() throws {
+    let html = post(1).replacingOccurrences(of: "read.php?tid-20-uid-101.html", with: "read.php?tid=20&amp;uid=101&amp;page=3#post_9001")
+    let target = try XCTUnwrap(parse(html).posts.first?.authorFilterURL)
+    XCTAssertEqual(target.query, "tid=20&uid=101")
+    XCTAssertNil(target.fragment)
   }
   func testEmojiAndMediaOnlyPostsAreNotConsideredEmpty() throws {
     let emoji = "<img src='images/post/smile/smallface/face077.gif'>"
