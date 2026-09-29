@@ -1,6 +1,6 @@
 # Native media viewer update
 
-Date: 2026-09-29. Implementation awaiting cloud compilation and physical-device acceptance.
+Date: 2026-09-29. Build 1018 compiled and packaged successfully. Physical-device acceptance remains with the user.
 
 ## Revised user request
 
@@ -34,3 +34,13 @@ Device acceptance:
 3. Test video scrubbing, native playback, web fallback, portrait/landscape and the app's immersive toggle. Check the group does not cover the scrubber. Test the system player's own full-screen transition separately.
 4. Download a compatible complete video, grant add-only permission and verify playback of the saved asset in Photos. Test denial, cancellation, leaving/reopening the viewer, a stale Turbo source and unsupported HLS/web-only sources.
 5. If downloading fails, open Details and use Copy after failure. Actual provider downloading and Photos success require this physical-device check; compilation does not establish those outcomes.
+
+## Verified delivery
+
+- Version `0.3.0 (1018)`, display name `forum lite`, unchanged bundle ID `dev.sylar.clearforum`.
+- Source `55a56489ffae4dba0ab36c5739c3a3bbc376ea42`.
+- [GitHub Actions run 36536066731](https://github.com/SyIar/clear-forum-flutter/actions/runs/36536066731) completed successfully: 60 Swift core tests, media checks, arm64 iPhoneOS Release compilation and packaging. No simulator was used.
+- Local IPA: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1018-unsigned.ipa`.
+- Size: `2,526,196` bytes. SHA-256: `90f8423f1e9bd817d9e8000de5bf6ff3273a87b8050e20ddf8e9c3a862d9ef87`.
+- Verified source/run metadata, checksum, ZIP CRC, version/bundle identity, add-only Photos usage description, arm64 device executable, app assets, MediaProbe resource, no Flutter runtime, and matching install-folder copy.
+- Not installed during this task. Swipe behavior, original-image display and real-provider download/Photos results require the user's device test.
