@@ -24,3 +24,12 @@ No cookies, account information, page captures, or thread media are bundled.
 The reported image reload after returning from video was intermittent and was not reproduced locally. These changes address two source-level lifecycle paths that could reset the page or image. Physical-device acceptance is still required; no simulator validation is performed.
 
 Core regression coverage includes older library migration, metadata persistence across changed slugs/pages, independent preservation of bookmark titles/read state, metadata pruning, safe tag destinations, and rejection of site logos as thread covers.
+
+## Verified delivery
+
+- Version `0.2.0 (1011)`, source `5142f9fbddaa6ad3dc375cf0dab486f19c7d575b`.
+- [macOS run 36520991873](https://github.com/SyIar/clear-forum-flutter/actions/runs/36520991873) passed all 24 Swift core tests, media probe/support checks, arm64 Release compilation and packaging.
+- IPA: `D:\workspace\sideloadly-setup\SimpLite-0.2.0-1011-unsigned.ipa`.
+- SHA-256: `10df7a9242a243139dac1810b08b2accdca500eddf3c5614ef487dc862f8aaf5`; size `3,520,723` bytes.
+- Verified source/run metadata, checksum, ZIP integrity, arm64 executable, bundle identity, display name/version, bundled `ForumLogo` asset and `MediaProbe.js`. No Flutter runtime is included. The install-folder copy has the same checksum.
+- Not installed during this task. Physical-device checks: existing bookmark/history covers and tag navigation; the simpler Home header in both appearances; icon-only fullscreen toggle; page 48 to video and back without image flicker. The intermittent reload report remains unconfirmed on-device.

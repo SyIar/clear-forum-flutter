@@ -17,7 +17,7 @@ Page ranges come from the forum's numbered navigation, next link and compact `da
 
 ## Memory lifecycle
 
-iOS memory warnings purge cached snapshots and decoded image cache entries, cancel image work, and release inactive reader models and poster tasks. The visible reader stays usable. Page network requests are also tied to their task cancellation. Existing image cache limits remain 80 entries / 64 MiB estimated decoded size under `NSCache`; iOS can evict those entries sooner.
+iOS memory warnings purge cached snapshots and decoded image cache entries, cancel image work, and release inactive reader models and poster tasks. The visible reader and a reader presenting its own image/video viewer keep their page models. Same-URL image tasks retain an already decoded image when the view reappears instead of resetting it to a loading placeholder. Page network requests are also tied to their task cancellation. Existing image cache limits remain 80 entries / 64 MiB estimated decoded size under `NSCache`; iOS can evict those entries sooner.
 
 This is a memory cache, not an offline archive: an evicted page, a new page or a page opened after app termination must be fetched again. Cached HTML, account cookies and media bodies are not written into a new disk cache. Bookmarks and reading history retain their existing storage independently.
 
