@@ -80,11 +80,16 @@ struct PostCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
-        Text(String(post.author.prefix(1)).uppercased()).font(.headline).foregroundStyle(.blue)
-          .frame(width: 36, height: 36).background(.blue.opacity(0.12), in: Circle())
+        PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
           Text(post.author).font(.subheadline.bold())
-          Text(post.date.replacingOccurrences(of: "T", with: " ").prefix(16)).font(.caption).foregroundStyle(.secondary)
+          if post.authorID != nil || !post.date.isEmpty {
+            HStack(spacing: 6) {
+              if let id = post.authorID { Text("UID \(id)") }
+              if post.authorID != nil && !post.date.isEmpty { Text("\u{00B7}") }
+              if !post.date.isEmpty { Text(post.date.replacingOccurrences(of: "T", with: " ").prefix(16)) }
+            }.font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          }
         }
         Spacer(minLength: 8)
         if !post.number.isEmpty { Text(post.number).font(.caption.weight(.semibold)).foregroundStyle(.blue) }
@@ -94,6 +99,30 @@ struct PostCard: View {
     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
       .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.05)))
+  }
+}
+
+private struct PostAvatar: View {
+  let url: URL?
+  let author: String
+  @EnvironmentObject private var session: ForumSession
+  @State private var image: UIImage?
+  @State private var imageURL: URL?
+  var body: some View {
+    ZStack {
+      Color.blue.opacity(0.12)
+      if let image { Image(uiImage: image).resizable().scaledToFill() }
+      else { Text(String(author.prefix(1)).uppercased()).font(.headline).foregroundStyle(.blue) }
+    }.frame(width: 36, height: 36).clipShape(Circle()).accessibilityHidden(true)
+      .task(id: url) {
+        guard image == nil || imageURL != url else { return }
+        imageURL = url
+        image = nil
+        guard let url else { return }
+        let loaded = await session.images.load(url, referer: session.site.base)
+        guard !Task.isCancelled, imageURL == url else { return }
+        image = loaded
+      }
   }
 }
 

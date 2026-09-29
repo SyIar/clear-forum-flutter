@@ -57,6 +57,8 @@ struct ForumPost: Identifiable {
   var date: String
   var number: String
   var blocks: [BodyBlock]
+  var authorID: String?
+  var avatar: URL?
 }
 struct ForumPage {
   var url: URL

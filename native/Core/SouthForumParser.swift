@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSoup
 
-// Conservative legacy-forum compatibility. Target-site DOM verification is pending.
+// PHPWind post structure verified against user-supplied South HTML.
 struct SouthForumParser {
   private let unwanted = "script,style,object,embed,input,textarea,select,svg,noscript,.adsbygoogle,.advertisement,.ad-container,.adContainer,.ad-block,.sponsor,[data-ad],[data-ad-slot],[hidden]"
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
@@ -20,7 +20,7 @@ struct SouthForumParser {
     if first(doc, "#challenge-running,#challenge-form,.cf-turnstile") != nil || lowerTitle.contains("just a moment") || lowerTitle.contains("attention required") { throw ReaderFailure.verification }
     if status == 403 { throw ReaderFailure.forbidden }
     guard (200..<300).contains(status) else { throw ReaderFailure.network }
-    let bodies = links(doc, ".tpc_content[id^=read_],.tpc_content:not([id]),[data-post-body]")
+    let bodies = postBodies(doc)
     let hasLoginForm = first(doc, "form[action*=login] input[type=password],form input[name=pwpwd]") != nil
     let logout = links(doc).contains { link in
       guard let candidate = SouthSitePolicy.resolve(attr(link, "href"), from: url), SouthSitePolicy.sameOrigin(candidate) else { return false }
@@ -45,20 +45,18 @@ struct SouthForumParser {
     if thread {
       var seen = Set<String>()
       for body in bodies {
-        if body.parents().contains(where: { $0.hasClass("tpc_content") }) { continue }
-        let container = body.parents().first { parent in
+        let container = body.parents().first { $0.hasClass("js-post") } ?? body.parents().first { parent in
           parent.tagName() == "tr" || parent.tagName() == "article" || parent.hasClass("post") || parent.hasClass("read_t")
         } ?? body.parent() ?? body
         let id = body.id().isEmpty ? "post-\(posts.count)" : body.id().replacingOccurrences(of: "read_", with: "post_")
         guard seen.insert(id).inserted else { continue }
-        let author = text(first(container, ".author,.user-name,.username,.readName,a[href*=u.php],a[href*=uid]"))
-        let time = first(container, "time,.tiptop [title],.post-date,.post-time")
-        let rawDate = [attr(time, "datetime"), attr(time, "title"), text(time)].first { !$0.isEmpty } ?? ""
-        let date = match(rawDate, #"([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)?)"#) ?? rawDate
+        let identity = postAuthor(container, page: url)
+        let date = postDate(container)
         let floor = floorNumber(container, body: body)
         let blocks = try SouthBodyParser().parseBody(body, page: url)
-        posts.append(ForumPost(id: id, author: author.isEmpty ? "Member" : author, date: date,
-                              number: floor.map { "#\($0)" } ?? "", blocks: blocks))
+        guard !blocks.isEmpty else { continue }
+        posts.append(ForumPost(id: id, author: identity.name.isEmpty ? "Member" : identity.name, date: date,
+                              number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar))
       }
       guard !posts.isEmpty else { throw ReaderFailure.unsupported }
     }
@@ -120,9 +118,55 @@ struct SouthForumParser {
           let range = Range(result.range(at: 1), in: value) else { return nil }
     return String(value[range])
   }
+  private func postBodies(_ root: Element) -> [Element] {
+    func identified(_ node: Element) -> Bool { match(node.id(), #"^read_(tpc|[0-9]+)$"#) != nil }
+    let identifiedBodies = links(root, "[id^=read_]").filter { node in
+      identified(node) && (node.hasClass("tpc_content") || node.parents().contains { $0.hasClass("tpc_content") || $0.hasClass("js-post") }) &&
+        !node.parents().contains(where: identified)
+    }
+    if !identifiedBodies.isEmpty { return identifiedBodies }
+    // Compatibility for explicit body markers and older, unidentified post markup.
+    return links(root, ".tpc_content:not([id]),[data-post-body]").filter { node in
+      !node.parents().contains { $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") }
+    }
+  }
+  private func postAuthor(_ container: Element, page: URL) -> (name: String, id: String?, avatar: URL?) {
+    let root = first(container, "th.r_two,td.r_two,.post-author,.author-info") ?? container
+    let profiles = links(root, "a[href*=u.php]").filter { profileID($0, page: page) != nil }
+    // The first profile link wraps the avatar and has no text. Prefer the name link.
+    let nameLink = profiles.first { !text($0).isEmpty && first($0, "strong,b") != nil } ?? profiles.first {
+      !text($0).isEmpty && !$0.parents().contains { $0.hasClass("user-info") }
+    }
+    let explicitName = links(root, ".author,.user-name,.username,.readName").first { !text($0).isEmpty }
+    let metadata = first(container, ".tiptop [data-uid][data-name]")
+    let name = [text(nameLink), text(explicitName), attr(metadata, "data-name")].first { !$0.isEmpty } ?? ""
+    let id = (nameLink ?? profiles.first).flatMap { profileID($0, page: page) } ?? match(attr(metadata, "data-uid"), #"^([0-9]+)$"#)
+    let avatar = profiles.lazy.compactMap { profile -> URL? in
+      guard id == nil || profileID(profile, page: page) == id else { return nil }
+      return thumbnail(first(profile, "img"), page: page)
+    }.first ?? thumbnail(first(root, "img.avatar,.avatar img"), page: page)
+    return (name, id, avatar)
+  }
+  private func profileID(_ anchor: Element, page: URL) -> String? {
+    guard let url = SouthSitePolicy.resolve(attr(anchor, "href"), from: page), SouthSitePolicy.sameOrigin(url), url.path == "/u.php" else { return nil }
+    if let uid = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "uid" })?.value {
+      return match(uid, #"^([0-9]+)$"#)
+    }
+    return match(url.query ?? "", #"(?:^|-)uid-([0-9]+)(?:-|\.html$)"#)
+  }
+  private func postDate(_ container: Element) -> String {
+    let candidates = links(container, "time,.tiptop span[title],.tiptop span.gray,.post-date,.post-time")
+    for node in candidates {
+      for value in [attr(node, "datetime"), text(node), attr(node, "title")] {
+        if let date = match(value, #"([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)?)"#) { return date }
+      }
+    }
+    return text(first(container, "time,.tiptop span.gray,.post-date,.post-time"))
+  }
   private func floorNumber(_ container: Element, body: Element) -> Int? {
     if let number = Int(attr(container, "data-floor")), number >= 0 { return number }
     for node in links(container, ".tiptop a,.floor,.post-number,[data-floor]") {
+      if let value = match(text(node), #"(?i)^B([0-9]+)F$"#), let floor = Int(value) { return floor }
       if let value = match(text(node), #"^\s*#?([0-9]+)\s*(?:\u697c|$)"#), let floor = Int(value) { return floor }
     }
     return body.id() == "read_tpc" ? 0 : nil
