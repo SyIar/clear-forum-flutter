@@ -7,12 +7,11 @@ struct GofileDestination: Hashable { let url: URL }
 
 struct GofileBrowserView: View {
   @StateObject private var session: GofileSession
-  @StateObject private var batch: GofileBatchDownload
+  @State private var batch: GofileBatchDownload?
   @State private var search = ""
   @State private var showingBatch = false
   init(url: URL) {
     _session = StateObject(wrappedValue: GofileSession(url: url))
-    _batch = StateObject(wrappedValue: GofileBatchDownload(url: url))
   }
   private var entries: [GofileEntry] {
     (session.listing?.entries ?? []).filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
@@ -55,7 +54,9 @@ struct GofileBrowserView: View {
       ToolbarItemGroup(placement: .topBarTrailing) {
         Button("Download all", systemImage: "arrow.down.document") {
           session.suspendThumbnails()
-          if let listing = session.listing, batch.phase != .paused { batch.start(listing) }
+          if let listing = session.listing {
+            batch = GofileDownloadManager.shared.batch(url: session.requestedURL, listing: listing)
+          }
           showingBatch = true
         }.disabled(session.loading || session.failure != nil || session.listing == nil || session.hasDownloads)
         Button("Open website", systemImage: "globe") { session.showWebsite() }
@@ -81,7 +82,12 @@ struct GofileBrowserView: View {
       }
     }
     .sheet(item: $session.export) { GofileExport(file: $0.url) }
-    .sheet(isPresented: $showingBatch, onDismiss: { session.resumeThumbnails() }) { GofileBatchView(batch: batch) }
+    .navigationDestination(isPresented: $showingBatch) {
+      if let batch { GofileBatchView(batch: batch) }
+    }
+    .onChange(of: showingBatch) { _, visible in
+      if !visible { session.resumeThumbnails() }
+    }
     .navigationDestination(item: $session.preview) { file in
       GofileQuickLook(file: file.url).navigationTitle("Preview").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
     }

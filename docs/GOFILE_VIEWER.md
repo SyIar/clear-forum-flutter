@@ -33,13 +33,41 @@
 
 - 顶部 `arrow.down.document` 按钮启动 Download all；范围是**当前页全部条目**，不受本地搜索筛选影响。遇到子文件夹后深度优先读取，其中所有分页都会继续遍历；不会额外下载当前根目录未显示的其他分页。
 - 同一时刻最多一个原生 Gofile 文件/缩略图传输任务。当前项目处理完毕后间隔 700 ms 再处理下一项。WebKit 的正常初始化仍可能发出多个资源请求，因此不能把这解释成整个 App 永远只有一个 TCP 连接，也不能承诺不会被服务端限流。
-- 每个文件完整校验后移动到 `Documents/Gofile Downloads/<folder>-<batch-id>/...`，保留子目录、避开同名覆盖。Files 中可通过“我的 iPhone → forum lite → Gofile Downloads”访问，批次目录不进入 iCloud 备份。也可通过 Export folder 导出副本。
+- 每个文件完整校验后移动到 `Documents/Gofile Downloads/<folder>-<batch-id>/...`，保留子目录、避开同名覆盖，批次目录不进入 iCloud 备份。Export folder 导出副本正常。1027 安装包缺少文件共享开关，Files 目录可见性修复见下文，尚未打包交付。
 - 显示当前路径、单文件百分比、完成数量、跳过数量和已发现的待处理项目数。嵌套目录尚未展开时总量未知，不显示虚假的整批完成百分比。
 - 暂停/继续保留已完成结果；暂停中的当前文件未实现 HTTP Range 续传，继续时会重新传输该文件。已完成文件不会重下。Stop batch 不删除已保存文件。
 - 密码门槛暂停队列，输入后继续；失效、私有、Premium 限制或已标记不可用的项目跳过并记录原因。网络、磁盘或校验错误暂停在当前项目，用户可重试或跳过。
 - HTTP 429、API `error-rateLimit`，以及存储节点 HTTP 503 暂停并尊重 Retry-After；缺少该字段时至少等待 60 秒。原生传输调度器也遵守这个冷却时间，避免后台排队的缩略图继续发请求。没有自动密集重试。
 - 按 ID 去重并阻止文件夹循环引用；最多 10,000 个条目、32 层目录，超过后暂停并提示拆分目录。
-- **队列属于前台查看器会话**：关闭下载面板、切到后台会暂停；查看器仍在时可重新打开面板继续。关闭整个查看器或终止 App 后不恢复待下载队列，但已落盘文件保留。未实现跨重启队列持久化或后台 URLSession 下载。
+- **队列由 App 级管理器持有**：关闭批量下载页、返回帖子、关闭整个 Gofile 查看器时继续下载；右侧统一下载悬浮按钮可重新查看视频和 Gofile 队列。切换 App 或锁屏暂停，回到 App 后点击 Continue。终止 App 后不恢复待下载队列，已落盘文件保留。未实现跨重启队列持久化或后台 URLSession 下载。
+
+## Gofile Helper 页面调整（2026-09-29，待打包）
+
+- 批量下载页标题改为 `Gofile Helper`，移除 `Includes every item on this page and all pages inside its subfolders.` 说明。下载范围保持不变。
+- 下载器从独立 sheet 改为文件列表中的 NavigationStack 推入页面，移除下载器自建导航栈和左上角关闭按钮，使用系统返回按钮及左边缘侧滑返回。
+- 返回文件列表时恢复列表缩略图，批量任务继续下载。网站验证和文件导出仍使用原有弹窗。
+- 本次只修改源码并做静态检查，未构建、打包或安装。侧滑完成/取消、关闭页面后继续下载、重新打开管理页等待真机验收。
+
+## 关闭页面继续下载与 Files 目录修复（2026-09-29，待打包）
+
+- 用户确认仅要求 App 保持前台时继续下载，不扩展为锁屏或切换其他 App 后持续下载。
+- `GofileDownloadManager.shared` 持有批次；递归目录读取的隐藏 WebView 挂在 App 根视图，不依赖下载页面存活。暂停、继续、停止和导出继续使用同一批次状态。
+- 同一目录同一页再次点击 Download all 会打开已有批次，避免重复启动。下载列表可移除已完成或已停止的批次，移除只清理列表，不删除文件；移除后可重新启动这一页的下载。
+- 只在 App 进入 background 时统一暂停批次；关闭页面、系统侧滑、打开导出面板不再触发暂停。暂停中的当前文件仍需重新传输，已保存文件不重下。
+- 已直接读取 `ForumLite-0.3.0-1027-unsigned.ipa` 内的 Info.plist：`LSSupportsOpeningDocumentsInPlace=true`，但没有 `UIFileSharingEnabled`。这解释了 Export folder 可用，但“我的 iPhone”下没有 forum lite 文件夹。
+- 增加 `native/Info.plist` 显式声明两个布尔开关，由 `native/project.yml` 指定并合并现有自动生成配置。`scripts/package_native.py` 要求最终 app 的两个开关均为 true，缺少任何一个就拒绝交付。
+- 修复版本预期目录为“文件 → 浏览 → 我的 iPhone → forum lite → Gofile Downloads”。页面也读取实际包配置：没有两个开关时只提示使用 Export folder，不展示不可访问的固定路径。正常覆盖安装并保留 App 数据时，原有批次文件无需移动。
+- 本轮通过 Swift 语法解析、仓库语言/凭据扫描、YAML/Plist/Python 语法检查及 diff 检查；没有执行 Swift 编译、真机测试、打包或安装。需在后续交付时验证最终 IPA 开关，并验收退出多层页面后子目录继续下载、重新打开后的状态与导出、锁屏暂停及 Files 中已有文件可见性。
+- 配置依据：[Apple Files 文档访问条件](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/LaunchServicesKeys.html)；[Apple Info.plist 合并规则](https://developer.apple.com/documentation/bundleresources/managing-your-app-s-information-property-list)。
+
+## 统一下载弹窗与说明精简（2026-09-29，待打包）
+
+- 视频和 Gofile 使用同一个浮动入口、同一个 Downloads 弹窗，分别展示在 Videos 和 Gofile 分组；暂停全部、继续全部、清理已完成均覆盖两类任务。需要密码的 Gofile 批次仍从详情解锁；冷却中的批次不可被继续全部提前启动。
+- Gofile 行显示名称、保存/跳过/待处理数量及当前文件进度，点击仍进入 Gofile Helper。任务完成只改变状态，不移动所属分组，避免详情导航因源行移除而中断。清理批次记录不删除已保存文件。
+- 删除常驻的下载数量限制和操作说明；后台暂停、恢复与保存路径改在 ⓘ 弹层查看。全局悬浮入口在有运行中的 Gofile 批次时显示活动指示，不把视频的字节比例当作整批目录下载进度。
+- 同步精简首页空状态、关注作者、视频播放按钮、投票卡片说明。必要的帮助统一使用 `InfoButton`（系统 `info.circle` 与 SwiftUI popover）；较长说明可滚动，错误、密码输入、限流倒计时及实际状态仍直接可见。
+- Swift 语法解析、仓库检查和 diff 检查已通过；未构建、打包或安装。真机待验证混合队列、批量操作、下载完成时的详情停留、窄屏和大字体下的 ⓘ 弹层。
+- 交互依据：[Apple popover](https://developer.apple.com/documentation/swiftui/view/popover(ispresented:attachmentanchor:arrowedge:content:)) 与 [紧凑布局适配](https://developer.apple.com/documentation/swiftui/view/presentationcompactadaptation(horizontal:vertical:))。
 
 ## 原生访问状态
 

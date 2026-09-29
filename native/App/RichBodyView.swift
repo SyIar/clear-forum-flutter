@@ -285,7 +285,7 @@ struct MediaRow: View {
       Button { play(block) } label: {
         VStack(alignment: .leading, spacing: 8) {
           Text(block.label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-          Text("Tap to play").font(.subheadline.weight(.semibold)).foregroundStyle(.blue)
+          Label("Play", systemImage: "play.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.blue)
         }.frame(maxWidth: .infinity, minHeight: 62, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
           .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
           .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.1)))

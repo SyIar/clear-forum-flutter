@@ -1,13 +1,16 @@
 import SwiftUI
 
 @MainActor
-final class GofileBatchDownload: ObservableObject {
+final class GofileBatchDownload: ObservableObject, Identifiable {
   enum Phase { case idle, running, paused, finished, cancelled }
   struct Skipped: Identifiable {
     let id = UUID()
     let path: String
     let reason: String
   }
+  let id = UUID()
+  let sourceKey: String
+  let title: String
   private let url: URL
   lazy var session = GofileSession(url: url)
   @Published private(set) var phase = Phase.idle
@@ -19,12 +22,16 @@ final class GofileBatchDownload: ObservableObject {
   @Published private(set) var gate: GofileFailure?
   @Published private(set) var directory: URL?
   private var plan: GofileBatchPlan?
-  private var worker: Task<Void, Never>?
+  @Published private var worker: Task<Void, Never>?
   private var unlocked: GofileListing?
   var pending: Int { plan?.pending.count ?? 0 }
   var running: Bool { phase == .running }
   var canResume: Bool { phase == .paused && worker == nil && plan != nil && directory != nil && gate?.retryDate.map { $0 > Date() } != true }
-  init(url: URL) { self.url = url }
+  init(url: URL, listing: GofileListing) {
+    self.url = url
+    sourceKey = "\(listing.id):\(listing.page)"
+    title = listing.title
+  }
 
   func start(_ listing: GofileListing) {
     guard worker == nil, phase == .idle || phase == .finished || phase == .cancelled else { return }

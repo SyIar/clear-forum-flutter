@@ -13,10 +13,7 @@ struct SouthPollCard: View {
         if let count = poll.participants {
           Text("\(count.formatted()) participants").font(.caption).foregroundStyle(.secondary)
         }
-      }
-      if let limit = poll.maximumChoices {
-        Text(limit == 1 ? "Single choice" : "Choose up to \(limit)")
-          .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+        if !information.isEmpty { InfoButton(title: "Poll", message: information) }
       }
       VStack(spacing: 8) {
         ForEach(poll.options) { option in
@@ -39,23 +36,24 @@ struct SouthPollCard: View {
           }.padding(12).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
         }
       }
-      if poll.resultsHidden {
-        Text("The website has hidden the vote counts.").font(.caption).foregroundStyle(.secondary)
-      } else if (poll.totalVotes ?? 0) > 0 {
-        Text("Bars show the share of total votes.").font(.caption).foregroundStyle(.secondary)
-      }
       if poll.startsAt != nil || poll.endsAt != nil {
         VStack(alignment: .leading, spacing: 4) {
           if let start = poll.startsAt { Text("Started \(start)") }
           if let end = poll.endsAt { Text("Ends \(end)") }
         }.font(.caption).foregroundStyle(.secondary)
       }
-      if !poll.notice.isEmpty { Text(poll.notice).font(.caption).foregroundStyle(.secondary) }
       Button(action: openBrowser) {
-        Label(poll.canVote ? "Vote in Site browser" : "View poll in Site browser", systemImage: "globe")
+        Label(poll.canVote ? "Vote" : "View poll", systemImage: "globe")
           .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity).padding(.vertical, 4)
       }.buttonStyle(.glass).disabled(busy)
     }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .accessibilityElement(children: .contain)
+  }
+  private var information: String {
+    var lines: [String] = []
+    if let limit = poll.maximumChoices { lines.append(limit == 1 ? "Single choice." : "Choose up to \(limit).") }
+    if poll.resultsHidden { lines.append("The website has hidden the vote counts.") }
+    if !poll.notice.isEmpty { lines.append(poll.notice) }
+    return lines.joined(separator: "\n\n")
   }
 }

@@ -7,6 +7,7 @@ struct SouthFollowedAuthor: Codable, Identifiable, Equatable {
   var followedAt: Date
   var topics: [SavedPage] = []
   var checkedAt: Date?
+  var nameFromPost: Bool?
 }
 
 extension LibraryDocument {
@@ -22,11 +23,26 @@ extension LibraryDocument {
     guard site == .south, SouthSitePolicy.validAuthorID(id), !blocksAuthor(id) else { return }
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     var author = followedAuthors[id] ?? SouthFollowedAuthor(id: id, name: "UID \(id)", followedAt: date)
-    if !trimmed.isEmpty { author.name = String(trimmed.prefix(200)) }
+    if !trimmed.isEmpty {
+      author.name = String(trimmed.prefix(200))
+      author.nameFromPost = true
+    }
     if let avatar = SouthSitePolicy.resolve(avatar?.absoluteString, from: site.base) { author.avatar = avatar }
     followedAuthors[id] = author
   }
   mutating func unfollowAuthor(_ id: String) { followedAuthors.removeValue(forKey: id) }
+  mutating func captureFollowingNames(_ page: ForumPage) {
+    guard site == .south, site.accepts(page.url), page.kind == .posts else { return }
+    for post in page.posts {
+      guard let id = post.authorID, followedAuthors[id] != nil,
+            !post.author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            post.author != "Member" else { continue }
+      followAuthor(id: id, name: post.author, avatar: post.avatar)
+      for key in Array(presentations.keys) where presentations[key]?.authorID == id {
+        presentations[key]?.authorName = followedAuthors[id]?.name
+      }
+    }
+  }
   func isUnreadSouthThread(_ url: URL) -> Bool {
     guard site == .south, site.accepts(url), let key = SitePolicy.threadKey(url) else { return false }
     return !readSouthThreads.contains(key)
@@ -48,14 +64,12 @@ extension LibraryDocument {
     author.topics = entries.prefix(3).compactMap { entry in
       SitePolicy.threadRoot(entry.url).map { SavedPage(url: $0, title: entry.title) }
     }
-    if let name = entries.first?.authorName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
-      author.name = String(name.prefix(200))
-    }
+    // The topics-page heading can be an account identifier, not the post display name.
     author.checkedAt = date
     followedAuthors[authorID] = author
     for entry in entries.prefix(3) {
       mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: entry.tags,
-                                           authorID: authorID, authorName: entry.authorName ?? author.name), for: entry.url)
+                                           authorID: authorID, authorName: author.name), for: entry.url)
     }
     return true
   }

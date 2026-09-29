@@ -108,6 +108,7 @@ struct LibraryDocument: Codable {
   }
   mutating func capturePresentation(_ page: ForumPage) {
     guard site.accepts(page.url) else { return }
+    captureFollowingNames(page)
     if page.kind == .posts {
       let owner = site == .south ? page.posts.first(where: { $0.number == "#0" }) : nil
       mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags,

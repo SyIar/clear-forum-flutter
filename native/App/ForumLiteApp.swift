@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct ForumLiteApp: App {
   @StateObject private var downloads = VideoDownloadManager.shared
+  @StateObject private var gofileDownloads = GofileDownloadManager.shared
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var simpLibrary = LibraryStore(site: .simp)
   @StateObject private var southLibrary = LibraryStore(site: .south)
@@ -30,10 +31,13 @@ struct ForumLiteApp: App {
             .environmentObject(site == .simp ? simpSession : southSession)
           }
       }.tint(.blue)
-        .overlay(alignment: .trailing) { FloatingVideoDownloads(manager: downloads) }
-        .sheet(isPresented: $downloads.showingManager) { VideoDownloadsView(manager: downloads) }
+        .background { GofileDownloadSurfaces(manager: gofileDownloads) }
+        .overlay(alignment: .trailing) {
+          FloatingDownloads(manager: downloads, gofile: gofileDownloads)
+        }
+        .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads) }
         .onChange(of: scenePhase) { _, value in
-          if value == .background { downloads.backgrounded() }
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded() }
           else if value == .active { downloads.foregrounded() }
         }
     }
@@ -230,10 +234,22 @@ final class LibraryStore: ObservableObject {
         let page = try await session.load(url)
         guard !Task.isCancelled, self.authorTokens[id] == token,
               self.document.followedAuthors[id]?.followedAt == author.followedAt else { return nil }
+        // Repair legacy names once from a post; profile headings may contain account identifiers.
+        var authorPage: ForumPage?
+        if author.nameFromPost != true,
+           let topic = page.entries.first(where: { $0.authorID == id }),
+           let topicURL = SitePolicy.threadRoot(topic.url), self.site.accepts(topicURL) {
+          authorPage = try? await session.load(topicURL)
+        }
+        guard !Task.isCancelled, self.authorTokens[id] == token,
+              self.document.followedAuthors[id]?.followedAt == author.followedAt else { return nil }
         guard self.ready else { throw ReaderFailure.storage }
         let checkedAt = Date()
         var accepted = false
-        self.change { accepted = $0.updateFollowing(page, authorID: id, followedAt: author.followedAt, at: checkedAt) }
+        self.change {
+          accepted = $0.updateFollowing(page, authorID: id, followedAt: author.followedAt, at: checkedAt)
+          if accepted, let authorPage { $0.captureFollowingNames(authorPage) }
+        }
         guard accepted else { throw ReaderFailure.unsupported }
         guard self.document.followedAuthors[id]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
         return nil
@@ -283,15 +299,21 @@ struct HomeView: View {
               .accessibilityLabel("Open original forum website")
           }.padding(.vertical, 6)
         }
-        Section("Bookmarks") {
-          if visibleBookmarks.isEmpty { Text("Save a page, or add a URL using the bookmark button.").foregroundStyle(.secondary) }
+        Section {
+          if visibleBookmarks.isEmpty { Text("No bookmarks").foregroundStyle(.secondary) }
           ForEach(visibleBookmarks) { entry in
             savedRow(entry)
               .swipeActions { Button("Remove", role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
+        } header: {
+          HStack {
+            Text("Bookmarks")
+            Spacer()
+            InfoButton(title: "Bookmarks", message: "Use the bookmark button to save a page or add a forum URL.")
+          }
         }
         Section {
-          if visibleRecent.isEmpty { Text("Your last 10 visited pages will appear here.").foregroundStyle(.secondary) }
+          if visibleRecent.isEmpty { Text("No recent pages").foregroundStyle(.secondary) }
           ForEach(visibleRecent) { entry in savedRow(entry) }
         } header: {
           HStack { Text("Recent reading"); Spacer(); if !library.document.recent.isEmpty { Button("Clear") { clearHistory = true } } }
@@ -389,7 +411,7 @@ struct HomeView: View {
                 Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : "Seen #\(seen)")
                   .font(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
               } else if let latest = state.latestMaximum {
-                Text("#\(latest) · Open to start tracking").font(.caption).foregroundStyle(.secondary)
+                Text("#\(latest)").font(.caption).foregroundStyle(.secondary)
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)

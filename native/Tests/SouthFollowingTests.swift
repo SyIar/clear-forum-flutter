@@ -22,13 +22,13 @@ final class SouthFollowingTests: XCTestCase {
     library.pruneTracking()
     let author = try XCTUnwrap(library.following.first)
     XCTAssertEqual(author.topics.compactMap { SitePolicy.threadKey($0.url) }, ["5", "4", "3"])
-    XCTAssertEqual(author.name, "Sample author")
+    XCTAssertEqual(author.name, "Author")
     XCTAssertTrue(author.topics.allSatisfy { library.isUnreadSouthThread($0.url) })
     XCTAssertTrue(library.recent.isEmpty)
     XCTAssertTrue(library.threads.isEmpty)
     XCTAssertTrue(library.hasRefreshTargets)
     XCTAssertEqual(library.presentations.count, 3)
-    XCTAssertEqual(library.presentations["5"]?.authorName, "Sample author")
+    XCTAssertEqual(library.presentations["5"]?.authorName, "Author")
   }
   func testSuccessfulVisitClearsNewAcrossURLVariantsAndRecentEviction() throws {
     var library = followedLibrary()
@@ -44,7 +44,39 @@ final class SouthFollowingTests: XCTestCase {
     let restored = try JSONDecoder().decode(LibraryDocument.self, from: JSONEncoder().encode(library))
     XCTAssertFalse(restored.isUnreadSouthThread(thread(5)))
     XCTAssertEqual(restored.following.first?.topics.count, 3)
-    XCTAssertEqual(restored.subtitle(for: SavedPage(url: laterPage, title: "Saved")), "Sample author")
+    XCTAssertEqual(restored.subtitle(for: SavedPage(url: laterPage, title: "Saved")), "Author")
+  }
+  func testTopicHeadingCannotReplacePostDisplayName() throws {
+    var library = followedLibrary()
+    let displayName = "\u{6D4B}\u{8BD5}\u{7528}\u{6237}"
+    library.followAuthor(id: "101", name: displayName)
+    var page = topics([5, 4, 3])
+    for index in page.entries.indices { page.entries[index].authorName = "a1b2c3d4" }
+    library.updateFollowing(page, authorID: "101", followedAt: followedAt)
+    let restored = try JSONDecoder().decode(LibraryDocument.self, from: JSONEncoder().encode(library))
+    XCTAssertEqual(restored.followedAuthors["101"]?.name, displayName)
+    XCTAssertEqual(restored.followedAuthors["101"]?.nameFromPost, true)
+    XCTAssertEqual(restored.presentations["5"]?.authorName, displayName)
+  }
+  func testLegacyFollowingNameIsRepairedFromMatchingPostWithoutMarkingTopicsRead() throws {
+    var library = followedLibrary()
+    library.followedAuthors["101"]?.name = "a1b2c3d4"
+    library.followedAuthors["101"]?.nameFromPost = nil
+    library = try JSONDecoder().decode(LibraryDocument.self, from: JSONEncoder().encode(library))
+    XCTAssertNil(library.followedAuthors["101"]?.nameFromPost)
+    library.updateFollowing(topics([5, 4, 3]), authorID: "101", followedAt: followedAt)
+    let page = ForumPage(url: thread(5), title: "Topic", kind: .posts, entries: [], posts: [
+      ForumPost(id: "owner", author: "Recovered display name", date: "", number: "#0", blocks: [], authorID: "101"),
+      ForumPost(id: "reply", author: "Unrelated author", date: "", number: "#1", blocks: [], authorID: "202")
+    ], pageNumber: 1)
+    library.captureFollowingNames(page)
+    XCTAssertEqual(library.followedAuthors["101"]?.name, "Recovered display name")
+    XCTAssertEqual(library.followedAuthors["101"]?.nameFromPost, true)
+    XCTAssertEqual(library.followedAuthors["101"]?.followedAt, followedAt)
+    XCTAssertEqual(library.presentations["5"]?.authorName, "Recovered display name")
+    XCTAssertNil(library.followedAuthors["202"])
+    XCTAssertTrue(library.isUnreadSouthThread(thread(5)))
+    XCTAssertTrue(library.recent.isEmpty)
   }
   func testLegacyLibraryMigratesKnownReadsButNotUnopenedBookmarks() throws {
     let json = #"{"version":1,"site":"south","bookmarks":[{"url":"https://south-plus.net/read.php?tid-4.html","title":"Saved"}],"recent":[{"url":"https://south-plus.net/read.php?tid-5-page-2.html","title":"Visited"}],"threads":{"6":{"seenMaximum":12},"4":{"latestMaximum":42}},"presentations":{"5":{"tags":[],"authorID":"101"}}}"#

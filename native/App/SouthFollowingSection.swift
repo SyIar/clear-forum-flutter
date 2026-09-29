@@ -6,10 +6,9 @@ struct SouthFollowingSection: View {
   let open: (URL) -> Void
 
   var body: some View {
-    Section("Following") {
+    Section {
       if library.document.following.isEmpty {
-        Text("Tap an author's avatar in a thread and choose Follow author to see their latest 3 topics here.")
-          .font(.subheadline).foregroundStyle(.secondary)
+        Text("No followed authors").font(.subheadline).foregroundStyle(.secondary)
       }
       ForEach(library.document.following) { author in
         VStack(alignment: .leading, spacing: 12) {
@@ -48,10 +47,16 @@ struct SouthFollowingSection: View {
                 .font(.caption).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
             }
           } else if author.topics.isEmpty && !library.refreshingAuthors.contains(author.id) {
-            Text(author.checkedAt == nil ? "Refresh to load recent topics." : "No topics yet.")
+            Text(author.checkedAt == nil ? "Not refreshed" : "No topics")
               .font(.caption).foregroundStyle(.secondary)
           }
         }.padding(.vertical, 6)
+      }
+    } header: {
+      HStack {
+        Text("Following")
+        Spacer()
+        InfoButton(title: "Following", message: "Tap an author's avatar and choose Follow author. Refresh to load their latest topics.")
       }
     }
   }

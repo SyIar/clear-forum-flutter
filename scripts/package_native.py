@@ -12,6 +12,8 @@ assert info['CFBundleIdentifier'] == 'dev.sylar.clearforum'
 assert info['CFBundleDisplayName'] == 'forum lite'
 assert info['DTPlatformName'] == 'iphoneos'
 assert info.get('NSPhotoLibraryAddUsageDescription'), 'Missing add-only Photos usage description'
+assert info.get('UIFileSharingEnabled') is True, 'Missing Documents file sharing'
+assert info.get('LSSupportsOpeningDocumentsInPlace') is True, 'Missing Files app document access'
 binary = (app / info['CFBundleExecutable']).read_bytes()
 assert struct.unpack('<II', binary[:8]) == (0xFEEDFACF, 0x0100000C), 'Expected arm64 Mach-O'
 assert not any(p.name in {'Flutter.framework', 'App.framework', 'flutter_assets'} for p in app.rglob('*')), 'Unexpected Flutter runtime'
