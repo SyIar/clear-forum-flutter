@@ -37,10 +37,7 @@ struct ReaderView: View {
   @State private var showingPinnedThreads = false
   @State private var selectedPinnedThread: URL?
   @State private var readingPages = ReaderPageWindow()
-  @State private var edgeTrigger = ReaderEdgeTrigger()
-  @State private var edgePull = ReaderEdgePull()
-  @State private var peakTopPull = 0
-  @State private var peakBottomPull = 0
+  @State private var scrollTracking = ReaderScrollTracking()
   @State private var lastEdgeEvent = "none"
   @State private var scrollPhase: ScrollPhase = .idle
   @State private var edgeLoading: ReaderEdge?
@@ -113,6 +110,13 @@ struct ReaderView: View {
               if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? AppText.text("No threads yet") : AppText.text("No visible threads"), systemImage: "tray") }
             }
           } else { ProgressView(AppText.text("Loading page...")).frame(maxWidth: .infinity).padding(.top, 100) }
+          if error == nil, page != nil, readingPages.target(.next) != nil {
+            HStack {
+              Spacer(minLength: 0)
+              ReaderEdgeIndicator(edge: .next, loading: edgeLoading == .next, failure: edgeFailure) { loadAdjacent(.next) }
+              Spacer(minLength: 0)
+            }.frame(minHeight: 44).id("reader-next-page")
+          }
         }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 14)
       }
       // Visibility is observation only. Binding the first visible row back to
@@ -126,18 +130,27 @@ struct ReaderView: View {
       }
       .scrollBounceBehavior(.always, axes: .vertical)
       .onScrollGeometryChange(for: ReaderEdgePull.self) { ReaderEdgePull($0) } action: { _, pull in
-        edgePull = pull
-        if scrollPhase == .interacting {
-          peakTopPull = max(peakTopPull, pull.top); peakBottomPull = max(peakBottomPull, pull.bottom)
-        }
+        scrollTracking.record(pull, interacting: scrollPhase == .interacting)
         checkEdgeDrag()
       }
-      .onScrollPhaseChange { old, phase in
+      .onScrollPhaseChange { old, phase, context in
+        let previousOffset = scrollTracking.pull.offset
+        scrollTracking.record(ReaderEdgePull(context.geometry), interacting: old == .interacting || phase == .interacting)
         scrollPhase = phase
-        if phase == .tracking || (phase == .interacting && old != .tracking) { edgeTrigger.beginDrag() }
-        if phase == .tracking { setQuickActions(false); peakTopPull = 0; peakBottomPull = 0 }
-        if phase == .interacting { checkEdgeDrag() }
-        if phase == .idle { applyAdjacentPage() }
+        if phase == .tracking || (phase == .interacting && old != .tracking) {
+          scrollTracking.trigger.beginDrag(at: Double(phase == .tracking ? scrollTracking.pull.offset : previousOffset))
+          scrollTracking.peakTopPull = 0; scrollTracking.peakBottomPull = 0
+        }
+        if phase == .tracking { setQuickActions(false) }
+        if phase == .interacting || phase == .decelerating {
+          checkEdgeDrag(phase: old == .interacting ? .interacting : phase)
+        }
+        if phase == .idle {
+          // The final geometry sample can arrive together with the idle phase.
+          checkEdgeDrag(phase: old)
+          scrollTracking.trigger.endDrag()
+          applyAdjacentPage()
+        } else if phase == .animating { scrollTracking.trigger.endDrag() }
       }
       .background(Color(uiColor: .systemGroupedBackground))
       .environment(\.readerReferer, current)
@@ -193,9 +206,6 @@ struct ReaderView: View {
       .overlay(alignment: .top) {
         if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) }
         else { ReaderEdgeIndicator(edge: .previous, loading: edgeLoading == .previous, failure: edgeFailure) { loadAdjacent(.previous) } }
-      }
-      .overlay(alignment: .bottom) {
-        ReaderEdgeIndicator(edge: .next, loading: edgeLoading == .next, failure: edgeFailure) { loadAdjacent(.next) }.padding(.bottom, 6)
       }
       .task(id: requestID) {
         guard completedRequestID != requestID else { return }
@@ -439,10 +449,12 @@ struct ReaderView: View {
     }
     return nil
   }
-  private func checkEdgeDrag() {
+  private func checkEdgeDrag(phase: ScrollPhase? = nil) {
     guard isVisible, !loading, !purchasing, edgeLoading == nil, error == nil else { return }
-    if let edge = edgeTrigger.update(topPull: Double(edgePull.top), bottomPull: Double(edgePull.bottom),
-                                    interacting: scrollPhase == .interacting,
+    let pull = scrollTracking.pull
+    let phase = phase ?? scrollPhase
+    if let edge = scrollTracking.trigger.update(topPull: Double(pull.top), remaining: Double(pull.remaining), offset: Double(pull.offset),
+                                    interacting: phase == .interacting, decelerating: phase == .decelerating,
                                     previous: readingPages.target(.previous) != nil, next: readingPages.target(.next) != nil) {
       loadAdjacent(edge)
     }
@@ -450,9 +462,10 @@ struct ReaderView: View {
   private var diagnosticContext: String {
     let previous = readingPages.target(.previous).map { ReaderDiagnostics.address($0.absoluteString) } ?? "none"
     let next = readingPages.target(.next).map { ReaderDiagnostics.address($0.absoluteString) } ?? "none"
+    let pull = scrollTracking.pull
     return "Loaded pages: \(readingPages.pages.map(\.pageNumber))\nPrevious: \(previous)\nNext: \(next)\n" +
-      "Edge pull: top=\(edgePull.top), bottom=\(edgePull.bottom); phase=\(scrollPhase)\n" +
-      "Last drag peak: top=\(peakTopPull), bottom=\(peakBottomPull); edge event=\(lastEdgeEvent)\n" +
+      "Edge pull: top=\(pull.top), bottom=\(pull.bottom); remaining=\(pull.remaining), offset=\(pull.offset); phase=\(scrollPhase)\n" +
+      "Last drag peak: top=\(scrollTracking.peakTopPull), bottom=\(scrollTracking.peakBottomPull); edge event=\(lastEdgeEvent)\n" +
       "Reader error: \(error ?? "none")\nEdge error: \(edgeFailure?.message ?? "none")"
   }
   private var diagnosticURL: URL {
@@ -539,6 +552,7 @@ struct ReaderView: View {
     proxy.scrollTo(target, anchor: bottom ? .bottom : .top)
   }
   private func cancelAdjacent() {
+    scrollTracking.trigger.endDrag()
     edgeRequestID = UUID()
     edgeTask?.cancel(); edgeTask = nil
     pendingPage = nil; edgeLoading = nil; edgeFailure = nil

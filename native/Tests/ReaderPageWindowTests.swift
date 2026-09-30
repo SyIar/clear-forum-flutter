@@ -155,21 +155,81 @@ final class ReaderPageWindowTests: XCTestCase {
     XCTAssertEqual(window.page(for: initial.url)?.posts[0].blocks[0].id, initial.posts[0].blocks[0].id)
     XCTAssertEqual(window.combined(active: initial).pageNumber, 2)
   }
-  func testEdgeTriggerRequiresOverscrollDuringADragAndFiresOnce() {
+  func testPreviousPageStillRequiresAnIntentionalPullAndFiresOnce() {
     var trigger = ReaderEdgeTrigger()
-    trigger.beginDrag()
-    XCTAssertNil(trigger.update(topPull: 80, bottomPull: 0, interacting: false, previous: true, next: true))
-    XCTAssertNil(trigger.update(topPull: 30, bottomPull: 0, interacting: true, previous: true, next: true))
-    XCTAssertEqual(trigger.update(topPull: 60, bottomPull: 0, interacting: true, previous: true, next: true), .previous)
-    XCTAssertNil(trigger.update(topPull: 90, bottomPull: 0, interacting: true, previous: true, next: true))
-    XCTAssertNil(trigger.update(topPull: 0, bottomPull: 90, interacting: true, previous: true, next: true))
-    trigger.beginDrag()
-    XCTAssertEqual(trigger.update(topPull: 0, bottomPull: 60, interacting: true, previous: true, next: true), .next)
+    trigger.beginDrag(at: 0)
+    XCTAssertNil(trigger.update(topPull: 80, remaining: 0, offset: -80, interacting: false, previous: true, next: true))
+    XCTAssertNil(trigger.update(topPull: 30, remaining: 0, offset: -30, interacting: true, previous: true, next: true))
+    XCTAssertEqual(trigger.update(topPull: 60, remaining: 0, offset: -60, interacting: true, previous: true, next: true), .previous)
+    XCTAssertNil(trigger.update(topPull: 90, remaining: 0, offset: -90, interacting: true, previous: true, next: true))
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 90, interacting: true, previous: true, next: true))
   }
   func testEdgeTriggerDoesNothingAtTheFirstOrLastPage() {
     var trigger = ReaderEdgeTrigger()
-    trigger.beginDrag()
-    XCTAssertNil(trigger.update(topPull: 90, bottomPull: 0, interacting: true, previous: false, next: true))
-    XCTAssertNil(trigger.update(topPull: 0, bottomPull: 90, interacting: true, previous: true, next: false))
+    trigger.beginDrag(at: 0)
+    XCTAssertNil(trigger.update(topPull: 90, remaining: 0, offset: -90, interacting: true, previous: false, next: true))
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 90, interacting: true, previous: true, next: false))
+  }
+  func testForwardDragLoadsBeforeBottomOverscrollAndCannotChainRequests() {
+    var trigger = ReaderEdgeTrigger()
+    trigger.beginDrag(at: 500)
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 201, offset: 700, interacting: true, previous: false, next: true))
+    XCTAssertEqual(trigger.update(topPull: 0, remaining: 180, offset: 721, interacting: true, previous: false, next: true), .next)
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 1000, interacting: true, previous: true, next: true))
+    trigger.endDrag()
+    trigger.beginDrag(at: 1000)
+    XCTAssertEqual(trigger.update(topPull: 0, remaining: 0, offset: 1010, interacting: true, previous: true, next: true), .next)
+  }
+  func testForwardFlickCanReachTheThresholdAfterTheFingerLifts() {
+    var trigger = ReaderEdgeTrigger()
+    trigger.beginDrag(at: 100)
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 900, offset: 200, interacting: true, previous: false, next: true))
+    XCTAssertEqual(trigger.update(topPull: 0, remaining: 190, offset: 910, interacting: false, decelerating: true, previous: false, next: true), .next)
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 1200, interacting: false, decelerating: true, previous: false, next: true))
+  }
+  func testIdleLayoutProgrammaticScrollAndBackwardMovementDoNotLoadNextPage() {
+    var trigger = ReaderEdgeTrigger()
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 200, interacting: false, decelerating: true, previous: true, next: true))
+    trigger.beginDrag(at: 200)
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 10, offset: 190, interacting: true, previous: true, next: true))
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 220, interacting: false, previous: true, next: true))
+    trigger.endDrag()
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 250, interacting: false, decelerating: true, previous: true, next: true))
+  }
+  func testShortPageRequiresActualForwardMovementRatherThanATouchOrTopBounce() {
+    var trigger = ReaderEdgeTrigger()
+    trigger.beginDrag(at: 0)
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 0, interacting: true, previous: false, next: true))
+    XCTAssertNil(trigger.update(topPull: 70, remaining: 70, offset: -70, interacting: true, previous: false, next: true))
+    XCTAssertNil(trigger.update(topPull: 20, remaining: 20, offset: -20, interacting: false, decelerating: true, previous: false, next: true))
+    XCTAssertNil(trigger.update(topPull: 0, remaining: 0, offset: 0, interacting: false, decelerating: true, previous: false, next: true))
+    trigger.endDrag()
+    trigger.beginDrag(at: 0)
+    XCTAssertEqual(trigger.update(topPull: 0, remaining: 0, offset: 8, interacting: true, previous: false, next: true), .next)
+  }
+  func testBottomDistanceIncludesSafeAreaAndToolbarInsets() {
+    let near = ReaderScrollMetrics(contentOffset: 1250, contentHeight: 2000, viewportHeight: 800, topInset: 90, bottomInset: 100)
+    XCTAssertEqual(near.remaining, 50)
+    XCTAssertEqual(near.offset, 1340)
+    XCTAssertEqual(near.bottomPull, 0)
+    let over = ReaderScrollMetrics(contentOffset: 1330, contentHeight: 2000, viewportHeight: 800, topInset: 90, bottomInset: 100)
+    XCTAssertEqual(over.remaining, 0)
+    XCTAssertEqual(over.bottomPull, 30)
+    let short = ReaderScrollMetrics(contentOffset: -90, contentHeight: 100, viewportHeight: 800, topInset: 90, bottomInset: 100)
+    XCTAssertEqual(short.remaining, 0)
+    XCTAssertEqual(short.offset, 0)
+    XCTAssertEqual(short.topPull, 0)
+  }
+  func testSouthPageOneTwoAndPrependThenForwardNavigation() {
+    let root = URL(string: "https://south-plus.net/read.php?tid=20")!
+    var window = ReaderPageWindow()
+    let first = page(1, root: root)
+    window.reset(first)
+    XCTAssertTrue(window.insert(page(2, root: root), at: .next, keeping: first.url))
+    XCTAssertEqual(window.target(.next), page(3, root: root).url)
+    window.reset(page(2, root: root))
+    XCTAssertTrue(window.insert(first, at: .previous, keeping: page(2, root: root).url))
+    XCTAssertEqual(window.combined(active: first).posts.map(\.id), ["post-1", "post-2"])
+    XCTAssertEqual(window.target(.next), page(3, root: root).url)
   }
 }

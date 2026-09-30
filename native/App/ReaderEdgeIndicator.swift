@@ -3,12 +3,33 @@ import SwiftUI
 struct ReaderEdgePull: Equatable {
   var top = 0
   var bottom = 0
+  var remaining = Int.max
+  var offset = 0
   init() {}
   init(_ geometry: ScrollGeometry) {
-    let start = -geometry.contentInsets.top
-    let end = max(start, geometry.contentSize.height - geometry.containerSize.height + geometry.contentInsets.bottom)
-    top = Int(max(0, start - geometry.contentOffset.y).rounded())
-    bottom = Int(max(0, geometry.contentOffset.y - end).rounded())
+    let metrics = ReaderScrollMetrics(contentOffset: Double(geometry.contentOffset.y),
+      contentHeight: Double(geometry.contentSize.height), viewportHeight: Double(geometry.containerSize.height),
+      topInset: Double(geometry.contentInsets.top), bottomInset: Double(geometry.contentInsets.bottom))
+    top = Int(metrics.topPull.rounded())
+    bottom = Int(metrics.bottomPull.rounded())
+    remaining = Int(metrics.remaining.rounded())
+    offset = Int(metrics.offset.rounded())
+  }
+}
+
+// Geometry observations do not publish per-pixel changes to the entire reader.
+// Only request/loading state changes need to redraw post cards.
+final class ReaderScrollTracking {
+  var pull = ReaderEdgePull()
+  var trigger = ReaderEdgeTrigger()
+  var peakTopPull = 0
+  var peakBottomPull = 0
+  func record(_ value: ReaderEdgePull, interacting: Bool) {
+    pull = value
+    if interacting {
+      peakTopPull = max(peakTopPull, value.top)
+      peakBottomPull = max(peakBottomPull, value.bottom)
+    }
   }
 }
 

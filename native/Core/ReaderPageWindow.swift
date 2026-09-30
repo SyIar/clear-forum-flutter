@@ -2,19 +2,46 @@ import Foundation
 
 enum ReaderEdge { case previous, next }
 
-// Only an intentional drag beyond an edge can load a page. Layout changes,
-// deceleration, and repeated geometry callbacks must not start more requests.
+// Top navigation requires a deliberate pull. Forward navigation starts near
+// the bottom during the user's drag or its deceleration, once per gesture.
 struct ReaderEdgeTrigger {
+  private var armed = false
   private var fired = false
-  mutating func beginDrag() { fired = false }
-  mutating func update(topPull: Double, bottomPull: Double, interacting: Bool, previous: Bool, next: Bool) -> ReaderEdge? {
-    guard interacting, !fired else { return nil }
+  private var lastOffset = 0.0
+  private var movingForward = false
+  mutating func beginDrag(at offset: Double) {
+    armed = true; fired = false; lastOffset = offset; movingForward = false
+  }
+  mutating func endDrag() { armed = false; movingForward = false }
+  mutating func update(topPull: Double, remaining: Double, offset: Double,
+                       interacting: Bool, decelerating: Bool = false,
+                       previous: Bool, next: Bool) -> ReaderEdge? {
+    guard armed, !fired, interacting || decelerating else { return nil }
+    let delta = offset - lastOffset
+    if interacting, delta > 0.5 { movingForward = true }
+    else if delta < -0.5 { movingForward = false }
+    lastOffset = offset
     let edge: ReaderEdge?
-    if topPull >= 56, previous { edge = .previous }
-    else if bottomPull >= 56, next { edge = .next }
+    if interacting, topPull >= 56, previous { edge = .previous }
+    else if topPull <= 0, remaining <= 200, movingForward, next { edge = .next }
     else { edge = nil }
     if edge != nil { fired = true }
     return edge
+  }
+}
+
+struct ReaderScrollMetrics {
+  let offset: Double
+  let topPull: Double
+  let bottomPull: Double
+  let remaining: Double
+  init(contentOffset: Double, contentHeight: Double, viewportHeight: Double, topInset: Double, bottomInset: Double) {
+    let start = -topInset
+    let end = max(start, contentHeight - viewportHeight + bottomInset)
+    offset = contentOffset - start
+    topPull = max(0, start - contentOffset)
+    bottomPull = max(0, contentOffset - end)
+    remaining = max(0, end - contentOffset)
   }
 }
 
