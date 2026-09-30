@@ -124,12 +124,12 @@ struct BookhouseReaderView: View {
     let featured = page.entries.filter(\.pinned)
     if !featured.isEmpty {
       DisclosureGroup(AppText.text("Featured novels")) {
-        ForEach(featured) { entry in ForumEntryCard(entry: entry, isForum: false, navigate: open).id(entry.id) }
+        ForEach(featured) { entry in ForumEntryCard(entry: entry, isForum: false, navigate: open, formatBookhouseTitle: true).id(entry.id) }
       }.forumFont(.subheadline).padding(14)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
     }
     ForEach(page.entries.filter { !$0.pinned }) { entry in
-      ForumEntryCard(entry: entry, isForum: false, navigate: open).id(entry.id)
+      ForumEntryCard(entry: entry, isForum: false, navigate: open, formatBookhouseTitle: true).id(entry.id)
     }
     if page.entries.isEmpty { Text(AppText.text("No results")).foregroundStyle(.secondary) }
     if BookhouseSitePolicy.route(page.url)?.kind != .search, let next = page.next {

@@ -1,4 +1,5 @@
 import SwiftUI
+import TiebaFeature
 
 @main
 struct ForumLiteApp: App {
@@ -12,12 +13,33 @@ struct ForumLiteApp: App {
   @StateObject private var simpSession = ForumSession(site: .simp)
   @StateObject private var southSession = ForumSession(site: .south)
   @StateObject private var bookhouseSession = ForumSession(site: .bookhouse)
+  @StateObject private var tieba = TiebaModuleSession()
+  @State private var showingTieba = false
   @State private var path: [ForumDestination] = []
   init() { AppTypography.configureNavigation() }
   var body: some Scene {
     WindowGroup {
+      Group {
+        if showingTieba {
+          TiebaModuleView(session: tieba) { showingTieba = false }
+        } else {
+          forumNavigation
+        }
+      }.environment(\.locale, AppText.locale)
+        .background { GofileDownloadSurfaces(manager: gofileDownloads) }
+        .overlay(alignment: .trailing) {
+          FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)
+        }
+        .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
+        .onChange(of: scenePhase) { _, value in
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
+          else if value == .active { downloads.foregrounded() }
+        }
+    }
+  }
+  private var forumNavigation: some View {
       NavigationStack(path: $path) {
-        ForumSelectionView()
+        ForumSelectionView { showingTieba = true }
           .navigationDestination(for: ForumDestination.self) { destination in
             let site = destination.site
             Group {
@@ -38,18 +60,7 @@ struct ForumLiteApp: App {
             .environmentObject(session(for: site))
           }
       }.tint(.blue)
-        .background { GofileDownloadSurfaces(manager: gofileDownloads) }
-        .overlay(alignment: .trailing) {
-          FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)
-        }
-        .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
-        .onChange(of: scenePhase) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
-          else if value == .active { downloads.foregrounded() }
-        }
         .forumFont(.body)
-        .environment(\.locale, AppText.locale)
-    }
   }
   private func library(for site: ForumSite) -> LibraryStore {
     site == .bookhouse ? bookhouseLibrary : site == .simp ? simpLibrary : southLibrary
@@ -83,6 +94,7 @@ struct ForumLogo: View {
 }
 
 struct ForumSelectionView: View {
+  let openTieba: () -> Void
   var body: some View {
     ScrollView {
       VStack(spacing: 22) {
@@ -99,6 +111,18 @@ struct ForumSelectionView: View {
             .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
           }.buttonStyle(.plain).accessibilityLabel(AppText.format("Open %@ home", String(describing: site.host)))
         }
+        Button(action: openTieba) {
+          VStack(spacing: 17) {
+            Image("TiebaLogo").resizable().scaledToFit().frame(height: 102)
+              .clipShape(RoundedRectangle(cornerRadius: 22)).frame(maxWidth: .infinity)
+              .accessibilityHidden(true)
+            Text("tieba.baidu.com").forumFont(.caption).foregroundStyle(.secondary)
+          }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 18)
+            .frame(maxWidth: .infinity, minHeight: 182)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 27))
+            .overlay(RoundedRectangle(cornerRadius: 27).strokeBorder(Color.primary.opacity(0.04)))
+            .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
+        }.buttonStyle(.plain).accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
       }.frame(maxWidth: 520).padding(.horizontal, 22).padding(.top, 53).padding(.bottom, 40)
         .frame(maxWidth: .infinity)
     }

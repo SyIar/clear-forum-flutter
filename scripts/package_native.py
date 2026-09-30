@@ -20,6 +20,15 @@ assert struct.unpack('<II', binary[:8]) == (0xFEEDFACF, 0x0100000C), 'Expected a
 assert not any(p.name in {'Flutter.framework', 'App.framework', 'flutter_assets'} for p in app.rglob('*')), 'Unexpected Flutter runtime'
 assert (app / 'MediaProbe.js').is_file(), 'Missing media compatibility script'
 assert (app / 'Assets.car').is_file(), 'Missing app assets'
+tieba = app / 'Frameworks/TiebaFeature.framework'
+assert (tieba / 'TiebaFeature').is_file(), 'Missing native Tieba feature binary'
+assert struct.unpack('<II', (tieba / 'TiebaFeature').read_bytes()[:8]) == (0xFEEDFACF, 0x0100000C), 'Expected arm64 Tieba framework'
+for name in ['app_zh.arb', 'app_en.arb', 'emoticons_zh.arb', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'SwiftProtobuf-LICENSE.txt']:
+    assert (tieba / name).is_file(), f'Missing Tieba resource: {name}'
+    assert (tieba / name).read_bytes() == (Path('native/Tieba/Resources') / name).read_bytes(), f'Tieba resource differs: {name}'
+for source in Path('native/Tieba/Resources/emoticons').iterdir():
+    assert (tieba / 'emoticons' / source.name).read_bytes() == source.read_bytes(), f'Missing Tieba emoticon: {source.name}'
+assert not list(tieba.rglob('*.otf')), 'Tieba should reuse the host fonts'
 assert (app / 'ThirdPartyNotices.txt').is_file(), 'Missing dependency notice'
 fonts = ['SourceHanSerifSC-Regular.otf', 'SourceHanSerifSC-Bold.otf']
 assert sorted(info.get('UIAppFonts', [])) == sorted(fonts), 'Missing bundled font registration'

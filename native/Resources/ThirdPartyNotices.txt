@@ -23,3 +23,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+Tieba Lite native module
+Copyright HuanCheng65 and contributors; Swift adaptation by SyIar.
+https://github.com/SyIar/tieba-lite-flutter
+https://github.com/HuanCheng65/TiebaLite
+GNU General Public License version 3. Full license and notices are included
+in TiebaFeature.framework; available in the Tieba module Settings > Licenses.
+Corresponding integrated source: https://github.com/SyIar/clear-forum-flutter
+
+SwiftProtobuf 1.38.1
+https://github.com/apple/swift-protobuf
+Apache License 2.0; license and notices are bundled in TiebaFeature.framework.

@@ -21,11 +21,15 @@ jobs:
       - run: python3 scripts/check_localization.py
       - run: swift scripts/check_native_localization.swift
       - run: python3 scripts/check_native_fonts.py
+      - run: xcrun swiftc -frontend -parse native/Tieba/App/*.swift native/Tieba/Core/*.swift
+      - run: python3 scripts/check_tieba_module.py
+      - run: brew install protobuf xcodegen
+      - run: python3 native/Tieba/scripts/generate_native_protos.py
+      - run: swift test --package-path native/Tieba
       - run: swift test --package-path native
       - run: node scripts/check_media_probe.mjs
       - run: node scripts/gofile_bridge.test.mjs
       - run: python3 scripts/check_media_support.py
-      - run: brew install xcodegen
       - run: xcodegen generate --spec native/project.yml
       - name: Compile native device app
         run: xcodebuild -project native/ForumLite.xcodeproj -scheme ForumLite -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath native/build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=$((1000 + GITHUB_RUN_NUMBER)) build

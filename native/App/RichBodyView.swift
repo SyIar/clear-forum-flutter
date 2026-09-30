@@ -31,6 +31,12 @@ struct ForumEntryCard: View {
   let entry: ForumEntry
   let isForum: Bool
   let navigate: (URL) -> Void
+  var formatBookhouseTitle = false
+  private var bookTitle: BookhouseTitlePresentation? {
+    guard formatBookhouseTitle, BookhouseSitePolicy.threadKey(entry.url) != nil else { return nil }
+    return BookhouseTitlePresentation(title: entry.title, postingAuthor: entry.authorName ?? entry.subtitle)
+  }
+  private var inlineMetadata: Bool { SouthSitePolicy.isThread(entry.url) || bookTitle != nil }
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       if !entry.tags.isEmpty { ForumTagStrip(tags: entry.tags, navigate: navigate) }
@@ -39,11 +45,22 @@ struct ForumEntryCard: View {
           if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
           else { Image(systemName: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
-            Text(entry.title).forumFont(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
+            Text(bookTitle?.title ?? entry.title).forumFont(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
+            if let tags = bookTitle?.tags, !tags.isEmpty {
+              ScrollView(.horizontal) {
+                HStack(spacing: 5) {
+                  ForEach(tags, id: \.self) { tag in
+                    Text(tag).forumFont(.caption2, weight: .semibold).foregroundStyle(.blue)
+                      .padding(.horizontal, 7).padding(.vertical, 3)
+                      .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                  }
+                }
+              }.scrollIndicators(.hidden)
+            }
             if !entry.excerpt.isEmpty { Text(entry.excerpt).forumFont(.subheadline).foregroundStyle(.secondary).lineLimit(3) }
-            if SouthSitePolicy.isThread(entry.url), !entry.pinned {
+            if inlineMetadata, !entry.pinned {
               HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(entry.authorName ?? entry.subtitle).lineLimit(1)
+                Text(bookTitle?.author ?? entry.authorName ?? entry.subtitle).lineLimit(1)
                 Spacer(minLength: 6)
                 if let date = entry.postedAt { Text(date).fixedSize(horizontal: true, vertical: false) }
                 if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(count))).monospacedDigit().fixedSize() }
@@ -51,7 +68,7 @@ struct ForumEntryCard: View {
             } else if !entry.pinned && !entry.subtitle.isEmpty {
               Text(entry.subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
-            if !SouthSitePolicy.isThread(entry.url), entry.postedAt != nil || entry.totalPostCount != nil {
+            if !inlineMetadata, entry.postedAt != nil || entry.totalPostCount != nil {
               HStack(spacing: 8) {
                 if let date = entry.postedAt, !entry.subtitle.contains(date) { Text(date) }
                 if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(describing: count))).monospacedDigit() }

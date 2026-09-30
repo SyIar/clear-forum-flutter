@@ -3,6 +3,30 @@ import XCTest
 @testable import ForumCore
 
 final class BookhouseTests: XCTestCase {
+  func testCatalogExtractsRepostedAuthorAndCategoriesWithoutChangingStoredTitle() throws {
+    let subject = "\u{3010}A novel\u{3011}(1-11) \u{4F5C}\u{8005}\u{FF1A} Writer \u{300E}Campus\u{300F}\u{300E}Romance\u{300F}\u{300E}Campus\u{300F}"
+    let view = BookhouseTitlePresentation(title: subject, postingAuthor: "Uploader")
+    XCTAssertEqual(view.title, "\u{3010}A novel\u{3011}(1-11)")
+    XCTAssertEqual(view.author, "Writer")
+    XCTAssertEqual(view.tags, ["Campus", "Romance"])
+    let html = "<h1 class='main-title'>\(subject)</h1><div class='subtitle-line'><span class='sender'><a>Uploader</a> 2026-09-30 10:20</span></div><div id='content-section'><pre>Original prose.</pre></div>"
+    let page = try ForumParser().parse(html, url: try XCTUnwrap(BookhouseSitePolicy.thread("20")))
+    XCTAssertEqual(page.title, subject)
+    XCTAssertEqual(page.posts.first?.author, "Uploader")
+  }
+
+  func testCatalogTitleSupportsASCIIColonAndFallsBackWhenAuthorPatternIsIncomplete() {
+    let marker = "\u{4F5C}\u{8005}"
+    let start = "\u{300E}", end = "\u{300F}"
+    XCTAssertEqual(BookhouseTitlePresentation(title: "Book \(marker): Writer\(start)Tag\(end)", postingAuthor: "Account").author, "Writer")
+    let fallback = BookhouseTitlePresentation(title: "Book \(marker): Writer", postingAuthor: "Account")
+    XCTAssertEqual(fallback.author, "Account")
+    XCTAssertEqual(fallback.title, "Book \(marker): Writer")
+    let onlyTag = BookhouseTitlePresentation(title: "\(start)Tag\(end)", postingAuthor: "Account")
+    XCTAssertEqual(onlyTag.title, "\(start)Tag\(end)")
+    XCTAssertTrue(onlyTag.tags.isEmpty)
+  }
+
   private let start = BookhouseSitePolicy.start
   private func url(_ query: String) -> URL { URL(string: "https://www.cool18.com/bbs4/index.php?" + query)! }
   private let rows = #"[{"tid":"30","rootid":"0","uptid":"0","uid":"101","username":"Writer A","subject":"<b>A quiet library</b>","dateline":"09/30/26"},{"tid":"35","rootid":"30","uptid":"30","username":"Reader","subject":"A reply"},{"tid":"20","rootid":"0","uptid":"0","uid":"102","username":"Writer B","subject":"Another book"}]"#
