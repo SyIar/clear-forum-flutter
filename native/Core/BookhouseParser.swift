@@ -29,7 +29,8 @@ struct BookhouseParser {
         let author = anchors.dropFirst().first.flatMap { try? $0.text() } ?? ""
         entries.append(ForumEntry(title: title, url: target, subtitle: author, authorName: author))
       }
-      guard !rows.isEmpty || route.kind == .search || (try doc.select("#d_list").first()) != nil else { throw ReaderFailure.unsupported }
+      let catalogContainer = try doc.select("#d_list").first()
+      guard !rows.isEmpty || route.kind == .search || catalogContainer != nil else { throw ReaderFailure.unsupported }
       page = ForumPage(url: url, title: route.kind == .search ? AppText.text("Search results") : AppText.text("Forbidden Library"),
                        kind: .threads, entries: entries, posts: [], pageNumber: BookhouseSitePolicy.pageNumber(url))
     }
