@@ -73,3 +73,21 @@ removed advertisements, continuation links, search paging and cached positions.
 Local Swift tree-sitter parsing is syntax-only. Full type checking and device
 Release compilation use the existing macOS CI workflow. No simulator is used;
 physical-device typography and navigation acceptance remain with the user.
+
+### Device release build 1047
+
+- Source: `b92c86e8aea74ef83ff1d6c81dba21e15a1446b6`.
+- [macOS workflow run 47](https://github.com/SyIar/clear-forum-flutter/actions/runs/36695089241)
+  succeeded on 2026-09-30, including 286 Swift Core tests with zero failures and
+  the generic iPhoneOS Release build. No simulator was run.
+- Local checks parsed 118 Swift files (syntax only) and validated repository
+  language rules and localized string placeholders.
+- The reader's scroll content, toolbar, error presentation and visible-ID
+  calculation are separate components to keep SwiftUI type checking bounded.
+- Downloaded delivery: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1047-unsigned.ipa`,
+  47,648,153 bytes.
+- SHA-256: `57b6c9fccb708891cf3c85785405fa794476d6020b48a9bf6d0186669e0283d0`.
+- Local artifact verification checked ZIP CRC, workflow metadata and checksum,
+  the ARM64 iPhoneOS executable, unsigned status, app identity, bundled font
+  bytes, Chinese localization tables and `BookhouseLogo` in the asset catalog.
+- Physical-device acceptance remains pending.
