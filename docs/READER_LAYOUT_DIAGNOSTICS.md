@@ -60,3 +60,19 @@ removed. Page text and image addresses remain for debugging. Source snapshots
 are memory-only, capped at six pages and one megabyte per page; raw source is
 neither committed nor uploaded. Device gesture, appearance and image behavior
 remain subject to physical-device acceptance. No simulator is used.
+
+## Verification
+
+- Source commit: `e20b1d3b4a7625e39ac852d3b768441a37087601`.
+- [Native build 1048 / workflow run 48](https://github.com/SyIar/clear-forum-flutter/actions/runs/36697128496):
+  291 Swift Core tests passed with zero failures; generic iPhoneOS Release
+  compilation succeeded on 2026-09-30.
+- Local validation parsed 121 Swift files (syntax only), checked 394 localized
+  strings and 381 app text keys, and checked repository language policy.
+- Physical-device acceptance is pending for layout, edge gestures, and the
+  user's failing image page.
+- Downloaded delivery: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1048-unsigned.ipa`
+  (47,702,709 bytes).
+- SHA-256: `dc6594f78025b84bd38288fc3603ad9e323ab878cc029881a951706a22093f88`.
+- Verified ZIP CRC, build/source/run metadata, unsigned ARM64 iPhoneOS app,
+  unchanged application identity, font resources and bundled Chinese strings.
