@@ -47,3 +47,21 @@ identities, a real macOS WebKit/HTTP identity comparison, and text export with
 whitespace, nested blocks, full link targets and excluded purchase metadata.
 No simulator is used. Device checks should cover logged-in South browsing,
 expanded button placement, post menu actions and arbitrary text selection.
+
+## Verified build 1043
+
+- Source: `2e72569187a071263190e2461ba4c76289901797` on `main`.
+- [Actions run 36684731902](https://github.com/SyIar/clear-forum-flutter/actions/runs/36684731902)
+  succeeded on 2026-09-30.
+- All 271 Swift Core tests passed, including the persisted identity migration,
+  real macOS WebKit/HTTP User-Agent consistency, and text-export cases.
+- Repository, localization, mixed-script font and existing media checks passed.
+- The Xcode 26.3 iPhoneOS arm64 Release build and IPA packaging passed.
+- Installation and physical-device UI acceptance remain pending.
+- Local unsigned IPA: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1043-unsigned.ipa`.
+- Size: `46,641,631` bytes.
+- SHA-256: `cd955c69ee57c3a72b2fdd8bb612f9a2e010281bbc6d80654605ffef2fa29f3e`.
+- Downloaded artifact verification passed ZIP CRC, source/run metadata, checksum,
+  version/build, bundle identity, arm64 executable, unsigned status and media/icon
+  resources. Embedded fonts match their sources and Chinese string tables match
+  all source translations. The installation-directory copy is byte-identical.
