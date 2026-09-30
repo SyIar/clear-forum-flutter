@@ -38,7 +38,7 @@ struct SouthPostMenu: View {
     } label: {
       Image(systemName: "ellipsis").font(.system(size: 10, weight: .semibold))
         .frame(width: 24, height: 12)
-    }.buttonStyle(.glass).buttonBorderShape(.roundedRectangle(radius: 6))
+    }.buttonStyle(.glass).buttonBorderShape(.capsule)
       .controlSize(.small).foregroundStyle(.blue).disabled(busy)
       .frame(minWidth: 44, minHeight: 44)
       .accessibilityLabel(AppText.format("Actions for %@", post.author))

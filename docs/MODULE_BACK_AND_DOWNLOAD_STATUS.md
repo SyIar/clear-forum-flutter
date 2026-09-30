@@ -42,6 +42,9 @@ in the upper-left corner without changing the button's action or progress ring.
 
 ## Verification
 
+The compact South post menu also uses a capsule border, replacing the 6-point
+corners while keeping its existing label size and minimum touch area.
+
 - Local Swift syntax, resource, localization and repository checks pass. These
   are not a substitute for Apple compilation.
 - Core regression coverage checks active, queued, paused, folder and completed
