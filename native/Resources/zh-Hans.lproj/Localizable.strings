@@ -402,3 +402,9 @@
 "Capture page diagnostics" = "重新获取页面诊断";
 
 "Could not resolve the download address. Refresh or open the original website." = "\U65e0\U6cd5\U89e3\U6790\U4e0b\U8f7d\U5730\U5740\Uff0c\U8bf7\U5237\U65b0\U6216\U6253\U5f00\U539f\U7f51\U9875\U3002";
+
+"Resolving download address" = "\U6B63\U5728\U89E3\U6790\U4E0B\U8F7D\U5730\U5740";
+"Saving file" = "\U6B63\U5728\U4FDD\U5B58\U6587\U4EF6";
+"Reading folder" = "\U6B63\U5728\U8BFB\U53D6\U6587\U4EF6\U5939";
+"%@ saved · %@ skipped · %@ queued" = "\U5DF2\U4FDD\U5B58 %@ \U9879 · \U5DF2\U8DF3\U8FC7 %@ \U9879 · \U6392\U961F %@ \U9879";
+"%@ · %@ saved · %@ queued" = "%@ · \U5DF2\U4FDD\U5B58 %@ \U9879 · \U6392\U961F %@ \U9879";

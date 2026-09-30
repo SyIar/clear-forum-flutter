@@ -8,6 +8,7 @@ enum TiebaResources {
 // Retain accounts and preferences across module switches without sharing forum sessions.
 @MainActor public final class TiebaModuleSession: ObservableObject {
   let app = AppState()
+  public fileprivate(set) var canReturnToForums = false
   public init() {}
 }
 
@@ -29,7 +30,7 @@ extension EnvironmentValues {
     self.close = close
   }
   public var body: some View {
-    AppRoot()
+    AppRoot(onRootChange: { session.canReturnToForums = $0 })
       .environmentObject(session.app)
       .environmentObject(session.app.settings)
       .environment(\.exitTieba, close)

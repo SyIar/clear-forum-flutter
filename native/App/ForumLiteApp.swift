@@ -19,13 +19,11 @@ struct ForumLiteApp: App {
   @State private var path: [ForumDestination] = []
   var body: some Scene {
     WindowGroup {
-      Group {
-        if showingTieba {
-          TiebaModuleView(session: tieba) { showingTieba = false }
-        } else {
-          forumNavigation
-        }
-      }.environment(\.locale, AppText.locale)
+      ModuleNavigationHost(isPresented: $showingTieba, canReturn: { tieba.canReturnToForums },
+        root: forumNavigation.environment(\.locale, AppText.locale),
+        module: TiebaModuleView(session: tieba) { showingTieba = false }.environment(\.locale, AppText.locale))
+        .ignoresSafeArea()
+        .environment(\.locale, AppText.locale)
         .background { GofileDownloadSurfaces(manager: gofileDownloads) }
         .overlay(alignment: .trailing) {
           FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)

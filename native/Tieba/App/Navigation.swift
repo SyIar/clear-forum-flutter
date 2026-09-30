@@ -29,19 +29,25 @@ enum Route: Hashable {
 }
 
 struct AppRoot: View {
+  var onRootChange: (Bool) -> Void = { _ in }
   @EnvironmentObject private var app: AppState
   @EnvironmentObject private var settings: Preferences
   @Environment(\.exitTieba) private var exitTieba
   @State private var deepLink: Route?
   @State private var validating = false
+  @State private var selectedTab = 0
+  @State private var paths: [Int: [Route]] = [:]
+  private var canReturnToForums: Bool {
+    (!app.ready || paths[selectedTab, default: []].isEmpty) && !app.login && deepLink == nil && !validating
+  }
   var body: some View {
     Group {
       if app.ready {
-        TabView {
-          navigation { HomeView() }.tabItem { Label(tr("home"), systemImage: "house") }
-          if !settings.flag("hideExplore") { navigation { ExploreView() }.tabItem { Label(tr("explore"), systemImage: "safari") } }
-          navigation { InboxView() }.tabItem { Label(tr("notifications"), systemImage: "bell") }
-          navigation { MeView() }.tabItem { Label(tr("me"), systemImage: "person.crop.circle") }
+        TabView(selection: $selectedTab) {
+          navigation(tab: 0) { HomeView() }.tabItem { Label(tr("home"), systemImage: "house") }.tag(0)
+          if !settings.flag("hideExplore") { navigation(tab: 1) { ExploreView() }.tabItem { Label(tr("explore"), systemImage: "safari") }.tag(1) }
+          navigation(tab: 2) { InboxView() }.tabItem { Label(tr("notifications"), systemImage: "bell") }.tag(2)
+          navigation(tab: 3) { MeView() }.tabItem { Label(tr("me"), systemImage: "person.crop.circle") }.tag(3)
         }.id(app.accountEpoch)
       } else {
         ContentUnavailableView(tr("initializationFailed"), systemImage: "exclamationmark.lock", description: Text(app.error ?? ""))
@@ -61,6 +67,13 @@ struct AppRoot: View {
       }
     }
     .appFont(.body, baseSize: 16)
+    .onChange(of: canReturnToForums, initial: true) { _, value in onRootChange(value) }
+    .onDisappear { onRootChange(false) }
+    .onAppear { onRootChange(canReturnToForums) }
+    .onChange(of: app.accountEpoch) { _, _ in paths = [:]; selectedTab = 0 }
+    .onChange(of: settings.flag("hideExplore")) { _, hidden in
+      if hidden && selectedTab == 1 { selectedTab = 0 }
+    }
     .overlay { if validating { ProgressView(tr("loading")).padding(24).glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20)) } }
     .sheet(isPresented: $app.login) {
       BaiduBrowser(session: nil) { result in
@@ -90,8 +103,8 @@ struct AppRoot: View {
       return .systemAction
     })
   }
-  private func navigation<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-    NavigationStack {
+  private func navigation<Content: View>(tab: Int, @ViewBuilder content: () -> Content) -> some View {
+    NavigationStack(path: Binding(get: { paths[tab, default: []] }, set: { paths[tab] = $0 })) {
       content()
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Route.self) { Destination(route: $0) }

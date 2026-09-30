@@ -17,6 +17,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private let mime: String
   private let limit: Int64
   private let progress: (Double?) -> Void
+  private let activity: (FileTransferActivity) -> Void
   private var completion: ((Result<URL, Error>) -> Void)?
   private var session: URLSession?
   private var task: URLSessionDownloadTask?
@@ -27,14 +28,17 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private var fileSize: Int64? { hosted?.size ?? expectedBytes }
   init(name: String, expectedBytes: Int64?, mime: String, cookies: [HTTPCookie], userAgent: String,
        limit: Int64 = GofilePolicy.fileLimit, prepare: (() async throws -> HostedFileRequest)? = nil,
+       activity: @escaping (FileTransferActivity) -> Void = { _ in },
        progress: @escaping (Double?) -> Void,
        completion: @escaping (Result<URL, Error>) -> Void) {
     self.name = name; self.expectedBytes = expectedBytes; self.mime = mime
     self.cookies = cookies; self.userAgent = userAgent; self.limit = limit
     self.progress = progress; self.completion = completion
     self.prepare = prepare
+    self.activity = activity
   }
   func start(_ url: URL) {
+    activity(.waiting)
     Self.waiting.append((self, url))
     Self.startNext()
   }
@@ -52,6 +56,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   }
   private func prepareAndBegin(_ url: URL) {
     guard let prepare else { begin(url); return }
+    activity(.resolving)
     preparing = Task { @MainActor [weak self] in
       guard let self else { return }
       do {
@@ -78,7 +83,9 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     configuration.urlCredentialStorage = nil; configuration.urlCache = nil
     configuration.timeoutIntervalForRequest = 60; configuration.timeoutIntervalForResource = 7200
     session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
-    task = session?.downloadTask(with: request(url)); task?.resume()
+    task = session?.downloadTask(with: request(url))
+    activity(.downloading)
+    task?.resume()
   }
   private func request(_ url: URL) -> URLRequest {
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
@@ -126,6 +133,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   }
   func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
     guard completion != nil else { return }
+    activity(.saving)
     var directory: URL?
     do {
       guard let response = downloadTask.response as? HTTPURLResponse, let url = response.url else { throw MediaFileError(message: AppText.text("Invalid download response.")) }

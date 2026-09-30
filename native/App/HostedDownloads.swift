@@ -40,6 +40,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   @Published private(set) var phase = Phase.idle
   @Published private(set) var current = ""
   @Published private(set) var progress: Double?
+  @Published private(set) var activity = FileTransferActivity.waiting
   @Published private(set) var saved: [Saved] = []
   @Published private(set) var skipped: [Skipped] = []
   @Published private(set) var issue: String?
@@ -51,11 +52,19 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   var running: Bool { phase == .running }
   var finished: Bool { phase == .finished || phase == .cancelled }
   var pending: Int { plan?.pending.count ?? 0 }
+  var queued: Int { activity.queuedCount(pending: pending, running: running) }
   var canResume: Bool { phase == .paused && worker == nil && directory != nil && retryAfter.map { $0 > Date() } != true }
   var status: String {
     switch phase {
     case .idle: return AppText.text("Preparing downloads")
-    case .running: return AppText.text("Downloading")
+    case .running:
+      switch activity {
+      case .waiting: return AppText.text("Queued")
+      case .resolving: return AppText.text("Resolving download address")
+      case .downloading: return AppText.text("Downloading")
+      case .saving: return AppText.text("Saving file")
+      case .readingFolder: return AppText.text("Reading folder")
+      }
     case .paused: return issue ?? AppText.text("Paused")
     case .finished: return skipped.isEmpty ? AppText.text("All files saved") : AppText.text("Finished with skipped items")
     case .cancelled: return issue ?? AppText.text("Stopped")
@@ -80,6 +89,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   }
   func resume() {
     guard canResume else { return }
+    progress = nil; activity = .waiting
     phase = .running; issue = nil; retryAfter = nil
     worker = Task { [weak self] in await self?.run() }
   }
@@ -96,16 +106,23 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
     while let item = plan?.pending.first, let directory {
       if Task.isCancelled { return }
       current = item.path.joined(separator: "/"); progress = nil
+      activity = .waiting
       do {
         if item.entry.folder {
+          activity = .readingFolder
           let listing = try await client.listing(item.entry.pageURL, expandAlbum: false)
           try Task.checkCancellation()
           try plan?.expand(listing)
         } else if TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
           skipped.append(Skipped(name: current, reason: AppText.text("Use Copy magnet in the file list."))); plan?.advance()
-          continue
         } else {
-          let file = try await HostedTransfer.run(item.entry, client: client) { [weak self] value in self?.progress = value }
+          let file = try await HostedTransfer.run(item.entry, client: client, activity: { [weak self] value in
+            guard let self, self.running else { return }
+            self.activity = value
+          }) { [weak self] value in
+            guard let self, self.running else { return }
+            self.progress = value
+          }
           defer { GofileFileTransfer.remove(file) }
           try Task.checkCancellation()
           let destination = item.path.reduce(directory) { $0.appendingPathComponent($1) }
@@ -113,6 +130,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
           try FileManager.default.moveItem(at: file, to: destination)
           saved.append(Saved(name: current, url: destination)); plan?.advance()
         }
+        current = ""; progress = nil; activity = .waiting
         try await Task.sleep(for: .milliseconds(700))
       } catch is CancellationError { return }
       catch {
@@ -132,11 +150,12 @@ struct HostedBatchRow: View {
     NavigationLink { HostedBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
         Label(batch.listing.title, systemImage: "folder").appFont(.headline).lineLimit(2)
-        Text(AppText.format("%@ · %@ saved · %@ pending", String(describing: batch.provider), String(describing: batch.saved.count), String(describing: batch.pending))).appFont(.caption).foregroundStyle(.secondary)
+        Text(AppText.format("%@ · %@ saved · %@ queued", batch.provider, String(batch.saved.count), String(batch.queued))).appFont(.caption).foregroundStyle(.secondary)
+        Text(batch.status).appFont(.caption).foregroundStyle(.secondary)
         if batch.running {
           if let progress = batch.progress { ProgressView(value: progress) } else { ProgressView() }
           Text(batch.current).appFont(.caption).lineLimit(1).foregroundStyle(.secondary)
-        } else { Text(batch.status).appFont(.caption).foregroundStyle(.secondary) }
+        }
       }.padding(.vertical, 4)
     }.swipeActions {
       if batch.finished { Button(AppText.text("Remove from list"), systemImage: "xmark") { HostedDownloadManager.shared.remove(batch) } }
@@ -153,8 +172,9 @@ struct HostedBatchView: View {
     List {
       Section {
         Text(batch.listing.title).appFont(.headline)
-        Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.saved.count), String(describing: batch.skipped.count), String(describing: batch.pending))).appFont(.subheadline).foregroundStyle(.secondary)
+        Text(AppText.format("%@ saved · %@ skipped · %@ queued", String(batch.saved.count), String(batch.skipped.count), String(batch.queued))).appFont(.subheadline).foregroundStyle(.secondary)
         if !batch.current.isEmpty { Text(batch.current).appFont(.subheadline).lineLimit(3) }
+        Text(batch.status).appFont(.subheadline).foregroundStyle(batch.running ? Color.primary : Color.secondary)
         if batch.running {
           if let progress = batch.progress {
             ProgressView(value: progress)
@@ -162,7 +182,6 @@ struct HostedBatchView: View {
           } else { ProgressView() }
           Button(AppText.text("Pause"), systemImage: "pause", action: batch.pause)
         } else {
-          Text(batch.status).foregroundStyle(.secondary)
           if batch.phase == .paused {
             TimelineView(.periodic(from: .now, by: 1)) { context in
               if let date = batch.retryAfter, date > context.date {

@@ -24,13 +24,18 @@ struct FloatingDownloads: View {
               .font(.system(size: 18, weight: .semibold))
           }
         }.frame(width: 35, height: 35).padding(10)
-          .overlay(alignment: .topLeading) {
-            if unfinishedCount > 1 {
-              Text("\(unfinishedCount)").font(.system(size: 10, weight: .bold)).monospacedDigit()
-                .padding(5).background(.blue, in: Circle()).foregroundStyle(.white).offset(x: -3, y: -3)
-            }
-          }
       }.buttonStyle(.glass).buttonBorderShape(.circle)
+        // Keep the badge outside the button style's circular glass mask.
+        .overlay(alignment: .topLeading) {
+          if unfinishedCount > 1 {
+            Text("\(unfinishedCount)").font(.system(size: 10, weight: .bold)).monospacedDigit()
+              .padding(.horizontal, 5).frame(minWidth: 20, minHeight: 20).fixedSize()
+              .background(.blue, in: Capsule()).foregroundStyle(.white)
+              .offset(x: -3, y: -3).zIndex(1)
+              .allowsHitTesting(false).accessibilityHidden(true)
+          }
+        }
+        .padding(6)
         .animation(reduceMotion ? nil : .spring(duration: 0.3), value: unfinishedCount)
         .accessibilityLabel(AppText.text("Downloads"))
         .accessibilityValue(AppText.format("%@ active, %@ unfinished", String(describing: activeCount), String(describing: unfinishedCount)))
