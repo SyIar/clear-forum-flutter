@@ -78,9 +78,10 @@ enum HostedFileParser {
   static func filester(_ html: String, url: URL) throws -> HostedFileListing {
     guard HostedFilePolicy.provider(url) == .filester else { throw HostedFileFailure.unsupported }
     let document = try SwiftSoup.parse(html, url.absoluteString)
-    let title = try document.select("h1").first()?.text() ?? "Filester"
     if !HostedFilePolicy.isFolder(url) {
-      guard try document.select("#fileTitle").first() != nil else { throw HostedFileFailure.format }
+      guard let titleNode = try document.select("#fileTitle").first() else { throw HostedFileFailure.format }
+      let title = try titleNode.text().trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !title.isEmpty else { throw HostedFileFailure.format }
       var entry = HostedFileEntry(pageURL: url, name: title, mime: HostedFilePolicy.mime(title))
       for label in try document.select("#detailsContent span").array() where try label.text().lowercased() == "size" {
         if let value = try label.nextElementSibling()?.text() { entry.reportedSize = sizeLabel(value) }
@@ -88,6 +89,8 @@ enum HostedFileParser {
       return HostedFileListing(url: url, title: title, entries: [entry])
     }
     guard try document.select("#filesGrid, #subfoldersGrid").first() != nil else { throw HostedFileFailure.format }
+    let folderTitle = try document.select(".folder-title, #folderTitle").first()?.text().trimmingCharacters(in: .whitespacesAndNewlines)
+    let title = folderTitle.flatMap { $0.isEmpty ? nil : $0 } ?? "Filester folder"
     var seen = Set<String>(), entries: [HostedFileEntry] = []
     for card in try document.select("#filesGrid .file-item, #subfoldersGrid .subfolder-item").array() {
       let raw = try card.attr("href").isEmpty ? card.select("a[href]").first()?.attr("href") : card.attr("href")

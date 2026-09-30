@@ -88,13 +88,16 @@ final class HostedFilesTests: XCTestCase {
   }
   func testFilesterCardsUseDataAttributesWithoutExecutingOnclick() throws {
     let html = """
-    <h1>Open demos</h1><a href='/f/parent'>Parent</a>
+    <header><h1>filester.me BETA v0.11</h1></header>
+    <main><h1 class='folder-title'>Open demos</h1><a href='/f/parent'>Parent</a>
     <div id='filesGrid'><div class='file-item' data-name='Sample.mp4' data-size='1048576' onclick="window.location.href='/d/sample1'"></div></div>
     <div id='subfoldersGrid'><a class='subfolder-item' href='/f/child'><span class='folder-name'>More</span></a></div>
     <button id='loadAllPagesBtn' data-total='3'>Load all</button>
+    </main>
     """
     let result = try HostedFileParser.filester(html, url: URL(string: "https://filester.me/f/root")!)
     XCTAssertEqual(result.pages, 3)
+    XCTAssertEqual(result.title, "Open demos")
     XCTAssertEqual(result.entries.count, 2)
     XCTAssertEqual(result.entries[0].name, "Sample.mp4")
     XCTAssertEqual(result.entries[0].size, 1048576)
@@ -113,15 +116,30 @@ final class HostedFilesTests: XCTestCase {
     XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": "id", "token": "t", "server": "https://cdn.notfilester.si"]), entry: entry))
   }
   func testFilesterRoundedSizeIsDisplayOnlyNotTransferValidation() throws {
-    let html = "<h1 id='fileTitle'>Nature.mp4</h1><div id='detailsContent'><div><span>Size</span><span>4.51 MB</span></div></div>"
+    let html = "<header><h1>filester.me BETA v0.11</h1></header><main><h1 id='fileTitle'>Nature.mp4</h1><div id='detailsContent'><div><span>Size</span><span>4.51 MB</span></div></div></main>"
     let listing = try HostedFileParser.filester(html, url: URL(string: "https://filester.si/d/demo")!)
     let entry = try XCTUnwrap(listing.entries.first)
+    XCTAssertEqual(listing.title, "Nature.mp4")
+    XCTAssertEqual(entry.name, "Nature.mp4")
+    XCTAssertEqual(entry.mime, "video/mp4")
     XCTAssertEqual(entry.sizeDescription, "4.51 MB")
     XCTAssertNil(entry.size)
     let request = try HostedFileParser.filesterDownload(json(["file": "id", "token": "t"]), entry: entry)
     XCTAssertNil(request.size)
     let noSize = try HostedFileParser.filester("<h1 id='fileTitle'>demo.zip</h1>", url: listing.url)
     XCTAssertEqual(noSize.entries.first?.sizeDescription, "Size unknown")
+  }
+  func testFilesterFilenamePreservesUnicodeAndNeverFallsBackToBrandHeading() throws {
+    let url = URL(string: "https://filester.si/d/demo")!
+    let name = "Nature_\u{4F60}\u{597D}.zip"
+    let html = "<h1>filester.me BETA v0.11</h1><main><h1 id='fileTitle'>\(name)</h1></main>"
+    let listing = try HostedFileParser.filester(html, url: url)
+    XCTAssertEqual(listing.title, name)
+    XCTAssertEqual(listing.entries.first?.name, name)
+    XCTAssertEqual(listing.entries.first?.mime, "application/zip")
+    XCTAssertThrowsError(try HostedFileParser.filester("<h1>filester.me BETA v0.11</h1><h1 id='fileTitle'> </h1>", url: url))
+    let folder = try HostedFileParser.filester("<h1>filester.me BETA v0.11</h1><div id='filesGrid'></div>", url: URL(string: "https://filester.si/f/demo")!)
+    XCTAssertEqual(folder.title, "Filester folder")
   }
   func testFileditchStatusDistinguishesExactSizeMissingAndUnknown() throws {
     XCTAssertEqual(try HostedFileParser.fileditchSize(json(["status": true, "size": 50720388])), 50720388)
