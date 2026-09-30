@@ -44,3 +44,17 @@ Local source/resource checks and device CI results are recorded after building.
 Physical-device acceptance should cover module selection/back navigation,
 Tieba login and account switching, forum-to-thread return position, posting
 drafts, Chinese/Latin typography, and Bookhouse title/author/category rows.
+
+## Verified delivery
+
+- Source: 6666d1a8e9323d0b1d6b2a65609b482cf268fc12.
+- GitHub Actions: https://github.com/SyIar/clear-forum-flutter/actions/runs/36699144554.
+- Forum Core: 293 tests passed. Tieba Core: 20 tests passed.
+- Apple Swift syntax checks, native iPhone Release build, and packaging passed.
+- Build: Forum Lite 0.3.0 (1049), unsigned arm64 IPA, 51,644,511 bytes.
+- SHA-256: 919d65f89113f70fbebac26cc57d9fd2cf35c32c60415867e81f80e1de1f2d7f.
+- Delivery: D:/workspace/sideloadly-setup/ForumLite-0.3.0-1049-unsigned.ipa.
+- Downloaded archive CRC, version/source metadata, fonts, framework, localization,
+  all 60 emoticon files, and notices verified locally. Text comparisons normalize
+  Git's Windows CRLF versus CI LF line endings.
+- No simulator testing performed; physical-device acceptance remains with the user.
