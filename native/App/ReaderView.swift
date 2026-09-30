@@ -31,6 +31,7 @@ struct ReaderView: View {
   @State private var purchaseTask: Task<Void, Never>?
   @State private var textSelection: PostTextSelection?
   @State private var quickActionsExpanded = false
+  @State private var showingDiagnostics = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showingBlockedAuthors = false
   @State private var showingPinnedThreads = false
@@ -38,6 +39,9 @@ struct ReaderView: View {
   @State private var readingPages = ReaderPageWindow()
   @State private var edgeTrigger = ReaderEdgeTrigger()
   @State private var edgePull = ReaderEdgePull()
+  @State private var peakTopPull = 0
+  @State private var peakBottomPull = 0
+  @State private var lastEdgeEvent = "none"
   @State private var scrollPhase: ScrollPhase = .idle
   @State private var edgeLoading: ReaderEdge?
   @State private var edgeFailure: ReaderEdgeFailure?
@@ -74,6 +78,7 @@ struct ReaderView: View {
             } description: { Text(error) } actions: {
               Button(AppText.text("Retry")) { reload() }.buttonStyle(.borderedProminent)
               Button(AppText.text("Site browser")) { openBrowser(current) }.buttonStyle(.bordered)
+              Button(AppText.text("Page diagnostics"), systemImage: "ladybug") { showingDiagnostics = true }
             }
           } else if let page = displayPage {
             let visible = library.document.visibleContent(in: page)
@@ -114,7 +119,7 @@ struct ReaderView: View {
       // scrollPosition kept re-pinning tall image posts as their layout changed.
       .defaultScrollAnchor(.top, for: .initialOffset)
       .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.01) { ids in
-        guard !loading, let page = displayPage else { return }
+        guard !loading, error == nil, let page = displayPage else { return }
         let visible = library.document.visibleContent(in: page)
         let ordered = ["top", "poll"] + visible.posts.map(\.id) + visible.entries.map(\.id)
         if let first = ordered.first(where: { ids.contains($0) }) { visibleID = first }
@@ -122,16 +127,20 @@ struct ReaderView: View {
       .scrollBounceBehavior(.always, axes: .vertical)
       .onScrollGeometryChange(for: ReaderEdgePull.self) { ReaderEdgePull($0) } action: { _, pull in
         edgePull = pull
+        if scrollPhase == .interacting {
+          peakTopPull = max(peakTopPull, pull.top); peakBottomPull = max(peakBottomPull, pull.bottom)
+        }
         checkEdgeDrag()
       }
       .onScrollPhaseChange { old, phase in
         scrollPhase = phase
         if phase == .tracking || (phase == .interacting && old != .tracking) { edgeTrigger.beginDrag() }
-        if phase == .tracking { setQuickActions(false) }
+        if phase == .tracking { setQuickActions(false); peakTopPull = 0; peakBottomPull = 0 }
         if phase == .interacting { checkEdgeDrag() }
         if phase == .idle { applyAdjacentPage() }
       }
       .background(Color(uiColor: .systemGroupedBackground))
+      .environment(\.readerReferer, current)
       .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? AppText.text("Author threads") : page?.kind == .posts ? AppText.text("Thread") : AppText.text("Forums")).navigationBarTitleDisplayMode(.inline)
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
@@ -143,6 +152,7 @@ struct ReaderView: View {
           Menu {
             ShareLink(item: current) { Label(AppText.text("Share link"), systemImage: "square.and.arrow.up") }
             Button(AppText.text("Site browser"), systemImage: "globe") { openBrowser(current) }
+            Button(AppText.text("Page diagnostics"), systemImage: "ladybug") { showingDiagnostics = true }
             Button(AppText.text("Sign in"), systemImage: "person.crop.circle") { openBrowser(session.site.login) }
             if session.site == .south { Button(AppText.text("Blocked authors"), systemImage: "person.slash") { showingBlockedAuthors = true } }
             Button(AppText.text("Clear session"), systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
@@ -151,14 +161,14 @@ struct ReaderView: View {
         ToolbarItemGroup(placement: .bottomBar) {
           Button(AppText.text("Previous page"), systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
-            Text(AppText.format("Page %@", String(describing: page?.pageNumber ?? 1))).forumFont(.subheadline, weight: .semibold).monospacedDigit()
+            Text(AppText.format("Page %@", String(error == nil ? page?.pageNumber ?? SitePolicy.pageNumber(current) : SitePolicy.pageNumber(current)))).forumFont(.subheadline, weight: .semibold).monospacedDigit()
           }.disabled(page == nil || loading || purchasing).accessibilityLabel(AppText.text("Choose page"))
           Button(AppText.text("Next page"), systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
           Button { setQuickActions(!quickActionsExpanded) } label: {
-            Image(systemName: quickActionsExpanded ? "xmark" : "ellipsis")
+            Image(systemName: quickActionsExpanded ? "xmark" : "slider.horizontal.3")
               .contentTransition(.symbolEffect(.replace))
           }.disabled(purchasing)
             .accessibilityLabel(AppText.text("Page actions"))
@@ -230,7 +240,7 @@ struct ReaderView: View {
       .onDisappear { quickActionsExpanded = false; purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
       .onChange(of: purchasing) { _, value in if value { setQuickActions(false) } }
       .onChange(of: visibleID) { old, value in
-        guard !loading else { return }
+        guard !loading, error == nil else { return }
         if let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
         if let active = readingPages.page(containing: value) {
           if SitePolicy.pageCacheKey(active.url) != SitePolicy.pageCacheKey(current) {
@@ -258,6 +268,9 @@ struct ReaderView: View {
       }
       .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
       .sheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
+      .sheet(isPresented: $showingDiagnostics) {
+        ReaderDiagnosticsView(url: diagnosticURL, context: diagnosticContext, session: session)
+      }
       .sheet(item: $imageSheet) { item in
         ImageViewerSheet(source: item.source).environmentObject(session)
       }
@@ -434,8 +447,20 @@ struct ReaderView: View {
       loadAdjacent(edge)
     }
   }
+  private var diagnosticContext: String {
+    let previous = readingPages.target(.previous).map { ReaderDiagnostics.address($0.absoluteString) } ?? "none"
+    let next = readingPages.target(.next).map { ReaderDiagnostics.address($0.absoluteString) } ?? "none"
+    return "Loaded pages: \(readingPages.pages.map(\.pageNumber))\nPrevious: \(previous)\nNext: \(next)\n" +
+      "Edge pull: top=\(edgePull.top), bottom=\(edgePull.bottom); phase=\(scrollPhase)\n" +
+      "Last drag peak: top=\(peakTopPull), bottom=\(peakBottomPull); edge event=\(lastEdgeEvent)\n" +
+      "Reader error: \(error ?? "none")\nEdge error: \(edgeFailure?.message ?? "none")"
+  }
+  private var diagnosticURL: URL {
+    edgeFailure.flatMap { readingPages.target($0.edge) } ?? current
+  }
   private func loadAdjacent(_ edge: ReaderEdge) {
     guard !loading, !purchasing, edgeLoading == nil, let target = readingPages.target(edge) else { return }
+    lastEdgeEvent = "Requested \(edge), page \(SitePolicy.pageNumber(target))"
     edgeFailure = nil
     edgeLoading = edge
     let token = UUID()
@@ -456,10 +481,12 @@ struct ReaderView: View {
         guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
         guard SitePolicy.pageCacheKey(incoming.url) == SitePolicy.pageCacheKey(target), incoming.kind == page?.kind else { throw ReaderFailure.unsupported }
         pendingPage = incoming
+        lastEdgeEvent = "Received \(edge), page \(incoming.pageNumber); waiting for scroll idle"
         if scrollPhase == .idle { applyAdjacentPage() }
       } catch {
         guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
         edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.error(error))
+        lastEdgeEvent = "Failed \(edge): \(AppText.error(error))"
       }
     }
   }
@@ -481,6 +508,7 @@ struct ReaderView: View {
       return
     }
     session.pages.store(updated.page(for: incoming.url) ?? incoming)
+    lastEdgeEvent = "Joined \(edge), page \(incoming.pageNumber)"
     let active = updated.page(for: protected) ?? page
     let changedPage = SitePolicy.pageCacheKey(current) != SitePolicy.pageCacheKey(active.url)
     var transaction = Transaction()

@@ -45,10 +45,11 @@ enum SouthSitePolicy {
         guard let value = item.value, values.updateValue(value, forKey: item.name) == nil else { return nil }
       }
     }
-    // Observed PHPWind page links carry neutral navigation hints. Normalize
-    // only these exact values; unknown/non-neutral parameters remain rejected.
+    // fpage records the source directory page, not a thread filter. Later
+    // directory pages attach their own positive page number to every title.
     if path == "/read.php" {
-      if let fpage = values.removeValue(forKey: "fpage"), fpage != "0" { return nil }
+      if let fpage = values.removeValue(forKey: "fpage"),
+         fpage.range(of: #"^(0|[1-9][0-9]{0,4})$"#, options: .regularExpression) == nil { return nil }
       if let toread = values.removeValue(forKey: "toread"), !toread.isEmpty { return nil }
     }
     let permitted: Set<String> = path == "/read.php" ? ["tid", "fid", "uid", "page"] : path == "/thread.php" ? ["fid", "page", "type"] : path == "/u.php" ? ["action", "uid", "page"] : []

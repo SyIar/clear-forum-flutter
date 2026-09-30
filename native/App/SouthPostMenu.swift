@@ -36,9 +36,10 @@ struct SouthPostMenu: View {
         }.disabled(post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true)
       }
     } label: {
-      Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold))
-        .frame(width: 44, height: 44).contentShape(Circle())
+      Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold))
+        .frame(width: 24, height: 24)
         .glassEffect(.regular.tint(.blue.opacity(0.08)).interactive(), in: .circle)
+        .frame(width: 44, height: 44).contentShape(Rectangle())
     }.buttonStyle(.plain).foregroundStyle(.blue).disabled(busy)
       .accessibilityLabel(AppText.format("Actions for %@", post.author))
   }

@@ -386,3 +386,15 @@
 "Forum" = "版块";
 "Downloads continue while you browse the app. Switching apps or locking the screen pauses them.\n\nPreviously active videos resume when you return. File-host batches need Continue; the current file restarts.\n\nVideos save to Photos. File-host batches save to Files. Quitting the app clears unfinished file-host queues, but keeps saved files." = "在应用内浏览时，下载会继续；切换应用或锁屏后会暂停。\n\n返回应用后，视频下载会自动恢复。网盘批量下载需要点击“继续”，当前未完成的文件将重新下载。\n\n视频保存到相册，网盘文件保存到“文件”应用。退出应用会清除未完成的网盘下载队列，已保存的文件会保留。";
 "Downloads continue after you close this page. Reopen them from the floating download button.\n\nSwitching apps or locking the screen pauses the batch. Continue restarts the current file; saved files are kept.\n\nQuitting the app clears unfinished Gofile queues." = "离开此页面后，下载仍会继续，可通过悬浮下载按钮查看。\n\n切换应用或锁屏后会暂停批量下载。点击“继续”会重新下载当前文件，已保存的文件会保留。\n\n退出应用会清除未完成的 Gofile 下载队列。";
+
+"Page diagnostics" = "页面调试";
+
+"Loading diagnostics" = "加载诊断";
+
+"Copy loading diagnostics" = "复制加载诊断";
+
+"Copy page HTML" = "复制页面 HTML";
+
+"Exports include page content and image addresses. Cookies, form values and scripts are removed. Nothing is uploaded automatically." = "导出内容包含网页正文和图片地址，已移除 Cookie、表单值及脚本。不会自动上传。";
+
+"Capture page diagnostics" = "重新获取页面诊断";

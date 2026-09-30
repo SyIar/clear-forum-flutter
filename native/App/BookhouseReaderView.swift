@@ -51,6 +51,7 @@ struct BookhouseReaderView: View {
           .frame(maxWidth: 780).frame(maxWidth: .infinity)
     }
     .background(Color(uiColor: page?.kind == .posts ? .systemBackground : .systemGroupedBackground))
+    .environment(\.readerReferer, current)
   }
 
   private func errorPanel(_ message: String) -> some View {
@@ -113,7 +114,7 @@ struct BookhouseReaderView: View {
       ToolbarItem(placement: .bottomBar) {
         Button {
           withAnimation(reduceMotion ? nil : .spring(response: 0.3)) { quickActions.toggle() }
-        } label: { Image(systemName: quickActions ? "xmark" : "ellipsis") }
+        } label: { Image(systemName: quickActions ? "xmark" : "slider.horizontal.3") }
           .accessibilityLabel(AppText.text("Page actions"))
       }
   }

@@ -14,6 +14,15 @@ final class ForumSession: ObservableObject {
   @Published private(set) var generation = 0
   private var memoryObserver: NSObjectProtocol?
   private var browserActive = false
+  private var diagnostics: [String: ReaderDiagnosticSnapshot] = [:]
+  private var diagnosticOrder: [String] = []
+  func diagnostic(for url: URL) -> ReaderDiagnosticSnapshot? { diagnostics[SitePolicy.pageCacheKey(url)] }
+  private func record(_ line: String, for url: URL, id: UUID, html: String? = nil) {
+    let key = SitePolicy.pageCacheKey(url)
+    guard diagnostics[key]?.id == id else { return }
+    diagnostics[key]?.events.append(line)
+    if let html { diagnostics[key]?.html = html }
+  }
   init(site: ForumSite) {
     self.site = site
     browserUserAgent = BrowserIdentity.userAgent(for: site, systemVersion: UIDevice.current.systemVersion, isPad: UIDevice.current.userInterfaceIdiom == .pad)
@@ -46,7 +55,7 @@ final class ForumSession: ObservableObject {
             guard let self else { continuation.resume(throwing: CancellationError()); return }
             self.operations.removeValue(forKey: id)
             guard epoch == self.generation else { continuation.resume(throwing: CancellationError()); return }
-            guard error == nil, let response else { continuation.resume(throwing: ReaderFailure.network); return }
+            guard error == nil, let response else { continuation.resume(throwing: error ?? ReaderFailure.network); return }
             continuation.resume(returning: (response, data))
           }
         }
@@ -58,6 +67,22 @@ final class ForumSession: ObservableObject {
     }
   }
   func load(_ url: URL, cacheResult: Bool = false) async throws -> ForumPage {
+    let key = SitePolicy.pageCacheKey(url)
+    let id = UUID()
+    diagnostics[key] = ReaderDiagnosticSnapshot(id: id, address: ReaderDiagnostics.address(url.absoluteString))
+    diagnosticOrder.removeAll { $0 == key }; diagnosticOrder.append(key)
+    while diagnosticOrder.count > 6 { diagnostics.removeValue(forKey: diagnosticOrder.removeFirst()) }
+    do {
+      let page = try await loadPage(url, cacheResult: cacheResult, diagnosticID: id)
+      record("Parsed: \(page.entries.count) entries, \(page.posts.count) posts; page \(page.pageNumber)/\(page.pageCount)", for: url, id: id)
+      return page
+    } catch {
+      let value = error as NSError
+      record("Failed: \(String(describing: type(of: error))) / \(value.domain) code=\(value.code); \(AppText.error(error))", for: url, id: id)
+      throw error
+    }
+  }
+  private func loadPage(_ url: URL, cacheResult: Bool, diagnosticID: UUID) async throws -> ForumPage {
     guard site.accepts(url) else { throw ReaderFailure.unsupported }
     guard !browserActive else { throw CancellationError() }
     let epoch = generation
@@ -70,7 +95,9 @@ final class ForumSession: ObservableObject {
       try Task.checkCancellation()
       guard generation == epoch else { throw CancellationError() }
       let query = try ForumRequest.page(site: site, url: current, userAgent: userAgent, cookies: cookies)
+      record("GET " + ReaderDiagnostics.address(current.absoluteString), for: url, id: diagnosticID)
       let (response, data) = try await request(query)
+      record("HTTP \(response.statusCode); MIME \(response.mimeType ?? "unknown"); bytes \(data.count)", for: url, id: diagnosticID)
       try Task.checkCancellation()
       guard generation == epoch, !browserActive else { throw CancellationError() }
       var headers: [String: String] = [:]
@@ -82,6 +109,7 @@ final class ForumSession: ObservableObject {
       }
       guard generation == epoch else { throw CancellationError() }
       if (300..<400).contains(response.statusCode) {
+        record("Redirect: " + ReaderDiagnostics.address(response.value(forHTTPHeaderField: "Location") ?? ""), for: url, id: diagnosticID)
         guard let next = ForumRequest.redirect(response.value(forHTTPHeaderField: "Location"), from: current) else { throw ReaderFailure.unsupported }
         if site.isLogin(next) { throw ReaderFailure.login }
         guard site.accepts(next) else { throw ReaderFailure.unsupported }
@@ -89,6 +117,8 @@ final class ForumSession: ObservableObject {
         continue
       }
       let source = try HTMLDecoder.decode(data, encodingName: response.textEncodingName)
+      let sanitized = await Task.detached(priority: .utility) { ReaderDiagnostics.html(source) }.value
+      record("Decoded response; parsing page", for: url, id: diagnosticID, html: sanitized)
       let finalURL = current
       let status = response.statusCode
       let page = try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
@@ -238,6 +268,7 @@ final class ForumSession: ObservableObject {
   }
   func clear() async {
     invalidatePages()
+    diagnostics.removeAll(); diagnosticOrder.removeAll()
     images.releaseCachedImages()
     await withCheckedContinuation { continuation in
       store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { continuation.resume() }

@@ -62,7 +62,9 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     title = site.host
     view.backgroundColor = .systemBackground
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: AppText.text("Done"), style: .plain, target: self, action: #selector(close))
-    navigationItem.rightBarButtonItem = UIBarButtonItem(title: AppText.text("Read page"), style: .done, target: self, action: #selector(readPage))
+    let copy = UIBarButtonItem(image: UIImage(systemName: "ladybug"), style: .plain, target: self, action: #selector(copyPageHTML))
+    copy.accessibilityLabel = AppText.text("Copy page HTML")
+    navigationItem.rightBarButtonItems = [UIBarButtonItem(title: AppText.text("Read page"), style: .done, target: self, action: #selector(readPage)), copy]
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = dataStore
     if site != .simp { configuration.defaultWebpagePreferences.preferredContentMode = .desktop }
@@ -108,6 +110,22 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
       self.capturing = false
       guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), self.site.accepts(finalURL) else { self.notice(AppText.text("This page is not ready for clean view. Finish loading or sign in and try again.")); return }
       self.finish(page)
+    }
+  }
+  @objc private func copyPageHTML() {
+    guard !capturing, !finished, let url = webView.url, site.sameOrigin(url) else { return }
+    capturing = true
+    webView.evaluateJavaScript("document.documentElement.outerHTML") { [weak self] value, error in
+      guard let self else { return }
+      self.capturing = false
+      guard !self.finished, error == nil, let html = value as? String else { self.notice(AppText.text("Could not load page")); return }
+      Task { @MainActor in
+        let sanitized = await Task.detached(priority: .utility) { ReaderDiagnostics.html(html) }.value
+        guard !self.finished else { return }
+        let report = "Browser DOM\n" + ReaderDiagnostics.address(url.absoluteString) + "\n\n" + sanitized
+        UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: report]], options: [.localOnly: true])
+        self.notice(AppText.text("Copied"))
+      }
     }
   }
   private func notice(_ text: String) {

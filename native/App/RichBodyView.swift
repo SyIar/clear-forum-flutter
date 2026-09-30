@@ -1,6 +1,14 @@
 import SwiftUI
 import ImageIO
 
+private struct ReaderRefererKey: EnvironmentKey { static let defaultValue: URL? = nil }
+extension EnvironmentValues {
+  var readerReferer: URL? {
+    get { self[ReaderRefererKey.self] }
+    set { self[ReaderRefererKey.self] = newValue }
+  }
+}
+
 struct ForumTagStrip: View {
   let tags: [ForumTag]
   let navigate: (URL) -> Void
@@ -33,14 +41,23 @@ struct ForumEntryCard: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(entry.title).forumFont(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
             if !entry.excerpt.isEmpty { Text(entry.excerpt).forumFont(.subheadline).foregroundStyle(.secondary).lineLimit(3) }
-            if !entry.pinned && !entry.subtitle.isEmpty { Text(entry.subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(2) }
-            if entry.postedAt != nil || entry.totalPostCount != nil {
+            if SouthSitePolicy.isThread(entry.url), !entry.pinned {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(entry.authorName ?? entry.subtitle).lineLimit(1)
+                Spacer(minLength: 6)
+                if let date = entry.postedAt { Text(date).fixedSize(horizontal: true, vertical: false) }
+                if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(count))).monospacedDigit().fixedSize() }
+              }.forumFont(.caption2).foregroundStyle(.secondary)
+            } else if !entry.pinned && !entry.subtitle.isEmpty {
+              Text(entry.subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            if !SouthSitePolicy.isThread(entry.url), entry.postedAt != nil || entry.totalPostCount != nil {
               HStack(spacing: 8) {
                 if let date = entry.postedAt, !entry.subtitle.contains(date) { Text(date) }
                 if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(describing: count))).monospacedDigit() }
               }.forumFont(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
-          }
+          }.frame(maxWidth: .infinity, alignment: .leading)
           Spacer(minLength: 0)
           Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
@@ -95,7 +112,7 @@ struct PostCard: View {
         PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
           Text(post.author).forumFont(.subheadline, weight: .bold)
-          if post.authorID != nil || !post.date.isEmpty {
+          if openAvatar == nil, post.authorID != nil || !post.date.isEmpty {
             HStack(spacing: 6) {
               if let id = post.authorID { Text(AppText.format("UID %@", String(describing: id))) }
               if post.authorID != nil && !post.date.isEmpty { Text("\u{00B7}") }
@@ -109,6 +126,16 @@ struct PostCard: View {
           SouthPostMenu(post: post, busy: purchasing, authorFilterActive: authorFilterActive,
                         navigate: navigate, openAvatar: openAvatar, selectText: selectText)
         }
+      }
+      if openAvatar != nil {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          if let id = post.authorID { Text(AppText.format("UID %@", id)).fixedSize() }
+          Spacer(minLength: 4)
+          if !post.date.isEmpty {
+            Text(post.date.replacingOccurrences(of: "T", with: " "))
+              .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+          }
+        }.forumFont(.caption2).foregroundStyle(.secondary)
       }
       Divider()
       RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: { source in
@@ -305,18 +332,18 @@ struct MediaRow: View {
     HStack(spacing: 10) {
       ZStack {
         Color(uiColor: .tertiarySystemFill)
-        if let poster { RemoteImageView(url: poster, ratio: 4 / 3, maximumHeight: 84) }
+        if let poster { RemoteImageView(url: poster, ratio: 108.0 / 84.0, maximumHeight: 84, fillsFrame: true) }
         else if fetching { ProgressView() }
         else { Image(systemName: "film").foregroundStyle(.secondary) }
       }.frame(width: 108, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
       Button { play(block) } label: {
-        VStack(alignment: .leading, spacing: 8) {
-          Text(block.label).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
-          Label(AppText.text("Play"), systemImage: "play.fill").forumFont(.subheadline, weight: .semibold).foregroundStyle(.blue)
-        }.frame(maxWidth: .infinity, minHeight: 62, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
+        Image(systemName: "play.fill").font(.system(size: 18, weight: .semibold))
+          .offset(x: 1).frame(width: 44, height: 44)
+          .overlay(Circle().strokeBorder(.blue.opacity(0.65), lineWidth: 1.5))
+          .frame(maxWidth: .infinity).frame(height: 84).foregroundStyle(.blue)
           .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
           .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.1)))
-      }.buttonStyle(.plain).disabled(block.url == nil)
+      }.buttonStyle(.plain).disabled(block.url == nil).accessibilityLabel(AppText.text("Play"))
     }.task(id: block.url) {
       guard poster == nil || posterSource != block.url else { return }
       posterSource = block.url
@@ -335,9 +362,16 @@ final class ImageStore {
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
   private var generation = 0
+  private var diagnosticEvents: [String] = []
+  var diagnosticReport: String { diagnosticEvents.joined(separator: "\n") }
+  private func record(_ message: String, url: URL) {
+    diagnosticEvents.append(ReaderDiagnostics.address(url.absoluteString) + " | " + message)
+    diagnosticEvents = Array(diagnosticEvents.suffix(40))
+  }
   init() { cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80 }
   func releaseCachedImages() {
     generation += 1
+    diagnosticEvents.removeAll()
     tasks.values.forEach { $0.cancel() }
     tasks.removeAll()
     cache.removeAllObjects()
@@ -347,19 +381,30 @@ final class ImageStore {
     if let task = tasks[url] { return await task.value }
     let epoch = generation
     let task = Task { () -> UIImage? in
-      guard MediaPolicy.allowed(url) else { return nil }
+      guard MediaPolicy.allowed(url) else { record("Rejected image URL", url: url); return nil }
       var request = URLRequest(url: url, timeoutInterval: 25)
       request.httpShouldHandleCookies = false
       request.setValue((referer ?? url.deletingLastPathComponent()).absoluteString, forHTTPHeaderField: "Referer")
-      if referer != nil { request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent") }
+      if let referer {
+        request.setValue(SouthSitePolicy.sameOrigin(referer) ? BrowserIdentity.southDesktop : "Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+      }
       let config = URLSessionConfiguration.ephemeral
       config.httpCookieStorage = nil
       config.urlCredentialStorage = nil
       let session = URLSession(configuration: config)
       defer { session.finishTasksAndInvalidate() }
-      guard let (data, response) = try? await session.data(for: request), let response = response as? HTTPURLResponse,
-            (200..<300).contains(response.statusCode), data.count <= 32 * 1024 * 1024 else { return nil }
-      return await Task.detached(priority: .utility) {
+      let data: Data
+      let response: URLResponse
+      do { (data, response) = try await session.data(for: request) }
+      catch {
+        let value = error as NSError
+        record("Network \(value.domain) code=\(value.code)", url: url)
+        return nil
+      }
+      guard let http = response as? HTTPURLResponse else { record("Non-HTTP response", url: url); return nil }
+      record("HTTP \(http.statusCode); MIME \(http.mimeType ?? "unknown"); bytes \(data.count)", url: url)
+      guard (200..<300).contains(http.statusCode), data.count <= 32 * 1024 * 1024 else { return nil }
+      let decoded = await Task.detached(priority: .utility) {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -369,6 +414,8 @@ final class ImageStore {
               ] as CFDictionary) else { return nil as UIImage? }
         return UIImage(cgImage: cgImage)
       }.value
+      if decoded == nil { record("Image decode failed", url: url) }
+      return decoded
     }
     tasks[url] = task
     let image = await task.value
@@ -380,10 +427,12 @@ final class ImageStore {
 }
 struct RemoteImageView: View {
   @EnvironmentObject private var session: ForumSession
+  @Environment(\.readerReferer) private var referer
   let url: URL?
   var originalURL: URL?
   var ratio: Double?
   var maximumHeight: CGFloat = 360
+  var fillsFrame = false
   var openImage: ((ImageViewerSource) -> Void)?
   @State private var image: UIImage?
   @State private var loading = true
@@ -397,8 +446,10 @@ struct RemoteImageView: View {
       .aspectRatio(displayRatio, contentMode: .fit).frame(maxHeight: maximumHeight)
       .overlay {
         if let image {
-          Image(uiImage: image).resizable().scaledToFit()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+          GeometryReader { bounds in
+            Image(uiImage: image).resizable().aspectRatio(contentMode: fillsFrame ? .fill : .fit)
+              .frame(width: bounds.size.width, height: bounds.size.height).clipped()
+          }
         } else if loading { ProgressView() }
         else { Button(AppText.text("Retry image"), systemImage: "arrow.clockwise") { attempt += 1 }.forumFont(.caption) }
       }
@@ -413,7 +464,7 @@ struct RemoteImageView: View {
         imageURL = url
         loading = true
         image = nil
-        let loaded = if let url { await session.images.load(url) } else { nil as UIImage? }
+        let loaded = if let url { await session.images.load(url, referer: referer ?? session.site.base) } else { nil as UIImage? }
         guard !Task.isCancelled, imageURL == url else { return }
         image = loaded
         loading = false

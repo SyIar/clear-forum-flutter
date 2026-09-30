@@ -14,7 +14,9 @@ final class SouthThreadURLTests: XCTestCase {
       ("read.php?tid-2973760-uid-1191634.html", "read.php?tid-2973760-uid-1191634.html"),
       ("read.php?tid-20-fid-9-uid-101-page-3.html#post_42", "read.php?tid-20-fid-9-uid-101-page-3.html#post_42"),
       ("read.php?page=3&uid=101&tid=20#post_42", "read.php?tid-20-uid-101-page-3.html#post_42"),
-      ("read.php?tid-20-fpage-0-toread--page-2.html", "read.php?tid=20&page=2")
+      ("read.php?tid-20-fpage-0-toread--page-2.html", "read.php?tid=20&page=2"),
+      ("read.php?tid-20-fpage-2.html", "read.php?tid=20"),
+      ("read.php?tid-20-uid-101-fpage-2.html", "read.php?tid-20-uid-101.html")
     ]
     for (source, expected) in cases {
       let target = SouthSitePolicy.canonicalThreadURL(url(source))
@@ -26,7 +28,7 @@ final class SouthThreadURLTests: XCTestCase {
 
   func testActionsForeignSitesAndOtherSouthRoutesAreNotRewritten() {
     for source in ["read.php?tid=20&action=buy", "read.php?tid=20&uid=101&uid=102",
-                   "read.php?tid-20-fpage-1.html", "thread.php?fid-9-page-2.html",
+                   "read.php?tid-20-fpage-100000.html", "thread.php?fid-9-page-2.html",
                    "u.php?action-topic-uid-101.html", "login.php", "job.php?action=buytopic&tid=20",
                    "https://example.org/read.php?tid-20.html", "https://simpcity.cr/threads/sample.20/page-2#post-42"] {
       XCTAssertEqual(SouthSitePolicy.canonicalThreadURL(url(source)), url(source), source)

@@ -3,6 +3,37 @@ import XCTest
 @testable import ForumCore
 
 final class SouthPaginationTests: XCTestCase {
+  func testSecondDirectoryPageRetainsTitlesWithObservedFpageHints() throws {
+    func parsed(_ number: Int) throws -> ForumPage {
+      let url = URL(string: "https://south-plus.net/thread.php?fid-9-page-\(number).html")!
+      let html = """
+        <div id="ajaxtable"><table><tr><td><h3><a href="read.php?tid-\(100 + number)-fpage-\(number).html">Sample title</a></h3></td></tr></table></div>
+        <div class="pages"><span class="pagesone">Pages: \(number)/8</span></div>
+        """
+      return try ForumParser().parse(html, url: url)
+    }
+    let first = try parsed(1)
+    let second = try parsed(2)
+    XCTAssertEqual(second.entries.count, 1)
+    XCTAssertEqual(second.entries[0].url.query, "tid=102")
+    XCTAssertEqual(second.pageNumber, 2)
+    var window = ReaderPageWindow()
+    window.reset(first)
+    XCTAssertEqual(window.target(.next), second.url)
+    XCTAssertTrue(window.insert(second, at: .next, keeping: first.url))
+    XCTAssertEqual(window.combined(active: second).entries.count, 2)
+    XCTAssertEqual(window.target(.next)?.query, "fid-9-page-3.html")
+  }
+  func testDirectoryOriginHintDoesNotChangeThreadIdentityOrAuthorFilter() throws {
+    for number in [0, 1, 2, 42, 99_999] {
+      let url = URL(string: "https://south-plus.net/read.php?tid-20-uid-101-fpage-\(number)-page-3.html")!
+      XCTAssertEqual(SouthSitePolicy.canonicalThreadURL(url).query, "tid-20-uid-101-page-3.html")
+      XCTAssertEqual(SouthSitePolicy.pageCacheKey(url), SouthSitePolicy.pageCacheKey(URL(string: "https://south-plus.net/read.php?tid-20-uid-101-page-3.html")!))
+    }
+    for hint in ["-1", "100000", "1x", "01", ""] {
+      XCTAssertFalse(SouthSitePolicy.readable(URL(string: "https://south-plus.net/read.php?tid=20&fpage=" + hint)!))
+    }
+  }
   // User-supplied PHPWind pager structures, with synthetic thread IDs and
   // content. Account data and event handlers are not retained.
   private func page(_ pager: String, number: Int = 1) throws -> ForumPage {
@@ -92,7 +123,7 @@ final class SouthPaginationTests: XCTestCase {
     XCTAssertEqual(SouthSitePolicy.pageCacheKey(observed), SouthSitePolicy.pageCacheKey(canonical))
     XCTAssertEqual(SouthSitePolicy.pageCacheKey(queryAlias), SouthSitePolicy.pageCacheKey(canonical))
     XCTAssertEqual(SouthSitePolicy.pageURL(observed, number: 3)?.query, "tid=20&page=3")
-    for query in ["tid-20-fpage-1-toread--page-2.html", "tid-20-fpage-0-toread-1-page-2.html",
+    for query in ["tid-20-fpage-100000-toread--page-2.html", "tid-20-fpage-0-toread-1-page-2.html",
                   "tid=20&fpage=0&fpage=0", "tid=20&toread=&toread=", "tid=20&fpage=0&action=delete"] {
       XCTAssertFalse(SouthSitePolicy.readable(URL(string: "https://south-plus.net/read.php?" + query)!))
     }
