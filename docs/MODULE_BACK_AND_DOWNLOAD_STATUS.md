@@ -60,3 +60,18 @@ points. Accessible entry names remain on the buttons and links.
   pause/resume; verify saving and completion. Check badge counts 2, 10 and 100 in
   light/dark mode, including while progress animates.
 - No simulator validation is performed.
+
+## Build 1055 delivery
+
+- Source: `f3cec5937c35c094d9de9d2c7a06634192934b7c`.
+- [macOS CI run 36711675800](https://github.com/SyIar/clear-forum-flutter/actions/runs/36711675800): successful.
+- Forum Core: 323 tests passed; embedded Tieba Core: 20 tests passed.
+- Native iPhone Release compilation, localization and package checks passed.
+- Build 1054 was cancelled before delivery to include the subsequent logo-only
+  module-selector change in one package.
+- IPA: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1055-unsigned.ipa`.
+- Size: 51757650 bytes.
+- SHA-256: `1f45fe936ef0ba5e8c1e0af7aa30cf2678965db43979a28097e090c2b0c9c257`.
+- Local verification covered archive CRC, source/run metadata, bundle identity,
+  arm64 device binaries, fonts, compiled translations and embedded Tieba assets.
+- Gesture feel and glass rendering still require physical-device acceptance.
