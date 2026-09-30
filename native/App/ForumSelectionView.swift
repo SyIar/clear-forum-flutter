@@ -14,13 +14,12 @@ struct ForumSelectionView: View {
           VStack(spacing: 16) {
             ForEach(ForumSite.allCases) { site in
               NavigationLink(value: ForumDestination.home(site)) {
-                moduleCard(logo: site == .bookhouse ? "BookhouseLogo" : site == .simp ? "ForumLogo" : "SouthLogo",
-                           domain: site.host)
+                moduleCard(logo: site == .bookhouse ? "BookhouseLogo" : site == .simp ? "ForumLogo" : "SouthLogo")
               }.buttonStyle(.plain)
                 .accessibilityLabel(AppText.format("Open %@ home", site.host))
             }
             Button(action: openTieba) {
-              moduleCard(logo: "TiebaLogo", domain: "tieba.baidu.com")
+              moduleCard(logo: "TiebaLogo")
             }.buttonStyle(.plain)
               .accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
           }
@@ -48,12 +47,10 @@ struct ForumSelectionView: View {
       }
   }
 
-  private func moduleCard(logo: String, domain: String) -> some View {
-    VStack(spacing: 10) {
-      Image(logo).resizable().scaledToFit().frame(height: 82)
-        .clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityHidden(true)
-      Text(domain).appFont(.caption, weight: .semibold).foregroundStyle(.white.opacity(0.9))
-    }.padding(.horizontal, 24).padding(.vertical, 17).frame(maxWidth: .infinity)
+  private func moduleCard(logo: String) -> some View {
+    Image(logo).resizable().scaledToFit().frame(height: 82)
+      .clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityHidden(true)
+      .padding(.horizontal, 24).padding(.vertical, 12).frame(maxWidth: .infinity)
       .contentShape(RoundedRectangle(cornerRadius: 28))
       .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 28))
   }

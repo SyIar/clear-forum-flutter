@@ -45,6 +45,10 @@ in the upper-left corner without changing the button's action or progress ring.
 The compact South post menu also uses a capsule border, replacing the 6-point
 corners while keeping its existing label size and minimum touch area.
 
+The module selector cards show only their logos. Domain captions are removed;
+vertical padding shrinks from 17 to 12 points while the logo height stays 82
+points. Accessible entry names remain on the buttons and links.
+
 - Local Swift syntax, resource, localization and repository checks pass. These
   are not a substitute for Apple compilation.
 - Core regression coverage checks active, queued, paused, folder and completed
