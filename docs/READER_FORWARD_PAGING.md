@@ -41,3 +41,20 @@ at phase transitions:
 - https://developer.apple.com/documentation/swiftui/scrollphase
 - https://developer.apple.com/documentation/swiftui/view/onscrollphasechange(_:)-1k12m
 - https://developer.apple.com/documentation/swiftui/scrollgeometry
+
+## Verified delivery
+
+- Version: 0.3.0, build 1051.
+- Source: `8330f9332560b0b4db54017e4043d0a28dcbc689`.
+- CI: https://github.com/SyIar/clear-forum-flutter/actions/runs/36700882512
+- Core tests: 299 Forum tests and 20 Tieba tests passed; native iPhone compilation
+  and package checks passed. No simulator was used.
+- Local verification: archive integrity, source/build metadata, unsigned arm64
+  executable, fonts, localization, and embedded Tieba framework/resources passed.
+- IPA: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1051-unsigned.ipa`.
+- Size: 51,646,594 bytes.
+- SHA-256: `8838425398b50b9cf362941a1572cec682e3fde336b9a2a5587d9b604b5d5f82`.
+
+Physical-device acceptance: scroll forward from South page 1 through pages 2
+and 3, then prepend an earlier page and continue forward again. Confirm the
+footer loading state, stable position, and compact post menu appearance.
