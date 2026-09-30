@@ -119,6 +119,12 @@ extension SimpSitePolicy {
     }
     return internalOnly && !readable(resolved) ? nil : resolved
   }
+  // Browser navigation keeps normal requests intact, including unread routing.
+  // Only a recognized redirect wrapper needs an app-level replacement.
+  static func browserRedirectDestination(_ url: URL) -> URL? {
+    guard sameOrigin(url), ["/redirect", "/redirect/"].contains(url.path) else { return nil }
+    return linkDestination(url.absoluteString, from: base)
+  }
   // Only user-tapped text/unfurl links use this. Authenticated requests and
   // automatic image/media loads must keep using resolve/readable instead.
   static func linkDestination(_ value: String?, from page: URL) -> URL? {

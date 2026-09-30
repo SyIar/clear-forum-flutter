@@ -120,7 +120,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
     if site == .simp, navigationAction.navigationType == .linkActivated,
-       let direct = SimpSitePolicy.linkDestination(url.absoluteString, from: webView.url ?? site.base), direct != url {
+       let direct = SimpSitePolicy.browserRedirectDestination(url), direct != url {
       decisionHandler(.cancel)
       if !site.sameOrigin(direct) { openExternal(direct) }
       else if site.accepts(direct) { webView.load(URLRequest(url: direct)) }
@@ -135,7 +135,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
     if navigationAction.navigationType == .linkActivated, let requested = navigationAction.request.url {
-      let url = site == .simp ? SimpSitePolicy.linkDestination(requested.absoluteString, from: webView.url ?? site.base) ?? requested : requested
+      let url = site == .simp ? SimpSitePolicy.browserRedirectDestination(requested) ?? requested : requested
       if site.sameOrigin(url) { webView.load(url == requested ? navigationAction.request : URLRequest(url: url)) }
       else { openExternal(url) }
     }

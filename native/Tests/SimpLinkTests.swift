@@ -30,6 +30,31 @@ final class SimpLinkTests: XCTestCase {
     XCTAssertEqual(SimpSitePolicy.linkDestination(wrapper(destination.absoluteString, padded: true).absoluteString, from: thread), destination)
   }
 
+  func testBrowserLeavesOrdinaryUnreadAndPostRequestsUnchanged() throws {
+    for address in ["https://simpcity.cr/threads/example.123/unread",
+                    "https://simpcity.cr/threads/example.123/unread?new=1",
+                    "https://simpcity.cr/threads/example.123/post-101",
+                    "https://simpcity.cr/threads/example.123/page-4#post-101"] {
+      let requested = try XCTUnwrap(URL(string: address))
+      XCTAssertNil(SimpSitePolicy.browserRedirectDestination(requested))
+      XCTAssertEqual(SimpSitePolicy.browserRedirectDestination(requested) ?? requested, requested)
+    }
+    let unread = try XCTUnwrap(URL(string: "https://simpcity.cr/threads/example.123/unread?new=1"))
+    XCTAssertEqual(SimpSitePolicy.resolve(unread.absoluteString, from: thread), thread,
+                   "Reader normalization remains separate from browser navigation")
+  }
+
+  func testBrowserStillUnwrapsGofileAndRejectsMalformedWrappers() throws {
+    let destination = try XCTUnwrap(URL(string: "https://gofile.io/d/SyntheticFixture"))
+    let wrapped = wrapper(destination.absoluteString)
+    XCTAssertEqual(SimpSitePolicy.browserRedirectDestination(wrapped), destination)
+    XCTAssertEqual(SimpSitePolicy.browserRedirectDestination(wrapper(wrapped.absoluteString)), destination)
+    let malformed = try XCTUnwrap(URL(string: wrapped.absoluteString + "&to=duplicate"))
+    XCTAssertNil(SimpSitePolicy.browserRedirectDestination(malformed))
+    let foreign = try XCTUnwrap(URL(string: wrapped.absoluteString.replacingOccurrences(of: "simpcity.cr", with: "other.example")))
+    XCTAssertNil(SimpSitePolicy.browserRedirectDestination(foreign))
+  }
+
   func testUnfurlLinksDecodeButAutomaticResourcesDoNot() throws {
     let destination = URL(string: "https://files.example/item?part=1&name=a%2Bb#section")!
     let wrapped = wrapper(destination.absoluteString)

@@ -267,7 +267,9 @@ final class LibraryStore: ObservableObject {
     authorTasks[id] = task
     return await task.value
   }
-  func toggle(_ url: URL, title: String) { change { $0.toggle(SavedPage(url: url, title: title)) } }
+  func toggle(_ url: URL, title: String, titleIsCustom: Bool = false) {
+    change { $0.toggle(SavedPage(url: url, title: title, titleIsCustom: titleIsCustom)) }
+  }
   func contains(_ url: URL) -> Bool { document.bookmarks.contains { $0.url == url } }
   func resolveBookmarkTitle(_ url: URL, session: ForumSession) {
     guard session.site == site, site.accepts(url) else { return }
@@ -462,7 +464,8 @@ struct BookmarkEditor: View {
           ToolbarItem(placement: .confirmationAction) { Button("Save") {
             guard let url = SitePolicy.resolve(address, from: library.site.base, internalOnly: true), library.site.accepts(url) else { error = "Enter a supported \(library.site.host) forum or thread URL."; return }
             guard !library.contains(url) else { error = "This URL is already bookmarked."; return }
-            library.toggle(url, title: title.isEmpty ? url.path : title)
+            let label = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            library.toggle(url, title: label.isEmpty ? url.path : label, titleIsCustom: !label.isEmpty)
             if library.error == nil {
               library.resolveBookmarkTitle(url, session: session)
               dismiss()
@@ -472,4 +475,3 @@ struct BookmarkEditor: View {
     }.presentationDetents([.medium, .large])
   }
 }
-

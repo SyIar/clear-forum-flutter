@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 enum ExternalBrowser {
   static func make(_ requested: URL, onClose: (() -> Void)? = nil) -> UIViewController? {
-    let url = SimpSitePolicy.linkDestination(requested.absoluteString, from: SimpSitePolicy.base) ?? requested
+    let url = SimpSitePolicy.browserRedirectDestination(requested) ?? requested
     guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
           !(url.host ?? "").isEmpty, url.user == nil, url.password == nil else { return nil }
     if let target = GofilePolicy.pageURL(url) {

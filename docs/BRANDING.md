@@ -1,8 +1,14 @@
 # Branding
 
-## Forum Lite app icon, 2026-09-29
+## Current Forum Lite app icon, 2026-09-30
 
-The current opaque master is `assets/branding/app-icon.png`. It replaces the geometric F icon with exactly two uppercase rows: FORUM and LITE. The built-in `image_gen` tool generated the bitmap from scratch (no CLI or external image API). The output was visually inspected: correct spelling, white upper row, cyan lower row, midnight navy full-bleed square background, safe margins, no outer corner mask. `scripts/generate_icons.py` mechanically resizes it into all iOS AppIcon slots and existing web icons. `scripts/render_forum_icon.py` now delegates to that resizer so it cannot restore the obsolete F design. Forum selector logos are unchanged.
+The opaque 1024 x 1024 RGB master is `assets/branding/app-icon.png`, copied byte-for-byte from the user-supplied `forumlite-twelve-point-icon-1024.png`. Its SHA-256 is `48e32605159a6f4e4840e350d9feb5369c9209ee2fe42523ae857cb1c4fce0f7`. The cyan/blue faceted twelve-point star on navy replaces the previous FORUM / LITE wordmark. No generation, redrawing, corner mask, or composition change was applied.
+
+`scripts/generate_icons.py` mechanically resizes the master into every iOS AppIcon slot, the existing web icons, and the favicon. The iOS marketing icon retains identical RGB pixels at 1024 x 1024. The display name is `Forum Lite`; the bundle identifier remains `dev.sylar.clearforum`. Forum selector logos are unchanged.
+
+## Previous Forum Lite app icon, 2026-09-29
+
+The previous opaque master at `assets/branding/app-icon.png` replaced the geometric F icon with exactly two uppercase rows: FORUM and LITE. The built-in `image_gen` tool generated the bitmap from scratch (no CLI or external image API). The output was visually inspected: correct spelling, white upper row, cyan lower row, midnight navy full-bleed square background, safe margins, no outer corner mask. `scripts/generate_icons.py` mechanically resizes the master into all iOS AppIcon slots and existing web icons. `scripts/render_forum_icon.py` delegates to that resizer so it cannot restore the obsolete F design. Forum selector logos are unchanged.
 
 Final generation prompt:
 
@@ -23,7 +29,3 @@ Master: `assets/branding/app-icon.png`. The 2026-09-28 edit uses the built-in im
 ## Final edit prompt
 
 Use case: text-localization. Asset type: replacement iPhone app icon for simp lite. Edit target: the existing square app-icon.png. Make exactly one change: replace the lower turquoise word CITY with the uppercase word LITE, spelled L-I-T-E. Preserve the upper white SIMP lettering, turquoise upper background, near-black lower background, horizontal split, square full-bleed shape, typography style, softened corners, letter heights, centered alignment, and comfortable safe margins. Lower LITE uses the same turquoise condensed heavy tall type as the old CITY and approximately the same total visual width. Keep the design simple, crisp, opaque, no rounded outer mask, no additional symbols, no mockup. Exact final two text rows: SIMP above, LITE below. Return the edited icon only.
-
-## September 2026 twelve-point star
-
-The current master is an opaque 1024×1024 cool cyan/blue faceted twelve-point star on navy, with square corners for the iOS icon mask. It replaces the FORUM / LITE wordmark. The generated asset was visually checked for twelve distinct radial points, then all app sizes were regenerated with `scripts/generate_icons.py`. The display name is now `Forum Lite`; bundle identity remains `dev.sylar.clearforum`.

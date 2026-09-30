@@ -71,7 +71,7 @@ final class ForumCoreTests: XCTestCase {
     library.capturePresentation(page)
     library.pruneTracking()
     XCTAssertEqual(library.presentations["123"]?.thumbnail, cover)
-    XCTAssertEqual(library.bookmarks.first?.title, "Example")
+    XCTAssertEqual(library.bookmarks.first?.title, "My title")
     XCTAssertEqual(library.bookmarks.first?.url.lastPathComponent, "page-48")
     XCTAssertTrue(library.recent.isEmpty)
     XCTAssertTrue(library.threads.isEmpty)

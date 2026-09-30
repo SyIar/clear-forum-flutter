@@ -4,6 +4,23 @@ struct SavedPage: Codable, Identifiable, Equatable {
   var id: String { url.absoluteString }
   var url: URL
   var title: String
+  var titleIsCustom: Bool
+
+  init(url: URL, title: String, titleIsCustom: Bool = false) {
+    self.url = url
+    self.title = title
+    self.titleIsCustom = titleIsCustom
+  }
+  private enum CodingKeys: String, CodingKey { case url, title, titleIsCustom }
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    url = try values.decode(URL.self, forKey: .url)
+    title = try values.decode(String.self, forKey: .title)
+    // Older libraries cannot distinguish an explicit label from a fetched one.
+    // Preserve existing names; only known empty/path placeholders auto-update.
+    titleIsCustom = try values.decodeIfPresent(Bool.self, forKey: .titleIsCustom) ??
+      (!title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && title != url.path && title != url.absoluteString)
+  }
 }
 struct ThreadPresentation: Codable, Equatable {
   var thumbnail: URL?
@@ -144,7 +161,7 @@ struct LibraryDocument: Codable {
       if let key = SitePolicy.threadKey(url) { return SitePolicy.threadKey(saved.url) == key }
       return SitePolicy.pageCacheKey(saved.url) == SitePolicy.pageCacheKey(url)
     }
-    for index in bookmarks.indices where matches(bookmarks[index]) { bookmarks[index].title = trimmed }
+    for index in bookmarks.indices where !bookmarks[index].titleIsCustom && matches(bookmarks[index]) { bookmarks[index].title = trimmed }
     for index in recent.indices where matches(recent[index]) { recent[index].title = trimmed }
   }
   mutating func remember(_ page: SavedPage) {
