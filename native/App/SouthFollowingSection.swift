@@ -8,7 +8,7 @@ struct SouthFollowingSection: View {
   var body: some View {
     Section {
       if library.document.following.isEmpty {
-        Text(AppText.text("No followed authors")).font(.forum(.subheadline)).foregroundStyle(.secondary)
+        Text(AppText.text("No followed authors")).forumFont(.subheadline).foregroundStyle(.secondary)
       }
       ForEach(library.document.following) { author in
         VStack(alignment: .leading, spacing: 12) {
@@ -16,7 +16,7 @@ struct SouthFollowingSection: View {
             Button { openTopics(author) } label: {
               HStack(spacing: 10) {
                 PostAvatar(url: author.avatar, author: author.name)
-                Text(author.name).font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                Text(author.name).forumFont(.subheadline, weight: .semibold).foregroundStyle(.primary).lineLimit(1)
                 Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
               }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(AppText.format("All topics by %@", String(describing: author.name)))
@@ -29,10 +29,10 @@ struct SouthFollowingSection: View {
             Divider()
             Button { open(topic.url) } label: {
               HStack(alignment: .top, spacing: 8) {
-                Text(topic.title).font(.forum(.subheadline)).foregroundStyle(.primary).lineLimit(2)
+                Text(topic.title).forumFont(.subheadline).foregroundStyle(.primary).lineLimit(2)
                   .frame(maxWidth: .infinity, alignment: .leading)
                 if library.document.isUnreadSouthThread(topic.url) {
-                  Text(AppText.text("New")).font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
+                  Text(AppText.text("New")).forumFont(.caption2, weight: .semibold).foregroundStyle(.blue)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(.blue.opacity(0.12), in: Capsule()).fixedSize()
                 }
@@ -41,14 +41,14 @@ struct SouthFollowingSection: View {
           }
           if let error = library.authorErrors[author.id] {
             HStack(alignment: .top) {
-              Text(error).font(.forum(.caption)).foregroundStyle(.secondary)
+              Text(error).forumFont(.caption).foregroundStyle(.secondary)
               Spacer(minLength: 8)
               Button(AppText.text("Retry")) { Task { await library.refreshAuthor(author.id, session: session) } }
-                .font(.forum(.caption)).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
+                .forumFont(.caption).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
             }
           } else if author.topics.isEmpty && !library.refreshingAuthors.contains(author.id) {
             Text(author.checkedAt == nil ? AppText.text("Not refreshed") : AppText.text("No topics"))
-              .font(.forum(.caption)).foregroundStyle(.secondary)
+              .forumFont(.caption).foregroundStyle(.secondary)
           }
         }.padding(.vertical, 6)
       }

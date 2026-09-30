@@ -1,15 +1,12 @@
 import SwiftUI
 import UIKit
+import CoreText
 
 enum AppTypography {
-  static let regular = "SourceHanSerifSC-Regular"
-  static let bold = "SourceHanSerifSC-Bold"
-
   @MainActor static func uiFont(_ style: UIFont.TextStyle, bold: Bool = false) -> UIFont {
     let traits = UITraitCollection(preferredContentSizeCategory: .large)
     let size = UIFont.preferredFont(forTextStyle: style, compatibleWith: traits).pointSize
-    let base = UIFont(name: bold ? self.bold : regular, size: size)
-      ?? UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+    let base = MixedScriptFont.font(size: size, bold: bold) as UIFont
     return UIFontMetrics(forTextStyle: style).scaledFont(for: base)
   }
 
@@ -24,9 +21,9 @@ enum AppTypography {
     UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).font = uiFont(.body)
   }
 
-  static func richText(_ run: TextRun) -> AttributedString {
+  static func richText(_ run: TextRun, size: CGFloat) -> AttributedString {
     var value = AttributedString(run.text)
-    value.font = Font.forum(.body, weight: run.bold ? .bold : .regular)
+    value.font = Font(MixedScriptFont.font(size: size, bold: run.bold))
     var intents: InlinePresentationIntent = []
     if run.bold { intents.insert(.stronglyEmphasized) }
     if run.italic { intents.insert(.emphasized) }
@@ -36,24 +33,38 @@ enum AppTypography {
   }
 }
 
-extension Font {
-  static func forum(_ style: TextStyle, weight: Weight? = nil) -> Font {
-    let size: CGFloat
+extension AppTypography {
+  static func size(_ style: Font.TextStyle) -> CGFloat {
     switch style {
-    case .largeTitle: size = 34
-    case .title: size = 28
-    case .title2: size = 22
-    case .title3: size = 20
-    case .headline, .body: size = 17
-    case .callout: size = 16
-    case .subheadline: size = 15
-    case .footnote: size = 13
-    case .caption: size = 12
-    case .caption2: size = 11
-    @unknown default: size = 17
+    case .largeTitle: return 34
+    case .title: return 28
+    case .title2: return 22
+    case .title3: return 20
+    case .headline, .body: return 17
+    case .callout: return 16
+    case .subheadline: return 15
+    case .footnote: return 13
+    case .caption: return 12
+    case .caption2: return 11
+    @unknown default: return 17
     }
-    let emphasis = weight.map { $0 == .semibold || $0 == .bold || $0 == .heavy || $0 == .black }
-      ?? (style == .headline)
-    return .custom(emphasis ? AppTypography.bold : AppTypography.regular, size: size, relativeTo: style)
+  }
+}
+
+private struct ForumFont: ViewModifier {
+  @ScaledMetric private var size: CGFloat
+  private let bold: Bool
+  init(_ style: Font.TextStyle, weight: Font.Weight?) {
+    _size = ScaledMetric(wrappedValue: AppTypography.size(style), relativeTo: style)
+    bold = weight.map { $0 == .semibold || $0 == .bold || $0 == .heavy || $0 == .black } ?? (style == .headline)
+  }
+  func body(content: Content) -> some View {
+    content.font(Font(MixedScriptFont.font(size: size, bold: bold)))
+  }
+}
+
+extension View {
+  func forumFont(_ style: Font.TextStyle, weight: Font.Weight? = nil) -> some View {
+    modifier(ForumFont(style, weight: weight))
   }
 }

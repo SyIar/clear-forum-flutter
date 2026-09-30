@@ -25,7 +25,7 @@ struct GofileBrowserView: View {
         }
       } else if let error = session.error {
         Section {
-          Label(error, systemImage: "exclamationmark.triangle").font(.forum(.subheadline)).foregroundStyle(.secondary)
+          Label(error, systemImage: "exclamationmark.triangle").forumFont(.subheadline).foregroundStyle(.secondary)
           Button(AppText.text("Open website"), systemImage: "globe") { session.showWebsite() }
         }
       }
@@ -104,11 +104,11 @@ struct GofileBrowserView: View {
     HStack(spacing: 12) {
       GofileThumbnail(entry: entry, session: session)
       VStack(alignment: .leading, spacing: 4) {
-        Text(entry.name).font(.forum(.subheadline)).lineLimit(2).foregroundStyle(.primary)
+        Text(entry.name).forumFont(.subheadline).lineLimit(2).foregroundStyle(.primary)
         Text(entry.folder ? AppText.text("Folder") : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? AppText.text("Size unknown"))
-          .font(.forum(.caption)).foregroundStyle(.secondary)
-        if entry.unavailable { Text(AppText.text("Unavailable on Gofile")).font(.forum(.caption2)).foregroundStyle(.secondary) }
-        if let error = session.downloads[entry.id]?.error { Text(error).font(.forum(.caption2)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+          .forumFont(.caption).foregroundStyle(.secondary)
+        if entry.unavailable { Text(AppText.text("Unavailable on Gofile")).forumFont(.caption2).foregroundStyle(.secondary) }
+        if let error = session.downloads[entry.id]?.error { Text(error).forumFont(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
       }.frame(maxWidth: .infinity, alignment: .leading)
     }.contentShape(Rectangle())
   }
@@ -193,7 +193,7 @@ struct GofileModalRoot: View {
       GofileBrowserView(url: url).toolbar {
         ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
-    }.font(.forum(.body))
+    }.forumFont(.body)
       .environment(\.locale, AppText.locale)
   }
 }

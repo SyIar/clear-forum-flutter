@@ -28,8 +28,8 @@ struct ReaderEdgeIndicator: View {
         .accessibilityLabel(edge == .previous ? AppText.text("Loading previous page") : AppText.text("Loading next page"))
     } else if let failure, failure.edge == edge {
       HStack(spacing: 8) {
-        Text(failure.message).font(.forum(.caption)).lineLimit(3)
-        Button(AppText.text("Retry"), action: retry).font(.forum(.caption, weight: .bold))
+        Text(failure.message).forumFont(.caption).lineLimit(3)
+        Button(AppText.text("Retry"), action: retry).forumFont(.caption, weight: .bold)
       }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
     }

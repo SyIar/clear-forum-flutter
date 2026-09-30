@@ -44,7 +44,7 @@ struct ForumLiteApp: App {
           if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
           else if value == .active { downloads.foregrounded() }
         }
-        .font(.forum(.body))
+        .forumFont(.body)
         .environment(\.locale, AppText.locale)
     }
   }
@@ -81,7 +81,7 @@ struct ForumSelectionView: View {
           NavigationLink(value: ForumDestination.home(site)) {
             VStack(spacing: 17) {
               ForumLogo(site: site)
-              Text(site.host).font(.forum(.caption)).foregroundStyle(.secondary)
+              Text(site.host).forumFont(.caption).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 18)
             .frame(maxWidth: .infinity, minHeight: 182)
@@ -344,7 +344,7 @@ struct HomeView: View {
           SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
         }
         if let message = library.refreshMessage {
-          Section { Text(message).font(.forum(.caption)).foregroundStyle(.secondary) }
+          Section { Text(message).forumFont(.caption).foregroundStyle(.secondary) }
         }
       }
       .navigationTitle(session.site.host)
@@ -424,20 +424,20 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 8) {
               Text(entry.title).lineLimit(2).foregroundStyle(.primary)
               if state?.updated == true {
-                Text(AppText.text("Updated")).font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
+                Text(AppText.text("Updated")).forumFont(.caption2, weight: .semibold).foregroundStyle(.blue)
                   .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.12), in: Capsule())
                   .fixedSize()
               }
             }
             if let subtitle = library.document.subtitle(for: entry), !subtitle.isEmpty {
-              Text(subtitle).font(.forum(.caption)).foregroundStyle(.secondary).lineLimit(1)
+              Text(subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             if let state {
               if let seen = state.seenMaximum {
                 Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : AppText.format("Seen #%@", String(describing: seen)))
-                  .font(.forum(.caption)).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
+                  .forumFont(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
               } else if let latest = state.latestMaximum {
-                Text("#\(latest)").font(.forum(.caption)).foregroundStyle(.secondary)
+                Text("#\(latest)").forumFont(.caption).foregroundStyle(.secondary)
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)

@@ -30,13 +30,13 @@ struct SouthPinnedThreadsCard: View {
   private var heading: some View {
     HStack(spacing: 8) {
       Image(systemName: "pin.fill").font(.caption.weight(.semibold)).foregroundStyle(.blue)
-      Text(AppText.text("Pinned")).font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.primary)
-      Text("\(entries.count)").font(.forum(.caption, weight: .medium)).monospacedDigit()
+      Text(AppText.text("Pinned")).forumFont(.subheadline, weight: .semibold).foregroundStyle(.primary)
+      Text("\(entries.count)").forumFont(.caption, weight: .medium).monospacedDigit()
         .foregroundStyle(.secondary).padding(.horizontal, 7).padding(.vertical, 3)
         .background(.primary.opacity(0.05), in: Capsule())
       Spacer(minLength: 8)
       if entries.count > 2 {
-        Text(AppText.text("View all")).font(.forum(.caption, weight: .medium)).foregroundStyle(.blue)
+        Text(AppText.text("View all")).forumFont(.caption, weight: .medium).foregroundStyle(.blue)
         Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.blue)
       }
     }.frame(maxWidth: .infinity, minHeight: 44).padding(.horizontal, 14).contentShape(Rectangle())
@@ -67,7 +67,7 @@ private struct SouthPinnedThreadRow: View {
   var body: some View {
     Button { select(entry.url) } label: {
       HStack(spacing: 12) {
-        Text(entry.title).font(.forum(.subheadline)).foregroundStyle(.primary).lineLimit(lineLimit)
+        Text(entry.title).forumFont(.subheadline).foregroundStyle(.primary).lineLimit(lineLimit)
           .frame(maxWidth: .infinity, alignment: .leading)
         Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
       }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)

@@ -63,7 +63,9 @@ Foundation lookup and the resources actually included in the IPA.
 Font resources live in [native/Resources/Fonts](native/Resources/Fonts/README.md).
 Large binary asset uploads are handled by the repository owner: prepare the
 folder and source links, then sync and validate the uploaded assets. The native
-app uses the bundled Regular and Bold faces without downloading fonts at runtime.
+app uses the system font for Latin text and numbers, with the bundled Regular
+and Bold faces as CJK fallbacks. Mixed-script runs and both weights are checked
+with CoreText. Fonts are bundled without runtime downloads.
 
 Use Xcode 26 or newer on macOS. Run `swift test --package-path native`, generate the project with `xcodegen generate --spec native/project.yml`, then build the `ForumLite` scheme. The `ios-native.yml` workflow builds and validates an unsigned device IPA. See [native migration](docs/SWIFT_MIGRATION.md) for the delivered build and device acceptance status.
 

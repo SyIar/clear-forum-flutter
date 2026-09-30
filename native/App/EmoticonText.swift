@@ -3,6 +3,7 @@ import SwiftUI
 // Inline Text images participate in the paragraph's line breaking, not the photo grid.
 struct EmoticonText: View {
   let runs: [TextRun]
+  @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 17
   @EnvironmentObject private var session: ForumSession
   @Environment(\.displayScale) private var displayScale
   @ScaledMetric(relativeTo: .body) private var height: CGFloat = 24
@@ -13,7 +14,7 @@ struct EmoticonText: View {
     return runs.compactMap(\.emoticon).filter { seen.insert($0).inserted }
   }
   var body: some View {
-    paragraph.font(.forum(.body)).lineSpacing(2).textSelection(.enabled)
+    paragraph.forumFont(.body).lineSpacing(2).textSelection(.enabled)
       .fixedSize(horizontal: false, vertical: true)
       .task(id: sources) {
         for source in sources where images[source] == nil {
@@ -32,7 +33,7 @@ struct EmoticonText: View {
         // A small text fallback never reserves a full photo-sized loading area.
         part = Text(Image(systemName: "face.smiling")).foregroundColor(.secondary)
       } else {
-        part = Text(AppTypography.richText(run))
+        part = Text(AppTypography.richText(run, size: textSize))
       }
       return Text("\(result)\(part)")
     }
