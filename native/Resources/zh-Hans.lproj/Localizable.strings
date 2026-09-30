@@ -190,6 +190,14 @@
 "Done" = "完成";
 "Read page" = "阅读此页";
 "Search results" = "搜索结果";
+"Forbidden Library" = "禁忌书屋";
+"Reading" = "阅读";
+"Featured novels" = "精选书目";
+"Load more novels" = "加载更多书目";
+"Replies and continuations" = "回复与续章";
+"Show replies and continuations" = "查看回复与续章";
+"No replies yet" = "暂无回复";
+"Enter up to 100 characters for search." = "搜索关键词最多输入 100 个字符。";
 "Open link" = "打开链接";
 "Embedded media" = "嵌入媒体";
 "Filester folder" = "Filester 文件夹";

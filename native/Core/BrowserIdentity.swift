@@ -6,7 +6,7 @@ enum BrowserIdentity {
   static let southDesktop = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
   static func userAgent(for site: ForumSite, defaults: UserDefaults = .standard, systemVersion: String, isPad: Bool) -> String {
     let key = "forum_\(site.rawValue)_browser_user_agent"
-    if site == .south {
+    if site == .south || site == .bookhouse {
       if defaults.string(forKey: key) != southDesktop { defaults.set(southDesktop, forKey: key) }
       return southDesktop
     }

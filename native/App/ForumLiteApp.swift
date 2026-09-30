@@ -8,8 +8,10 @@ struct ForumLiteApp: App {
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var simpLibrary = LibraryStore(site: .simp)
   @StateObject private var southLibrary = LibraryStore(site: .south)
+  @StateObject private var bookhouseLibrary = LibraryStore(site: .bookhouse)
   @StateObject private var simpSession = ForumSession(site: .simp)
   @StateObject private var southSession = ForumSession(site: .south)
+  @StateObject private var bookhouseSession = ForumSession(site: .bookhouse)
   @State private var path: [ForumDestination] = []
   init() { AppTypography.configureNavigation() }
   var body: some Scene {
@@ -25,14 +27,15 @@ struct ForumLiteApp: App {
               case .search:
                 ForumSearchView { path.append(.reader($0)) }
               case .reader(let url):
-                ReaderView(initialURL: url,
-                           library: site == .simp ? simpLibrary : southLibrary,
-                           session: site == .simp ? simpSession : southSession,
-                           home: { path = [.home(site)] })
+                if site == .bookhouse {
+                  BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) }, home: { path = [.home(site)] })
+                } else {
+                  ReaderView(initialURL: url, library: library(for: site), session: session(for: site), home: { path = [.home(site)] })
+                }
               }
             }
-            .environmentObject(site == .simp ? simpLibrary : southLibrary)
-            .environmentObject(site == .simp ? simpSession : southSession)
+            .environmentObject(library(for: site))
+            .environmentObject(session(for: site))
           }
       }.tint(.blue)
         .background { GofileDownloadSurfaces(manager: gofileDownloads) }
@@ -47,6 +50,12 @@ struct ForumLiteApp: App {
         .forumFont(.body)
         .environment(\.locale, AppText.locale)
     }
+  }
+  private func library(for site: ForumSite) -> LibraryStore {
+    site == .bookhouse ? bookhouseLibrary : site == .simp ? simpLibrary : southLibrary
+  }
+  private func session(for site: ForumSite) -> ForumSession {
+    site == .bookhouse ? bookhouseSession : site == .simp ? simpSession : southSession
   }
 }
 
@@ -65,10 +74,10 @@ enum ForumDestination: Hashable {
 struct ForumLogo: View {
   let site: ForumSite
   var body: some View {
-    Image(site == .simp ? "ForumLogo" : "SouthLogo")
+    Image(site == .bookhouse ? "BookhouseLogo" : site == .simp ? "ForumLogo" : "SouthLogo")
       .resizable().scaledToFit().padding(site == .simp ? 10 : 6)
       .frame(maxWidth: .infinity).frame(height: 102)
-      .background(site == .simp ? Color(white: 0.11) : Color.white, in: RoundedRectangle(cornerRadius: 13))
+      .background(site == .bookhouse ? Color(red: 0.99, green: 0.98, blue: 0.94) : site == .simp ? Color(white: 0.11) : Color.white, in: RoundedRectangle(cornerRadius: 13))
       .accessibilityHidden(true)
   }
 }
@@ -138,7 +147,7 @@ final class LibraryStore: ObservableObject {
                                                 authorID: entry.authorID, authorName: entry.authorName), for: page.url)
       }
     }
-    guard checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
+    guard site != .bookhouse, checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
     visitTasks[key]?.cancel()
     let token = UUID()
     visitTokens[key] = token
@@ -175,6 +184,7 @@ final class LibraryStore: ObservableObject {
         let page = try await session.load(url)
         guard !Task.isCancelled else { return }
         change { $0.capturePresentation(page) }
+        if site == .bookhouse { checked += 1; continue }
         let maximum = try await session.maximumPostNumber(from: page)
         guard !Task.isCancelled else { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.

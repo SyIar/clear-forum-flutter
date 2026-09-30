@@ -7,6 +7,7 @@ struct ForumParser {
     case .south:
       if SouthSearch.isFormURL(url) || SouthSearch.parameters(url) != nil { return try SouthSearch.parse(source, url: url, status: status) }
       return try SouthForumParser().parse(source, url: url, status: status)
+    case .bookhouse: return try BookhouseParser().parse(source, url: url, status: status)
     case nil: throw ReaderFailure.unsupported
     }
   }

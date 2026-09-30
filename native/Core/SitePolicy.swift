@@ -9,25 +9,32 @@ enum SitePolicy {
   static func domainMatches(_ cookie: HTTPCookie) -> Bool { ForumSite.allCases.contains { $0.domainMatches(cookie) } }
   static func matches(_ cookie: HTTPCookie, url: URL) -> Bool { ForumSite(url: url)?.matches(cookie, url: url) == true }
   static func threadKey(_ url: URL) -> String? {
-    ForumSite(url: url) == .south ? SouthSitePolicy.threadKey(url) : SimpSitePolicy.threadKey(url)
+    if ForumSite(url: url) == .bookhouse { return BookhouseSitePolicy.threadKey(url) }
+    return ForumSite(url: url) == .south ? SouthSitePolicy.threadKey(url) : SimpSitePolicy.threadKey(url)
   }
   static func threadRoot(_ url: URL) -> URL? {
-    ForumSite(url: url) == .south ? SouthSitePolicy.threadRoot(url) : SimpSitePolicy.threadRoot(url)
+    if ForumSite(url: url) == .bookhouse { return BookhouseSitePolicy.threadRoot(url) }
+    return ForumSite(url: url) == .south ? SouthSitePolicy.threadRoot(url) : SimpSitePolicy.threadRoot(url)
   }
   static func pageNumber(_ url: URL) -> Int {
-    ForumSite(url: url) == .south ? SouthSitePolicy.pageNumber(url) : SimpSitePolicy.pageNumber(url)
+    if ForumSite(url: url) == .bookhouse { return BookhouseSitePolicy.pageNumber(url) }
+    return ForumSite(url: url) == .south ? SouthSitePolicy.pageNumber(url) : SimpSitePolicy.pageNumber(url)
   }
   static func pageRoot(_ url: URL) -> URL {
-    ForumSite(url: url) == .south ? SouthSitePolicy.pageRoot(url) : SimpSitePolicy.pageRoot(url)
+    if ForumSite(url: url) == .bookhouse { return BookhouseSitePolicy.pageRoot(url) }
+    return ForumSite(url: url) == .south ? SouthSitePolicy.pageRoot(url) : SimpSitePolicy.pageRoot(url)
   }
   static func pageURL(_ url: URL, number: Int) -> URL? {
-    ForumSite(url: url) == .south ? SouthSitePolicy.pageURL(url, number: number) : SimpSitePolicy.pageURL(url, number: number)
+    if ForumSite(url: url) == .bookhouse { return BookhouseSitePolicy.pageURL(url, number: number) }
+    return ForumSite(url: url) == .south ? SouthSitePolicy.pageURL(url, number: number) : SimpSitePolicy.pageURL(url, number: number)
   }
   static func pageCacheKey(_ url: URL) -> String {
-    ForumSite(url: url) == .south ? SouthSitePolicy.pageCacheKey(url) : SimpSitePolicy.pageCacheKey(url)
+    if ForumSite(url: url) == .bookhouse { return BookhouseSitePolicy.pageCacheKey(url) }
+    return ForumSite(url: url) == .south ? SouthSitePolicy.pageCacheKey(url) : SimpSitePolicy.pageCacheKey(url)
   }
   static func resolve(_ value: String?, from page: URL, internalOnly: Bool = false) -> URL? {
-    ForumSite(url: page) == .south
+    if ForumSite(url: page) == .bookhouse { return BookhouseSitePolicy.resolve(value, from: page, internalOnly: internalOnly) }
+    return ForumSite(url: page) == .south
       ? SouthSitePolicy.resolve(value, from: page, internalOnly: internalOnly)
       : SimpSitePolicy.resolve(value, from: page, internalOnly: internalOnly)
   }

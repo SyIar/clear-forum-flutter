@@ -18,7 +18,7 @@ final class ForumSession: ObservableObject {
     self.site = site
     browserUserAgent = BrowserIdentity.userAgent(for: site, systemVersion: UIDevice.current.systemVersion, isPad: UIDevice.current.userInterfaceIdiom == .pad)
     // Keep the existing Simp login; South gets an isolated persistent WebKit profile.
-    store = site == .simp ? .default() : WKWebsiteDataStore(forIdentifier: UUID(uuidString: "1F621C45-387F-478D-A8E2-56DB533EA481")!)
+    store = site == .bookhouse ? .nonPersistent() : site == .simp ? .default() : WKWebsiteDataStore(forIdentifier: UUID(uuidString: "1F621C45-387F-478D-A8E2-56DB533EA481")!)
     memoryObserver = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
       Task { @MainActor in
         self?.pages.removeAll()

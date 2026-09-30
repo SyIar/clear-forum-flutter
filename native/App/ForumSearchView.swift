@@ -47,7 +47,7 @@ struct ForumSearchView: View {
             Text(AppText.text("Date")).tag("date")
             Text(AppText.text("Relevance")).tag("relevance")
           }.pickerStyle(.segmented)
-        } else {
+        } else if session.site == .south {
           Picker(AppText.text("Title match"), selection: $southMethod) {
             Text(AppText.text("Any word")).tag("OR")
             Text(AppText.text("All words")).tag("AND")
@@ -139,13 +139,17 @@ struct ForumSearchView: View {
     if session.site == .simp {
       let query = SimpSearchQuery(keywords: keywords, titlesOnly: titlesOnly, order: order)
       perform { try await session.search(query) }
-    } else {
+    } else if session.site == .south {
       let query = SouthSearchQuery(keywords: keywords, method: southMethod, order: southOrder, time: southTime)
       perform { try await session.search(query) }
+    } else if let url = BookhouseSitePolicy.search(keywords) {
+      perform { try await session.load(url) }
+    } else {
+      error = AppText.text("Enter up to 100 characters for search.")
     }
   }
   private func load(_ url: URL) {
-    guard !loading, session.site.accepts(url), SimpSitePolicy.searchResults(url) || SouthSearch.parameters(url) != nil else { return }
+    guard !loading, session.site.accepts(url), SimpSitePolicy.searchResults(url) || SouthSearch.parameters(url) != nil || BookhouseSitePolicy.route(url)?.kind == .search else { return }
     perform { try await session.load(url) }
   }
   private func perform(_ action: @escaping @MainActor () async throws -> ForumPage) {

@@ -72,7 +72,7 @@ struct LibraryDocument: Codable {
     case site, version, bookmarks, recent, threads, presentations, blockedAuthors, followedAuthors, readSouthThreads
   }
   init(site: ForumSite = .simp) { self.site = site }
-  static func key(for site: ForumSite) -> String { site == .simp ? key : "south_reading_library_v1" }
+  static func key(for site: ForumSite) -> String { site == .bookhouse ? "bookhouse_reading_library_v1" : site == .simp ? key : "south_reading_library_v1" }
   init(from decoder: Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
     site = try values.decodeIfPresent(ForumSite.self, forKey: .site) ?? .simp
@@ -132,7 +132,7 @@ struct LibraryDocument: Codable {
     if page.kind == .posts { synchronizeTitle(page.title, for: page.url) }
     for entry in page.entries { synchronizeTitle(entry.title, for: entry.url) }
     if page.kind == .posts {
-      let owner = site == .south ? page.posts.first(where: { $0.number == "#0" }) : nil
+      let owner = site == .bookhouse ? page.posts.first : site == .south ? page.posts.first(where: { $0.number == "#0" }) : nil
       mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags,
                                            authorID: owner?.authorID, authorName: owner?.authorID == nil ? nil : owner?.author), for: page.url)
     }
@@ -146,8 +146,8 @@ struct LibraryDocument: Codable {
     let safe = ThreadPresentation(
       thumbnail: SitePolicy.resolve(incoming.thumbnail?.absoluteString, from: site.base),
       tags: incoming.tags.filter { site.accepts($0.url) },
-      authorID: site == .south ? incoming.authorID.flatMap { SouthSitePolicy.validAuthorID($0) ? $0 : nil } : nil,
-      authorName: site == .south ? incoming.authorName.flatMap { name in
+      authorID: site != .simp ? incoming.authorID.flatMap { SouthSitePolicy.validAuthorID($0) ? $0 : nil } : nil,
+      authorName: site != .simp ? incoming.authorName.flatMap { name in
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : String(trimmed.prefix(200))
       } : nil)
@@ -175,7 +175,7 @@ struct LibraryDocument: Codable {
     recent = Array(recent.prefix(10))
   }
   func subtitle(for page: SavedPage) -> String? {
-    guard site == .south else { return page.url.path }
+    guard site != .simp else { return page.url.path }
     guard site.accepts(page.url), let key = SitePolicy.threadKey(page.url) else { return nil }
     return presentations[key]?.authorName
   }
