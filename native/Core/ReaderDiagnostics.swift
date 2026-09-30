@@ -12,6 +12,28 @@ struct ReaderDiagnosticSnapshot {
 enum ReaderDiagnostics {
   // Diagnostic exports contain page content, but never cookie headers, entered
   // form values, script bodies or authentication query parameters.
+  static func mediaSummary(_ source: String, page: ForumPage) -> String {
+    guard source.utf8.count <= 8 * 1024 * 1024, let doc = try? SwiftSoup.parse(source) else {
+      return "Image comparison unavailable"
+    }
+    let responseImages = (try? doc.select("img").size()) ?? 0
+    let attachments = (try? doc.select(".tpc_content [id^=att_] img").size()) ?? 0
+    var images = 0
+    var emoticons = 0
+    func count(_ blocks: [BodyBlock]) {
+      for block in blocks {
+        if block.kind == .image { images += 1 }
+        emoticons += block.runs.filter { $0.emoticon != nil }.count
+        count(block.children)
+      }
+    }
+    for post in page.posts { count(post.blocks) }
+    return "Response images: \(responseImages); South attachment images: \(attachments); parsed post images: \(images); inline emoticons: \(emoticons)"
+  }
+  static func htmlExport(_ sanitized: String) -> String {
+    "--- SANITIZED PAGE HTML (\(sanitized.utf8.count) UTF-8 bytes) ---\n" + sanitized +
+      "\n--- END SANITIZED PAGE HTML ---"
+  }
   static func address(_ raw: String) -> String {
     guard var parts = URLComponents(string: raw) else { return "[invalid URL]" }
     parts.user = nil; parts.password = nil

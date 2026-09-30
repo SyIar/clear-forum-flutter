@@ -106,4 +106,43 @@ final class SouthPostStructureTests: XCTestCase {
     XCTAssertEqual(values[0].author, "Legacy member")
     XCTAssertTrue(values[0].date.isEmpty)
   }
+  func testUploadedAttachmentsBesideIdentifiedBodyKeepOrderAndPostIdentity() throws {
+    let before = (1...3).map { index in
+      "<div id='att_\(index)'><img src='//south-plus.net/attachment/Mon_2609/sample-\(index).jpeg' loading='lazy' referrerpolicy='no-referrer'></div>"
+    }.joined()
+    let after = "<div id='att_4'><img src='/attachment/Mon_2609/sample-4.jpeg'></div>"
+    let html = post(0, content: "Caption")
+      .replacingOccurrences(of: "<div class=\"f14\" id=\"read_tpc\">Caption</div>",
+                            with: before + "<div class='f14' id='read_tpc'>Caption</div>" + after)
+    let values = try parse(html + post(1)).posts
+    XCTAssertEqual(values.count, 2)
+    let first = try XCTUnwrap(values.first)
+    XCTAssertEqual(first.id, "post_tpc")
+    XCTAssertEqual(first.authorID, "100")
+    XCTAssertEqual(first.number, "#0")
+    XCTAssertEqual(first.blocks.map(\.kind), [.image, .image, .image, .paragraph, .image])
+    XCTAssertEqual(first.blocks.filter { $0.kind == .image }.compactMap(\.url).map(\.absoluteString),
+                   (1...4).map { "https://south-plus.net/attachment/Mon_2609/sample-\($0).jpeg" })
+    XCTAssertEqual(first.blocks.flatMap(\.runs).map(\.text).joined(), "Caption")
+    XCTAssertEqual(values[1].blocks.flatMap(\.runs).map(\.text).joined(), "Reply 1")
+  }
+  func testAttachmentOnlyPostIsRetainedWithoutFooterOrAvatarImages() throws {
+    let image = "<div id='att_1'><img src='/attachment/Mon_2609/sample.jpeg'></div>"
+    let html = post(0, content: "")
+      .replacingOccurrences(of: "<div class=\"f14\" id=\"read_tpc\">", with: image + "<div class=\"f14\" id=\"read_tpc\">")
+      .replacingOccurrences(of: "<div id=\"w_tpc\" class=\"c\"></div>", with: "<img src='/signature.jpeg'>Signature")
+    let value = try XCTUnwrap(parse(html).posts.first)
+    XCTAssertEqual(value.blocks.count, 1)
+    XCTAssertEqual(value.blocks.first?.kind, .image)
+    XCTAssertEqual(value.blocks.first?.url?.path, "/attachment/Mon_2609/sample.jpeg")
+  }
+  func testSharedOuterWrapperDoesNotMergeSeparatePosts() throws {
+    let html = """
+      <div class="tpc_content"><div id="read_tpc">First body</div>
+      <div id="read_9001">Second body</div></div>
+      """
+    let values = try parse(html).posts
+    XCTAssertEqual(values.count, 2)
+    XCTAssertEqual(values.map { $0.blocks.flatMap(\.runs).map(\.text).joined() }, ["First body", "Second body"])
+  }
 }

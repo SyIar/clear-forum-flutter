@@ -20,7 +20,7 @@ struct ReaderDiagnosticsView: View {
         Section {
           Button(AppText.text("Copy loading diagnostics"), systemImage: "doc.on.doc") { copy(report) }
           Button(AppText.text("Copy page HTML"), systemImage: "chevron.left.forwardslash.chevron.right") {
-            copy(report + "\n\n--- PAGE HTML ---\n" + (snapshot?.html ?? ""))
+            copy(report + "\n\n" + ReaderDiagnostics.htmlExport(snapshot?.html ?? ""))
           }.disabled(snapshot?.html.isEmpty ?? true)
           if snapshot == nil {
             Button(AppText.text("Capture page diagnostics"), systemImage: "arrow.clockwise") {

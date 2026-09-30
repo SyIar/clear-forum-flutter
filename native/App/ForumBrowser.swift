@@ -122,7 +122,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
       Task { @MainActor in
         let sanitized = await Task.detached(priority: .utility) { ReaderDiagnostics.html(html) }.value
         guard !self.finished else { return }
-        let report = "Browser DOM\n" + ReaderDiagnostics.address(url.absoluteString) + "\n\n" + sanitized
+        let report = "Browser DOM\n" + ReaderDiagnostics.address(url.absoluteString) + "\n\n" + ReaderDiagnostics.htmlExport(sanitized)
         UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: report]], options: [.localOnly: true])
         self.notice(AppText.text("Copied"))
       }

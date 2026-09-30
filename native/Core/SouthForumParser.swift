@@ -55,7 +55,7 @@ struct SouthForumParser {
         let identity = postAuthor(container, page: url)
         let date = postDate(container)
         let floor = floorNumber(container, body: body)
-        let blocks = try SouthBodyParser().parseBody(body, page: url)
+        let blocks = try SouthBodyParser().parseBody(postContent(body), page: url)
         guard !blocks.isEmpty else { continue }
         posts.append(ForumPost(id: id, author: identity.name.isEmpty ? AppText.text("Member") : identity.name, date: date,
                               number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar, avatarOriginal: identity.original,
@@ -206,6 +206,18 @@ struct SouthForumParser {
     return links(root, ".tpc_content:not([id]),[data-post-body]").filter { node in
       !node.parents().contains { $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") }
     }
+  }
+  private func postContent(_ body: Element) -> Element {
+    // PHPWind places uploaded attachments beside read_tpc/read_<id>, inside the
+    // same content wrapper. Keep the identified body for post metadata and IDs,
+    // but render its wrapper when it belongs unambiguously to this one post.
+    guard !body.hasClass("tpc_content"),
+          let wrapper = body.parents().first(where: { $0.hasClass("tpc_content") }) else { return body }
+    let identified = links(wrapper, "[id^=read_]").filter {
+      match($0.id(), #"^read_(tpc|[0-9]+)$"#) != nil
+    }
+    guard identified.count == 1, identified.first === body else { return body }
+    return wrapper
   }
   private func postAuthor(_ container: Element, page: URL) -> (name: String, id: String?, avatar: URL?, original: URL?) {
     let root = first(container, "th.r_two,td.r_two,.post-author,.author-info") ?? container

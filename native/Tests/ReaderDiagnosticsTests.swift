@@ -35,4 +35,25 @@ final class ReaderDiagnosticsTests: XCTestCase {
   func testOversizedCaptureDoesNotEnterTheExportBuffer() {
     XCTAssertEqual(ReaderDiagnostics.html(String(repeating: "x", count: 8 * 1024 * 1024 + 1)), "[source unavailable]")
   }
+  func testDiagnosticsDistinguishResponseAttachmentsFromParsedImages() throws {
+    let source = """
+      <img src='/avatar.gif'><div class='tpc_content'>
+      <div id='att_1'><img src='/attachment/example.jpeg' loading='lazy'></div>
+      <div id='read_tpc'><blockquote><img src='/quoted.jpeg'></blockquote>
+      <img src='/images/post/smile/smallface/face077.gif'></div></div>
+      """
+    let page = try ForumParser().parse(source, url: URL(string: "https://south-plus.net/read.php?tid=20")!)
+    XCTAssertEqual(ReaderDiagnostics.mediaSummary(source, page: page),
+                   "Response images: 4; South attachment images: 1; parsed post images: 2; inline emoticons: 1")
+    let sanitized = ReaderDiagnostics.html(source)
+    XCTAssertTrue(sanitized.contains("example.jpeg"))
+    XCTAssertTrue(sanitized.contains("att_1"))
+  }
+  func testHTMLExportStatesSanitizationSizeAndIncludesAnEndMarker() {
+    let html = "<p>\u{4e2d}</p>"
+    let result = ReaderDiagnostics.htmlExport(html)
+    XCTAssertTrue(result.hasPrefix("--- SANITIZED PAGE HTML (10 UTF-8 bytes) ---\n"))
+    XCTAssertTrue(result.contains(html))
+    XCTAssertTrue(result.hasSuffix("\n--- END SANITIZED PAGE HTML ---"))
+  }
 }

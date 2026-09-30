@@ -121,9 +121,13 @@ final class ForumSession: ObservableObject {
       record("Decoded response; parsing page", for: url, id: diagnosticID, html: sanitized)
       let finalURL = current
       let status = response.statusCode
-      let page = try await Task.detached(priority: .userInitiated) { try ForumParser().parse(source, url: finalURL, status: status) }.value
+      let (page, imageSummary) = try await Task.detached(priority: .userInitiated) {
+        let parsed = try ForumParser().parse(source, url: finalURL, status: status)
+        return (parsed, ReaderDiagnostics.mediaSummary(source, page: parsed))
+      }.value
       try Task.checkCancellation()
       guard generation == epoch else { throw CancellationError() }
+      record(imageSummary, for: url, id: diagnosticID)
       if cacheResult { pages.store(page) }
       return page
     }
