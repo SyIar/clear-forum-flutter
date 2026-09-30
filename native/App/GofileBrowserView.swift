@@ -26,7 +26,7 @@ struct GofileBrowserView: View {
       } else if let error = session.error {
         Section {
           Label(error, systemImage: "exclamationmark.triangle").font(.forum(.subheadline)).foregroundStyle(.secondary)
-          Button("Open website", systemImage: "globe") { session.showWebsite() }
+          Button(AppText.text("Open website"), systemImage: "globe") { session.showWebsite() }
         }
       }
       if session.loading { HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear) }
@@ -47,31 +47,31 @@ struct GofileBrowserView: View {
               }
             }.padding(.vertical, 3)
           }
-          if entries.isEmpty { Text(search.isEmpty ? "This folder is empty." : "No matching files on this page.").foregroundStyle(.secondary) }
-        } header: { Text("\(listing.entries.count) items · Page \(listing.page) of \(listing.pages)") }
+          if entries.isEmpty { Text(search.isEmpty ? AppText.text("This folder is empty.") : AppText.text("No matching files on this page.")).foregroundStyle(.secondary) }
+        } header: { Text(AppText.format("%@ items · Page %@ of %@", String(describing: listing.entries.count), String(describing: listing.page), String(describing: listing.pages))) }
       }
     }
     .listStyle(.insetGrouped)
     .navigationTitle(session.listing?.title ?? "Gofile").navigationBarTitleDisplayMode(.inline)
     .toolbarRole(.editor)
-    .searchable(text: $search, prompt: "Find files on this page")
+    .searchable(text: $search, prompt: AppText.text("Find files on this page"))
     .toolbar {
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button("Download all", systemImage: "arrow.down.document") {
+        Button(AppText.text("Download all"), systemImage: "arrow.down.document") {
           session.suspendThumbnails()
           if let listing = session.listing {
             batch = GofileDownloadManager.shared.batch(url: session.requestedURL, listing: listing)
           }
           showingBatch = true
         }.disabled(session.loading || session.failure != nil || session.listing == nil || session.hasDownloads)
-        Button("Open website", systemImage: "globe") { session.showWebsite() }
-        Button("Refresh", systemImage: "arrow.clockwise") { session.load() }.disabled(session.loading)
+        Button(AppText.text("Open website"), systemImage: "globe") { session.showWebsite() }
+        Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { session.load() }.disabled(session.loading)
       }
       if let listing = session.listing, listing.pages > 1 {
         ToolbarItemGroup(placement: .bottomBar) {
-          Button("Previous", systemImage: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
+          Button(AppText.text("Previous"), systemImage: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
           Text("\(listing.page) / \(listing.pages)").monospacedDigit()
-          Button("Next", systemImage: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
+          Button(AppText.text("Next"), systemImage: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
         }
       }
     }
@@ -83,7 +83,7 @@ struct GofileBrowserView: View {
       NavigationStack {
         GofileWebSurface(webView: session.webView).ignoresSafeArea(.container, edges: .bottom)
           .navigationTitle("gofile.io").navigationBarTitleDisplayMode(.inline)
-          .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Files") { session.showingWebsite = false } } }
+          .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(AppText.text("Files")) { session.showingWebsite = false } } }
       }
     }
     .sheet(item: $session.export) { GofileExport(file: $0.url) }
@@ -94,10 +94,10 @@ struct GofileBrowserView: View {
       if !visible { session.resumeThumbnails() }
     }
     .navigationDestination(item: $session.preview) { file in
-      GofileQuickLook(file: file.url).navigationTitle("Preview").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
+      GofileQuickLook(file: file.url).navigationTitle(AppText.text("Preview")).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
     }
     .navigationDestination(item: $session.video) { source in
-      GofileVideoView(source: source).navigationTitle("Video").navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
+      GofileVideoView(source: source).navigationTitle(AppText.text("Video")).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
     }
   }
   private func entryLabel(_ entry: GofileEntry) -> some View {
@@ -105,9 +105,9 @@ struct GofileBrowserView: View {
       GofileThumbnail(entry: entry, session: session)
       VStack(alignment: .leading, spacing: 4) {
         Text(entry.name).font(.forum(.subheadline)).lineLimit(2).foregroundStyle(.primary)
-        Text(entry.folder ? "Folder" : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Size unknown")
+        Text(entry.folder ? AppText.text("Folder") : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? AppText.text("Size unknown"))
           .font(.forum(.caption)).foregroundStyle(.secondary)
-        if entry.unavailable { Text("Unavailable on Gofile").font(.forum(.caption2)).foregroundStyle(.secondary) }
+        if entry.unavailable { Text(AppText.text("Unavailable on Gofile")).font(.forum(.caption2)).foregroundStyle(.secondary) }
         if let error = session.downloads[entry.id]?.error { Text(error).font(.forum(.caption2)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
       }.frame(maxWidth: .infinity, alignment: .leading)
     }.contentShape(Rectangle())
@@ -127,7 +127,7 @@ struct GofileBrowserView: View {
         } else { Image(systemName: state?.file == nil ? "arrow.down" : "square.and.arrow.up").font(.body.weight(.medium)) }
       }.frame(width: 28, height: 28).padding(6)
     }.buttonStyle(.glass).buttonBorderShape(.circle)
-      .accessibilityLabel(state?.busy == true ? "Cancel download" : state?.file == nil ? "Download file" : "Save to Files")
+      .accessibilityLabel(state?.busy == true ? AppText.text("Cancel download") : state?.file == nil ? AppText.text("Download file") : AppText.text("Save to Files"))
       .disabled(entry.unavailable)
   }
 }
@@ -191,9 +191,10 @@ struct GofileModalRoot: View {
   var body: some View {
     NavigationStack {
       GofileBrowserView(url: url).toolbar {
-        ToolbarItem(placement: .topBarLeading) { Button("Back", systemImage: "chevron.left", action: close) }
+        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
     }.font(.forum(.body))
+      .environment(\.locale, AppText.locale)
   }
 }
 

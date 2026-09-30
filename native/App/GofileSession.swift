@@ -71,7 +71,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
     timer?.cancel(); loading = false; ready = false
     self.failure = error as? GofileFailure
     if let date = self.failure?.retryDate { GofileFileTransfer.slowDown(until: date) }
-    self.error = error is CancellationError ? nil : error.localizedDescription
+    self.error = error is CancellationError ? nil : AppText.error(error)
     let continuation = waiter; waiter = nil; continuation?.resume(throwing: error)
   }
   func fetch(_ target: URL, page: Int = 1) async throws -> GofileListing {
@@ -165,9 +165,9 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
       return
     }
     guard transfers[entry.id] == nil else { return }
-    guard transfers.count < 2 else { downloads[entry.id] = .init(error: "Two files are already queued."); return }
+    guard transfers.count < 2 else { downloads[entry.id] = .init(error: AppText.text("Two files are already queued.")); return }
     guard ready, !entry.unavailable, let link = entry.link else {
-      downloads[entry.id] = .init(error: "Refresh the folder or open the website to check this file's availability."); return
+      downloads[entry.id] = .init(error: AppText.text("Refresh the folder or open the website to check this file's availability.")); return
     }
     downloads[entry.id] = .init(busy: true)
     let transfer = GofileFileTransfer(name: entry.name, expectedBytes: entry.size, mime: entry.mime, cookies: cookies, userAgent: userAgent,
@@ -183,7 +183,7 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
             else { self.export = GofileLocalFile(url: file) }
           }
         case .failure(let error):
-          self.downloads[entry.id] = .init(error: error is CancellationError ? nil : error.localizedDescription)
+          self.downloads[entry.id] = .init(error: error is CancellationError ? nil : AppText.error(error))
         }
       })
     transfers[entry.id] = transfer; transfer.start(link)

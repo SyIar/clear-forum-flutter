@@ -15,12 +15,12 @@ enum SouthPurchaseIssue: String, Error, LocalizedError {
   case busy, changedPrice, unconfirmed, checkUnavailable, confirmationUnavailable, unexpectedPage
   var errorDescription: String? {
     switch self {
-    case .busy: return "A purchase is already in progress."
-    case .changedPrice: return "The price has changed. Check the updated price before buying."
-    case .unconfirmed: return "The content is still locked. Open Site browser to check your balance or the site's message."
-    case .checkUnavailable: return "Could not check the current purchase offer. Your page has been kept. Refresh to try again."
-    case .confirmationUnavailable: return "The purchase was submitted, but its result could not be confirmed. Your page has been kept. Refresh to check before buying again."
-    case .unexpectedPage: return "The site returned a different page. Your page has been kept. Refresh to check the purchase."
+    case .busy: return AppText.text("A purchase is already in progress.")
+    case .changedPrice: return AppText.text("The price has changed. Check the updated price before buying.")
+    case .unconfirmed: return AppText.text("The content is still locked. Open Site browser to check your balance or the site's message.")
+    case .checkUnavailable: return AppText.text("Could not check the current purchase offer. Your page has been kept. Refresh to try again.")
+    case .confirmationUnavailable: return AppText.text("The purchase was submitted, but its result could not be confirmed. Your page has been kept. Refresh to check before buying again.")
+    case .unexpectedPage: return AppText.text("The site returned a different page. Your page has been kept. Refresh to check the purchase.")
     }
   }
 }
@@ -134,7 +134,7 @@ final class SouthPurchaseService {
         if let message = next.message, result.message == nil || next.stopsAutomaticBatch { result.message = message }
         if next.stopsAutomaticBatch { result.stopsAutomaticBatch = true; break }
       } catch is CancellationError { throw CancellationError() }
-      catch { try Task.checkCancellation(); result.message = error.localizedDescription; break }
+      catch { try Task.checkCancellation(); result.message = AppText.error(error); break }
     }
     return result
   }

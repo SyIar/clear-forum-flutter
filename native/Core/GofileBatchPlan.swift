@@ -62,5 +62,5 @@ struct GofileBatchPlan {
 
 enum GofileBatchError: Error, LocalizedError {
   case limit
-  var errorDescription: String? { "This batch reached 10,000 items or 32 folder levels. Download the remaining folders separately." }
+  var errorDescription: String? { AppText.text("This batch reached 10,000 items or 32 folder levels. Download the remaining folders separately.") }
 }

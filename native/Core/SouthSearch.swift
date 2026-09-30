@@ -54,8 +54,8 @@ enum SouthSearch {
           try form.select("input[name=step][value=2]").first() != nil,
           try form.select("input[name=keyword]").first() != nil else { throw ReaderFailure.unsupported }
     let keywords = query.keywords.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard keywords.utf8.count >= 2 else { throw ForumSearchNotice(message: "Enter a longer search term.") }
-    guard keywords.utf8.count <= 1024 else { throw ForumSearchNotice(message: "Enter a shorter search term.") }
+    guard keywords.utf8.count >= 2 else { throw ForumSearchNotice(message: AppText.text("Enter a longer search term.")) }
+    guard keywords.utf8.count <= 1024 else { throw ForumSearchNotice(message: AppText.text("Enter a shorter search term.")) }
     let required = [("method", query.method), ("sch_area", "0"), ("asc", "DESC")]
     for (name, value) in required {
       guard try form.select("input[name=\(name)]").contains(where: { try $0.attr("value") == value && !$0.hasAttr("disabled") }) else {
@@ -135,7 +135,7 @@ enum SouthSearch {
     let last = paging.max { (Int(parameters($0)?["page"] ?? "") ?? 1) < (Int(parameters($1)?["page"] ?? "") ?? 1) }
     let declared = captures((try? doc.select(".pagesone").first()?.text()) ?? "", #"Pages:\s*[0-9]+/([0-9]+)"#)?.first.flatMap(Int.init) ?? 1
     let count = min(99_999, max(number, max(declared, Int(last.flatMap { parameters($0)?["page"] } ?? "") ?? 1)))
-    return ForumPage(url: canonical, title: "Search results", kind: .threads, entries: entries, posts: [],
+    return ForumPage(url: canonical, title: AppText.text("Search results"), kind: .threads, entries: entries, posts: [],
                      previous: number > 1 ? pageURL(canonical, number: number - 1) : nil,
                      next: number < count ? pageURL(canonical, number: number + 1) : nil, pageNumber: number,
                      lastPage: last, totalPages: count)

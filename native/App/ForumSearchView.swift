@@ -33,41 +33,41 @@ struct ForumSearchView: View {
       Section {
         HStack {
           Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-          TextField("Keywords", text: $keywords)
+          TextField(AppText.text("Keywords"), text: $keywords)
             .textInputAutocapitalization(.never).autocorrectionDisabled()
             .submitLabel(.search).focused($editing).onSubmit { search() }
           if !keywords.isEmpty {
             Button { keywords = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-              .buttonStyle(.plain).accessibilityLabel("Clear keywords")
+              .buttonStyle(.plain).accessibilityLabel(AppText.text("Clear keywords"))
           }
         }
         if session.site == .simp {
-          Toggle("Titles only", isOn: $titlesOnly)
-          Picker("Order", selection: $order) {
-            Text("Date").tag("date")
-            Text("Relevance").tag("relevance")
+          Toggle(AppText.text("Titles only"), isOn: $titlesOnly)
+          Picker(AppText.text("Order"), selection: $order) {
+            Text(AppText.text("Date")).tag("date")
+            Text(AppText.text("Relevance")).tag("relevance")
           }.pickerStyle(.segmented)
         } else {
-          Picker("Title match", selection: $southMethod) {
-            Text("Any word").tag("OR")
-            Text("All words").tag("AND")
+          Picker(AppText.text("Title match"), selection: $southMethod) {
+            Text(AppText.text("Any word")).tag("OR")
+            Text(AppText.text("All words")).tag("AND")
           }
-          Picker("Order", selection: $southOrder) {
-            Text("Newest threads").tag("postdate")
-            Text("Latest replies").tag("lastpost")
-            Text("Most replies").tag("replies")
-            Text("Most views").tag("hits")
+          Picker(AppText.text("Order"), selection: $southOrder) {
+            Text(AppText.text("Newest threads")).tag("postdate")
+            Text(AppText.text("Latest replies")).tag("lastpost")
+            Text(AppText.text("Most replies")).tag("replies")
+            Text(AppText.text("Most views")).tag("hits")
           }
-          Picker("Time", selection: $southTime) {
-            Text("All time").tag("all")
-            Text("Past day").tag("86400")
-            Text("Past week").tag("604800")
-            Text("Past month").tag("2592000")
-            Text("Past year").tag("31536000")
+          Picker(AppText.text("Time"), selection: $southTime) {
+            Text(AppText.text("All time")).tag("all")
+            Text(AppText.text("Past day")).tag("86400")
+            Text(AppText.text("Past week")).tag("604800")
+            Text(AppText.text("Past month")).tag("2592000")
+            Text(AppText.text("Past year")).tag("31536000")
           }
         }
         Button(action: search) {
-          HStack { Spacer(); Text("Search").fontWeight(.semibold); Spacer() }
+          HStack { Spacer(); Text(AppText.text("Search")).fontWeight(.semibold); Spacer() }
         }.disabled(loading || keywords.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       if loading {
@@ -76,13 +76,13 @@ struct ForumSearchView: View {
       if let error {
         Section {
           Text(error).foregroundStyle(.secondary)
-          Button(needsLogin ? "Sign in" : "Site browser") { openBrowser() }
+          Button(needsLogin ? AppText.text("Sign in") : AppText.text("Site browser")) { openBrowser() }
         }
       }
       if let page {
         let entries = page.entries.filter { session.site != .south || !library.document.blocksAuthor($0.authorID) }
-        Section(submitted.isEmpty ? "Results" : submitted) {
-          if entries.isEmpty { Text("No results").foregroundStyle(.secondary) }
+        Section(submitted.isEmpty ? AppText.text("Results") : submitted) {
+          if entries.isEmpty { Text(AppText.text("No results")).foregroundStyle(.secondary) }
           ForEach(entries) { entry in
             ForumEntryCard(entry: entry, isForum: false, navigate: navigate)
               .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
@@ -92,21 +92,21 @@ struct ForumSearchView: View {
           Section {
             HStack {
               Button { if let previous = page.previous { load(previous) } } label: { Image(systemName: "chevron.left") }
-                .accessibilityLabel("Previous results").disabled(loading || page.previous == nil)
+                .accessibilityLabel(AppText.text("Previous results")).disabled(loading || page.previous == nil)
               Spacer()
               Text("\(page.pageNumber) / \(page.pageCount)").monospacedDigit().foregroundStyle(.secondary)
               Spacer()
               Button { if let next = page.next { load(next) } } label: { Image(systemName: "chevron.right") }
-                .accessibilityLabel("Next results").disabled(loading || page.next == nil)
+                .accessibilityLabel(AppText.text("Next results")).disabled(loading || page.next == nil)
             }.buttonStyle(.borderless)
           }
         }
       }
     }
-    .navigationTitle("Search").navigationBarTitleDisplayMode(.inline)
+    .navigationTitle(AppText.text("Search")).navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button { openBrowser() } label: { Image(systemName: "safari") }.accessibilityLabel("Open forum search in Site browser")
+        Button { openBrowser() } label: { Image(systemName: "safari") }.accessibilityLabel(AppText.text("Open forum search in Site browser"))
       }
     }
     .onDisappear { cancel() }
@@ -119,10 +119,10 @@ struct ForumSearchView: View {
         if SimpSitePolicy.searchResults(target) || SouthSearch.parameters(target) != nil {
           do {
             page = try ForumParser().parse(html, url: target)
-            submitted = SouthSearch.parameters(target)?["keyword"] ?? URLComponents(url: target, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value ?? "Results"
+            submitted = SouthSearch.parameters(target)?["keyword"] ?? URLComponents(url: target, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value ?? AppText.text("Results")
             error = nil
           }
-          catch { self.error = error.localizedDescription }
+          catch { self.error = AppText.error(error) }
         } else {
           if let parsed = try? ForumParser().parse(html, url: target) { session.pages.store(parsed) }
           navigate(target)
@@ -163,7 +163,7 @@ struct ForumSearchView: View {
         page = result
       } catch {
         guard !Task.isCancelled, requestID == id else { return }
-        self.error = error.localizedDescription
+        self.error = AppText.error(error)
         needsLogin = (error as? ReaderFailure) == .login
       }
     }

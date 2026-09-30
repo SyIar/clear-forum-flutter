@@ -18,6 +18,8 @@ jobs:
           persist-credentials: false
       - run: xcodebuild -version
       - run: python3 scripts/check_repository.py
+      - run: python3 scripts/check_localization.py
+      - run: swift scripts/check_native_localization.swift
       - run: swift scripts/check_native_fonts.swift
       - run: swift test --package-path native
       - run: node scripts/check_media_probe.mjs

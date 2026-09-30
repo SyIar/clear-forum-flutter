@@ -5,7 +5,7 @@ extension LibraryDocument {
   func blocksAuthor(_ id: String?) -> Bool { site == .south && id.map { blockedAuthors[$0] != nil } == true }
   mutating func blockAuthor(id: String, name: String) {
     guard site == .south, SouthSitePolicy.validAuthorID(id) else { return }
-    blockedAuthors[id] = name.isEmpty ? "UID \(id)" : name
+    blockedAuthors[id] = name.isEmpty ? AppText.format("UID %@", String(describing: id)) : name
     unfollowAuthor(id)
   }
   mutating func unblockAuthor(_ id: String) { blockedAuthors.removeValue(forKey: id) }

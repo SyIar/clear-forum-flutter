@@ -20,19 +20,19 @@ struct PageSelector: View {
   var body: some View {
     NavigationStack {
       List {
-        Section("Page 1–\(page.pageCount)") {
+        Section(AppText.format("Page 1–%@", String(describing: page.pageCount))) {
           HStack {
-            TextField("Page number", text: $query).keyboardType(.numberPad)
+            TextField(AppText.text("Page number"), text: $query).keyboardType(.numberPad)
               .textInputAutocapitalization(.never).autocorrectionDisabled()
-            Button("Go") { if let number = requestedPage { choose(number) } }
+            Button(AppText.text("Go")) { if let number = requestedPage { choose(number) } }
               .disabled(requestedPage == nil)
           }
         }
-        Section("Nearby pages") {
+        Section(AppText.text("Nearby pages")) {
           ForEach(numbers, id: \.self) { number in
             Button { choose(number) } label: {
               HStack {
-                Text("Page \(number)").monospacedDigit().foregroundStyle(.primary)
+                Text(AppText.format("Page %@", String(describing: number))).monospacedDigit().foregroundStyle(.primary)
                 Spacer()
                 if number == page.pageNumber { Image(systemName: "checkmark").foregroundStyle(.blue) }
               }.contentShape(Rectangle())
@@ -40,8 +40,8 @@ struct PageSelector: View {
           }
         }
       }
-      .navigationTitle("Go to page").navigationBarTitleDisplayMode(.inline)
-      .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+      .navigationTitle(AppText.text("Go to page")).navigationBarTitleDisplayMode(.inline)
+      .toolbar { ToolbarItem(placement: .cancellationAction) { Button(AppText.text("Cancel")) { dismiss() } } }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
   }
   private func choose(_ number: Int) {

@@ -45,6 +45,7 @@ struct ForumLiteApp: App {
           else if value == .active { downloads.foregrounded() }
         }
         .font(.forum(.body))
+        .environment(\.locale, AppText.locale)
     }
   }
 }
@@ -87,7 +88,7 @@ struct ForumSelectionView: View {
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 27))
             .overlay(RoundedRectangle(cornerRadius: 27).strokeBorder(Color.primary.opacity(0.04)))
             .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
-          }.buttonStyle(.plain).accessibilityLabel("Open \(site.host) home")
+          }.buttonStyle(.plain).accessibilityLabel(AppText.format("Open %@ home", String(describing: site.host)))
         }
       }.frame(maxWidth: 520).padding(.horizontal, 22).padding(.top, 53).padding(.bottom, 40)
         .frame(maxWidth: .infinity)
@@ -115,7 +116,7 @@ final class LibraryStore: ObservableObject {
   init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
     do { document = try LibraryDocument.load(from: .standard, site: site); ready = true; error = nil }
-    catch { self.error = error.localizedDescription; ready = false }
+    catch { self.error = AppText.error(error); ready = false }
   }
   func change(_ mutate: (inout LibraryDocument) -> Void) {
     guard ready else { error = ReaderFailure.storage.localizedDescription; return }
@@ -123,7 +124,7 @@ final class LibraryStore: ObservableObject {
     mutate(&next)
     next.pruneTracking()
     do { try next.save(to: .standard); document = next }
-    catch { self.error = "Could not save your reading library." }
+    catch { self.error = AppText.text("Could not save your reading library.") }
   }
   func remember(_ page: ForumPage, session: ForumSession, checkMaximum: Bool = true) {
     guard session.site == site, site.accepts(page.url) else { return }
@@ -150,7 +151,7 @@ final class LibraryStore: ObservableObject {
       } catch {
         guard let self, self.visitTokens[key] == token else { return }
         self.visitTasks[key] = nil
-        if !Task.isCancelled { self.refreshMessage = "Could not record this thread's latest post number. Reopen it to try again." }
+        if !Task.isCancelled { self.refreshMessage = AppText.text("Could not record this thread's latest post number. Reopen it to try again.") }
       }
     }
   }
@@ -163,27 +164,27 @@ final class LibraryStore: ObservableObject {
     var checked = 0
     var failed = 0
     for (index, url) in targets.enumerated() {
-      if Task.isCancelled { refreshMessage = "Refresh paused. Existing records are kept."; return }
+      if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       guard let key = SitePolicy.threadKey(url) else { continue }
       if let visit = visitTasks[key] { await visit.value }
-      if Task.isCancelled { refreshMessage = "Refresh paused. Existing records are kept."; return }
+      if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       guard visitTasks[key] == nil else { continue }
       let token = visitTokens[key]
-      refreshMessage = "Checking \(index + 1) of \(targets.count)..."
+      refreshMessage = AppText.format("Checking %@ of %@...", String(describing: index + 1), String(describing: targets.count))
       do {
         let page = try await session.load(url)
         guard !Task.isCancelled else { return }
         change { $0.capturePresentation(page) }
         let maximum = try await session.maximumPostNumber(from: page)
-        guard !Task.isCancelled else { refreshMessage = "Refresh paused. Existing records are kept."; return }
+        guard !Task.isCancelled else { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.
         guard visitTokens[key] == token, visitTasks[key] == nil else { continue }
         change { $0.threads[key, default: ThreadReadState()].checked(maximum: maximum) }
         checked += 1
       } catch {
-        if Task.isCancelled { refreshMessage = "Refresh paused. Existing records are kept."; return }
+        if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         if let failure = error as? ReaderFailure, [.login, .verification, .rateLimit].contains(failure) {
-          refreshMessage = failure.localizedDescription + " Existing records are kept."
+          refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
         }
         failed += 1
@@ -191,18 +192,18 @@ final class LibraryStore: ObservableObject {
     }
     var authorsChecked = 0
     for author in document.following {
-      if Task.isCancelled { refreshMessage = "Refresh paused. Existing records are kept."; return }
-      refreshMessage = "Checking topics by \(author.name)..."
+      if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
+      refreshMessage = AppText.format("Checking topics by %@...", String(describing: author.name))
       if let failure = await refreshAuthor(author.id, session: session) {
         failed += 1
         if [.login, .verification, .rateLimit].contains(failure) {
-          refreshMessage = failure.localizedDescription + " Existing records are kept."
+          refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
         }
       } else { authorsChecked += 1 }
     }
-    let summary = authorsChecked == 0 ? "Checked \(checked) threads." : "Checked \(checked) threads and \(authorsChecked) followed authors."
-    refreshMessage = failed == 0 ? summary : summary + " \(failed) could not be checked; previous records are kept."
+    let summary = authorsChecked == 0 ? AppText.format("Checked %@ threads.", String(describing: checked)) : AppText.format("Checked %@ threads and %@ followed authors.", String(describing: checked), String(describing: authorsChecked))
+    refreshMessage = failed == 0 ? summary : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: failed))
   }
   func follow(_ post: ForumPost, session: ForumSession) {
     guard session.site == site, site == .south, let id = post.authorID else { return }
@@ -283,7 +284,7 @@ final class LibraryStore: ObservableObject {
         self.change { $0.capturePresentation(page); $0.synchronizeTitle(page.title, for: page.url) }
       } catch {
         guard let self, self.contains(url) else { return }
-        self.refreshMessage = "Bookmark saved. Its title will update after the page can be loaded."
+        self.refreshMessage = AppText.text("Bookmark saved. Its title will update after the page can be loaded.")
       }
     }
   }
@@ -310,34 +311,34 @@ struct HomeView: View {
           HStack(spacing: 12) {
             Button { path.append(.reader(session.site.start)) } label: {
               ForumLogo(site: session.site)
-            }.buttonStyle(.plain).accessibilityLabel("Open forum reader")
+            }.buttonStyle(.plain).accessibilityLabel(AppText.text("Open forum reader"))
             Button {
               session.beginBrowsing()
               browserPresentation = .browser(session.site.start)
             } label: {
               Image(systemName: "safari").font(.title3).frame(width: 44, height: 44)
             }.buttonStyle(.glass).buttonBorderShape(.circle)
-              .accessibilityLabel("Open original forum website")
+              .accessibilityLabel(AppText.text("Open original forum website"))
           }.padding(.vertical, 6)
         }
         Section {
-          if visibleBookmarks.isEmpty { Text("No bookmarks").foregroundStyle(.secondary) }
+          if visibleBookmarks.isEmpty { Text(AppText.text("No bookmarks")).foregroundStyle(.secondary) }
           ForEach(visibleBookmarks) { entry in
             savedRow(entry)
-              .swipeActions { Button("Remove", role: .destructive) { library.toggle(entry.url, title: entry.title) } }
+              .swipeActions { Button(AppText.text("Remove"), role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         } header: {
           HStack {
-            Text("Bookmarks")
+            Text(AppText.text("Bookmarks"))
             Spacer()
-            InfoButton(title: "Bookmarks", message: "Use the bookmark button to save a page or add a forum URL.")
+            InfoButton(title: AppText.text("Bookmarks"), message: AppText.text("Use the bookmark button to save a page or add a forum URL."))
           }
         }
         Section {
-          if visibleRecent.isEmpty { Text("No recent pages").foregroundStyle(.secondary) }
+          if visibleRecent.isEmpty { Text(AppText.text("No recent pages")).foregroundStyle(.secondary) }
           ForEach(visibleRecent) { entry in savedRow(entry) }
         } header: {
-          HStack { Text("Recent reading"); Spacer(); if !library.document.recent.isEmpty { Button("Clear") { clearHistory = true } } }
+          HStack { Text(AppText.text("Recent reading")); Spacer(); if !library.document.recent.isEmpty { Button(AppText.text("Clear")) { clearHistory = true } } }
         }
         if session.site == .south {
           SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
@@ -355,13 +356,13 @@ struct HomeView: View {
           Button {
             path.append(.search(session.site))
           } label: { Image(systemName: "magnifyingglass") }
-            .accessibilityLabel("Search forum")
+            .accessibilityLabel(AppText.text("Search forum"))
           if session.site == .south {
             Button { showingBlockedAuthors = true } label: { Image(systemName: "person.slash") }
-              .accessibilityLabel("Blocked authors")
+              .accessibilityLabel(AppText.text("Blocked authors"))
           }
           Button { adding = true } label: { Image(systemName: "bookmark") }
-            .accessibilityLabel("Add bookmark")
+            .accessibilityLabel(AppText.text("Add bookmark"))
         }
       }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
@@ -372,7 +373,7 @@ struct HomeView: View {
           }.frame(width: 52, height: 52)
         }.buttonStyle(.glass).buttonBorderShape(.circle)
           .disabled(library.refreshing || !library.document.hasRefreshTargets)
-          .accessibilityLabel("Refresh thread and author updates")
+          .accessibilityLabel(AppText.text("Refresh thread and author updates"))
           .padding(.trailing, 16).padding(.bottom, 8)
       }
       .refreshable { await library.refresh(session: session) }
@@ -399,12 +400,12 @@ struct HomeView: View {
           path.append(.reader(target))
         }.ignoresSafeArea()
       }
-      .confirmationDialog("Clear recent reading?", isPresented: $clearHistory, titleVisibility: .visible) {
-        Button("Clear recent reading", role: .destructive) { library.change { $0.recent = [] } }
+      .confirmationDialog(AppText.text("Clear recent reading?"), isPresented: $clearHistory, titleVisibility: .visible) {
+        Button(AppText.text("Clear recent reading"), role: .destructive) { library.change { $0.recent = [] } }
       }
-      .alert("Reading library", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
-        Button("Retry") { library.reload() }
-        Button("OK", role: .cancel) { library.error = nil }
+      .alert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
+        Button(AppText.text("Retry")) { library.reload() }
+        Button(AppText.text("OK"), role: .cancel) { library.error = nil }
       } message: { Text(library.error ?? "") }
   }
   private func savedRow(_ entry: SavedPage) -> some View {
@@ -423,7 +424,7 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 8) {
               Text(entry.title).lineLimit(2).foregroundStyle(.primary)
               if state?.updated == true {
-                Text("Updated").font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
+                Text(AppText.text("Updated")).font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
                   .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.12), in: Capsule())
                   .fixedSize()
               }
@@ -433,7 +434,7 @@ struct HomeView: View {
             }
             if let state {
               if let seen = state.seenMaximum {
-                Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : "Seen #\(seen)")
+                Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : AppText.format("Seen #%@", String(describing: seen)))
                   .font(.forum(.caption)).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
               } else if let latest = state.latestMaximum {
                 Text("#\(latest)").font(.forum(.caption)).foregroundStyle(.secondary)
@@ -458,15 +459,15 @@ struct BookmarkEditor: View {
   var body: some View {
     NavigationStack {
       Form {
-        TextField("Forum or thread URL", text: $address).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-        TextField("Title (optional)", text: $title)
+        TextField(AppText.text("Forum or thread URL"), text: $address).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+        TextField(AppText.text("Title (optional)"), text: $title)
         if !error.isEmpty { Text(error).foregroundStyle(.red) }
-      }.navigationTitle("Add bookmark").navigationBarTitleDisplayMode(.inline)
+      }.navigationTitle(AppText.text("Add bookmark")).navigationBarTitleDisplayMode(.inline)
         .toolbar {
-          ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-          ToolbarItem(placement: .confirmationAction) { Button("Save") {
-            guard let url = SitePolicy.resolve(address, from: library.site.base, internalOnly: true), library.site.accepts(url) else { error = "Enter a supported \(library.site.host) forum or thread URL."; return }
-            guard !library.contains(url) else { error = "This URL is already bookmarked."; return }
+          ToolbarItem(placement: .cancellationAction) { Button(AppText.text("Cancel")) { dismiss() } }
+          ToolbarItem(placement: .confirmationAction) { Button(AppText.text("Save")) {
+            guard let url = SitePolicy.resolve(address, from: library.site.base, internalOnly: true), library.site.accepts(url) else { error = AppText.format("Enter a supported %@ forum or thread URL.", String(describing: library.site.host)); return }
+            guard !library.contains(url) else { error = AppText.text("This URL is already bookmarked."); return }
             let label = title.trimmingCharacters(in: .whitespacesAndNewlines)
             library.toggle(url, title: label.isEmpty ? url.path : label, titleIsCustom: !label.isEmpty)
             if library.error == nil {

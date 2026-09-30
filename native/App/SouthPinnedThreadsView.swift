@@ -12,7 +12,7 @@ struct SouthPinnedThreadsCard: View {
         if entries.count > 2 {
           Button(action: showAll) { heading }
             .buttonStyle(.plain).disabled(busy)
-            .accessibilityLabel("Show all \(entries.count) pinned threads")
+            .accessibilityLabel(AppText.format("Show all %@ pinned threads", String(describing: entries.count)))
         } else { heading }
       }.background(.blue.opacity(0.045))
       Divider()
@@ -30,13 +30,13 @@ struct SouthPinnedThreadsCard: View {
   private var heading: some View {
     HStack(spacing: 8) {
       Image(systemName: "pin.fill").font(.caption.weight(.semibold)).foregroundStyle(.blue)
-      Text("Pinned").font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.primary)
+      Text(AppText.text("Pinned")).font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.primary)
       Text("\(entries.count)").font(.forum(.caption, weight: .medium)).monospacedDigit()
         .foregroundStyle(.secondary).padding(.horizontal, 7).padding(.vertical, 3)
         .background(.primary.opacity(0.05), in: Capsule())
       Spacer(minLength: 8)
       if entries.count > 2 {
-        Text("View all").font(.forum(.caption, weight: .medium)).foregroundStyle(.blue)
+        Text(AppText.text("View all")).font(.forum(.caption, weight: .medium)).foregroundStyle(.blue)
         Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.blue)
       }
     }.frame(maxWidth: .infinity, minHeight: 44).padding(.horizontal, 14).contentShape(Rectangle())
@@ -53,8 +53,8 @@ struct SouthPinnedThreadsView: View {
         SouthPinnedThreadRow(entry: entry, lineLimit: 2, select: select)
           .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
       }
-      .navigationTitle("Pinned threads").navigationBarTitleDisplayMode(.inline)
-      .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } } }
+      .navigationTitle(AppText.text("Pinned threads")).navigationBarTitleDisplayMode(.inline)
+      .toolbar { ToolbarItem(placement: .confirmationAction) { Button(AppText.text("Close")) { dismiss() } } }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
   }
 }

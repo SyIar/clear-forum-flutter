@@ -40,7 +40,7 @@ enum SimpSearch {
     if status == 401 || template == "login" || ForumSite.simp.isLogin(url) { throw ReaderFailure.login }
     if status == 403 { throw ReaderFailure.forbidden }
     if status == 404, SimpSitePolicy.searchResults(url) {
-      throw ForumSearchNotice(message: "This search is no longer available. Search again.")
+      throw ForumSearchNotice(message: AppText.text("This search is no longer available. Search again."))
     }
     guard (200..<300).contains(status) || status == 400 else { throw ReaderFailure.network }
     let hasError = try !doc.select(".blockMessage--error").isEmpty()
@@ -66,7 +66,7 @@ enum SimpSearch {
     try validate(doc, url: url, status: status)
     let keywords = query.keywords.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !keywords.isEmpty, keywords.utf8.count <= 1024, ["date", "relevance"].contains(query.order) else {
-      throw ForumSearchNotice(message: "Enter a shorter search term.")
+      throw ForumSearchNotice(message: AppText.text("Enter a shorter search term."))
     }
     let forms = try doc.select(".p-body-pageContent form").array() + doc.select("form").array()
     guard let form = try forms.first(where: { form in

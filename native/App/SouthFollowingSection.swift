@@ -8,7 +8,7 @@ struct SouthFollowingSection: View {
   var body: some View {
     Section {
       if library.document.following.isEmpty {
-        Text("No followed authors").font(.forum(.subheadline)).foregroundStyle(.secondary)
+        Text(AppText.text("No followed authors")).font(.forum(.subheadline)).foregroundStyle(.secondary)
       }
       ForEach(library.document.following) { author in
         VStack(alignment: .leading, spacing: 12) {
@@ -19,11 +19,11 @@ struct SouthFollowingSection: View {
                 Text(author.name).font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
                 Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
               }.contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("All topics by \(author.name)")
+            }.buttonStyle(.plain).accessibilityLabel(AppText.format("All topics by %@", String(describing: author.name)))
             Spacer(minLength: 0)
             if library.refreshingAuthors.contains(author.id) { ProgressView().controlSize(.small) }
             Button { library.unfollow(author.id) } label: { Image(systemName: "person.badge.minus") }
-              .buttonStyle(.borderless).accessibilityLabel("Unfollow \(author.name)")
+              .buttonStyle(.borderless).accessibilityLabel(AppText.format("Unfollow %@", String(describing: author.name)))
           }
           ForEach(author.topics) { topic in
             Divider()
@@ -32,7 +32,7 @@ struct SouthFollowingSection: View {
                 Text(topic.title).font(.forum(.subheadline)).foregroundStyle(.primary).lineLimit(2)
                   .frame(maxWidth: .infinity, alignment: .leading)
                 if library.document.isUnreadSouthThread(topic.url) {
-                  Text("New").font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
+                  Text(AppText.text("New")).font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(.blue.opacity(0.12), in: Capsule()).fixedSize()
                 }
@@ -43,20 +43,20 @@ struct SouthFollowingSection: View {
             HStack(alignment: .top) {
               Text(error).font(.forum(.caption)).foregroundStyle(.secondary)
               Spacer(minLength: 8)
-              Button("Retry") { Task { await library.refreshAuthor(author.id, session: session) } }
+              Button(AppText.text("Retry")) { Task { await library.refreshAuthor(author.id, session: session) } }
                 .font(.forum(.caption)).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
             }
           } else if author.topics.isEmpty && !library.refreshingAuthors.contains(author.id) {
-            Text(author.checkedAt == nil ? "Not refreshed" : "No topics")
+            Text(author.checkedAt == nil ? AppText.text("Not refreshed") : AppText.text("No topics"))
               .font(.forum(.caption)).foregroundStyle(.secondary)
           }
         }.padding(.vertical, 6)
       }
     } header: {
       HStack {
-        Text("Following")
+        Text(AppText.text("Following"))
         Spacer()
-        InfoButton(title: "Following", message: "Tap an author's avatar and choose Follow author. Refresh to load their latest topics.")
+        InfoButton(title: AppText.text("Following"), message: AppText.text("Tap an author's avatar and choose Follow author. Refresh to load their latest topics."))
       }
     }
   }

@@ -10,7 +10,7 @@ struct InfoButton: View {
       Image(systemName: "info.circle").font(.body)
         .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless)
-      .accessibilityLabel("\(title) information")
+      .accessibilityLabel(AppText.format("%@ information", String(describing: title)))
       .popover(isPresented: $showingInfo) {
         ViewThatFits(in: .vertical) {
           information

@@ -23,7 +23,7 @@ struct TorrentCopyButton: View {
           try Task.checkCancellation()
           UIPasteboard.general.string = metadata.magnet.absoluteString
           copied = true
-        } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+        } catch { if !Task.isCancelled { self.error = AppText.error(error) } }
       }
     } label: {
       ZStack {
@@ -34,11 +34,11 @@ struct TorrentCopyButton: View {
         }
       }.frame(width: 44, height: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless).disabled(task != nil || unavailable)
-      .accessibilityLabel(copied ? "Magnet copied" : "Copy magnet")
-      .accessibilityValue(task != nil ? "Preparing" : "")
+      .accessibilityLabel(copied ? AppText.text("Magnet copied") : AppText.text("Copy magnet"))
+      .accessibilityValue(task != nil ? AppText.text("Preparing") : "")
       .onDisappear { task?.cancel(); task = nil }
-      .alert("Could not copy magnet", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-        Button("Close", role: .cancel) { error = nil }
+      .alert(AppText.text("Could not copy magnet"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        Button(AppText.text("Close"), role: .cancel) { error = nil }
       } message: { Text(error ?? "") }
   }
 }

@@ -12,14 +12,14 @@ struct VideoDownloadButton: View {
       DownloadIndicator(phase: download.phase, progress: download.progress)
     }
     .disabled(download.phase == .idle && !state.downloadReady)
-    .accessibilityLabel(download.phase == .idle ? "Download video" : "Manage video download")
+    .accessibilityLabel(download.phase == .idle ? AppText.text("Download video") : AppText.text("Manage video download"))
     .accessibilityValue(download.busy ? progressDescription : "")
   }
 
   private var progressDescription: String {
-    if download.phase == .saving { return "Saving to Photos" }
-    if let progress = download.progress, progress.isFinite { return "\(Int((min(1, max(0, progress)) * 100).rounded(.down))) percent downloaded" }
-    return "Preparing download"
+    if download.phase == .saving { return AppText.text("Saving to Photos") }
+    if let progress = download.progress, progress.isFinite { return AppText.format("%@ percent downloaded", String(describing: Int((min(1, max(0, progress)) * 100).rounded(.down)))) }
+    return AppText.text("Preparing download")
   }
 }
 

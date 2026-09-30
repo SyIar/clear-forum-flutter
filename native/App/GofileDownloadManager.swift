@@ -42,7 +42,7 @@ struct GofileBatchRow: View {
     NavigationLink { GofileBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
         Label(batch.title, systemImage: "folder").font(.forum(.headline)).lineLimit(2)
-        Text("\(batch.completed) saved · \(batch.skipped.count) skipped · \(batch.pending) pending")
+        Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.pending)))
           .font(.forum(.caption)).foregroundStyle(.secondary)
         if batch.running {
           if let progress = batch.progress { ProgressView(value: progress) }
@@ -54,17 +54,17 @@ struct GofileBatchRow: View {
       }.padding(.vertical, 4)
     }.swipeActions {
       if batch.phase == .finished || batch.phase == .cancelled {
-        Button("Remove from list", systemImage: "xmark") { manager.remove(batch) }
+        Button(AppText.text("Remove from list"), systemImage: "xmark") { manager.remove(batch) }
       }
     }
   }
   private var status: String {
     switch batch.phase {
-    case .idle: return "Preparing downloads"
-    case .running: return "Downloading"
-    case .paused: return batch.issue ?? "Paused"
-    case .finished: return "Finished"
-    case .cancelled: return batch.issue ?? "Stopped"
+    case .idle: return AppText.text("Preparing downloads")
+    case .running: return AppText.text("Downloading")
+    case .paused: return batch.issue ?? AppText.text("Paused")
+    case .finished: return AppText.text("Finished")
+    case .cancelled: return batch.issue ?? AppText.text("Stopped")
     }
   }
 }

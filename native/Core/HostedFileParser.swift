@@ -65,7 +65,7 @@ enum HostedFileParser {
     guard let node = try document.select("[data-file-id]").first() else { throw HostedFileFailure.format }
     let id = try node.attr("data-file-id")
     guard id.range(of: #"^[0-9]{1,20}$"#, options: .regularExpression) != nil else { throw HostedFileFailure.format }
-    let title = try document.select("h1").first()?.text() ?? "File"
+    let title = try document.select("h1").first()?.text() ?? AppText.text("File")
     var album: URL?
     // Related-file cards are only a preview. The heading is the authoritative album link.
     for link in try document.select("h2 a[href]").array() {
@@ -90,7 +90,7 @@ enum HostedFileParser {
     }
     guard try document.select("#filesGrid, #subfoldersGrid").first() != nil else { throw HostedFileFailure.format }
     let folderTitle = try document.select(".folder-title, #folderTitle").first()?.text().trimmingCharacters(in: .whitespacesAndNewlines)
-    let title = folderTitle.flatMap { $0.isEmpty ? nil : $0 } ?? "Filester folder"
+    let title = folderTitle.flatMap { $0.isEmpty ? nil : $0 } ?? AppText.text("Filester folder")
     var seen = Set<String>(), entries: [HostedFileEntry] = []
     for card in try document.select("#filesGrid .file-item, #subfoldersGrid .subfolder-item").array() {
       let raw = try card.attr("href").isEmpty ? card.select("a[href]").first()?.attr("href") : card.attr("href")

@@ -25,11 +25,11 @@ struct ReaderEdgeIndicator: View {
   var body: some View {
     if loading {
       ProgressView().padding(10).background(.regularMaterial, in: Capsule())
-        .accessibilityLabel(edge == .previous ? "Loading previous page" : "Loading next page")
+        .accessibilityLabel(edge == .previous ? AppText.text("Loading previous page") : AppText.text("Loading next page"))
     } else if let failure, failure.edge == edge {
       HStack(spacing: 8) {
         Text(failure.message).font(.forum(.caption)).lineLimit(3)
-        Button("Retry", action: retry).font(.forum(.caption, weight: .bold))
+        Button(AppText.text("Retry"), action: retry).font(.forum(.caption, weight: .bold))
       }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
     }

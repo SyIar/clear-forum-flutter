@@ -38,9 +38,9 @@ final class MediaFileTransfer: NSObject, URLSessionDownloadDelegate {
     self.progress = progress; self.event = event; self.byteProgress = byteProgress; self.completion = completion
   }
   func start(_ url: URL, resumeData: Data? = nil) {
-    guard MediaPolicy.allowed(url) else { finish(.failure(MediaFileError(message: "The media address is not supported."))); return }
+    guard MediaPolicy.allowed(url) else { finish(.failure(MediaFileError(message: AppText.text("The media address is not supported.")))); return }
     if MediaFilePolicy.isHLS(url, mime: nil) {
-      finish(.failure(MediaFileError(message: "This is an HLS stream. Saving it to Photos is not supported yet."))); return
+      finish(.failure(MediaFileError(message: AppText.text("This is an HLS stream. Saving it to Photos is not supported yet.")))); return
     }
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpCookieStorage = nil
@@ -92,7 +92,7 @@ final class MediaFileTransfer: NSObject, URLSessionDownloadDelegate {
                   newRequest: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
     redirected += 1
     guard redirected <= 5, let url = newRequest.url, MediaPolicy.allowed(url) else {
-      completionHandler(nil); finish(.failure(MediaFileError(message: "The download redirected to an unsupported address."))); return
+      completionHandler(nil); finish(.failure(MediaFileError(message: AppText.text("The download redirected to an unsupported address.")))); return
     }
     event("Redirect HTTP \(response.statusCode)")
     // Rebuild headers so credentials never cross to a nonmatching host/path.
@@ -107,14 +107,14 @@ final class MediaFileTransfer: NSObject, URLSessionDownloadDelegate {
                   totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
     guard completion != nil else { return }
     if totalBytesWritten > limit || totalBytesExpectedToWrite > limit {
-      finish(.failure(MediaFileError(message: "The file exceeds the download size limit."))); return
+      finish(.failure(MediaFileError(message: AppText.text("The file exceeds the download size limit.")))); return
     }
     if !checkedCapacity, totalBytesExpectedToWrite > 0 {
       checkedCapacity = true
       if let values = try? FileManager.default.temporaryDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
          let available = values.volumeAvailableCapacityForImportantUsage,
          totalBytesExpectedToWrite - totalBytesWritten > max(0, available - 64 * 1024 * 1024) {
-        finish(.failure(MediaFileError(message: "There is not enough free space for this file."))); return
+        finish(.failure(MediaFileError(message: AppText.text("There is not enough free space for this file.")))); return
       }
     }
     if totalBytesExpectedToWrite > 0 { expectedBytes = totalBytesExpectedToWrite }
@@ -132,11 +132,11 @@ final class MediaFileTransfer: NSObject, URLSessionDownloadDelegate {
     guard completion != nil else { return }
     do {
       guard let http = downloadTask.response as? HTTPURLResponse, let url = http.url else {
-        throw MediaFileError(message: "The server returned an invalid response.")
+        throw MediaFileError(message: AppText.text("The server returned an invalid response."))
       }
       let bytes = (try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
       event("HTTP \(http.statusCode), MIME \(MediaDiagnostics.mime(http.mimeType)), bytes \(bytes)")
-      guard MediaPolicy.allowed(url) else { throw MediaFileError(message: "Unsupported download address.") }
+      guard MediaPolicy.allowed(url) else { throw MediaFileError(message: AppText.text("Unsupported download address.")) }
       if let error = MediaFilePolicy.responseError(status: http.statusCode, mime: http.mimeType, url: url, bytes: bytes, limit: limit,
         resumed: resuming, contentRange: http.value(forHTTPHeaderField: "Content-Range"), expectedBytes: http.statusCode == 206 ? nil : expectedBytes) {
         throw MediaFileError(message: error, refreshSource: [401, 403, 404, 410].contains(http.statusCode) || ["text/html", "application/json"].contains(http.mimeType ?? ""))
@@ -155,6 +155,6 @@ final class MediaFileTransfer: NSObject, URLSessionDownloadDelegate {
     let value = error as NSError
     event("Network \(MediaDiagnostics.domain(value.domain)) code=\(value.code)")
     let diskError = value.domain == NSURLErrorDomain && [URLError.cannotCreateFile.rawValue, URLError.cannotWriteToFile.rawValue].contains(value.code)
-    finish(.failure(MediaFileError(message: diskError ? "Could not write the download. Check free space and try again." : "The download could not finish. Check your connection and try again.", resumeData: value.userInfo[NSURLSessionDownloadTaskResumeData] as? Data)))
+    finish(.failure(MediaFileError(message: diskError ? AppText.text("Could not write the download. Check free space and try again.") : AppText.text("The download could not finish. Check your connection and try again."), resumeData: value.userInfo[NSURLSessionDownloadTaskResumeData] as? Data)))
   }
 }

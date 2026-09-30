@@ -19,7 +19,7 @@ final class VideoDownloadManager: ObservableObject {
       items = try VideoDownloadStore.load().filter { seen.insert($0.id).inserted && MediaPolicy.allowed($0.source) }.map(VideoDownload.init(record:))
     } catch {
       writable = false
-      storageError = "Could not restore the download list. Existing records are kept; new tasks will only be kept while the app is open."
+      storageError = AppText.text("Could not restore the download list. Existing records are kept; new tasks will only be kept while the app is open.")
     }
   }
   func existing(for source: URL) -> VideoDownload {
@@ -63,7 +63,7 @@ final class VideoDownloadManager: ObservableObject {
   private func save() {
     guard writable else { return }
     do { try VideoDownloadStore.save(items.map(\.record)) }
-    catch { storageError = "Could not save the download list. Keep the app open and check free space." }
+    catch { storageError = AppText.text("Could not save the download list. Keep the app open and check free space.") }
   }
   func remove(_ item: VideoDownload) {
     guard !item.busy else { return }

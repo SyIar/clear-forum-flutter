@@ -11,16 +11,16 @@ enum MediaFilePolicy {
                             resumed: Bool = false, contentRange: String? = nil, expectedBytes: Int64? = nil) -> String? {
     let completeResume = status == 206 && resumed && completeRange(contentRange, bytes: bytes)
     guard status == 200 || completeResume else {
-      return status == 206 ? "The server returned only part of the file. Refresh the video and try again." :
-        "Download failed with HTTP \(status). Refresh the source and try again."
+      return status == 206 ? AppText.text("The server returned only part of the file. Refresh the video and try again.") :
+        AppText.format("Download failed with HTTP %@. Refresh the source and try again.", String(describing: status))
     }
-    if isHLS(url, mime: mime) { return "This is an HLS stream. Saving it to Photos is not supported yet." }
+    if isHLS(url, mime: mime) { return AppText.text("This is an HLS stream. Saving it to Photos is not supported yet.") }
     if ["text/html", "application/xhtml+xml", "application/json"].contains(mime?.lowercased() ?? "") {
-      return "The server returned a page instead of a media file."
+      return AppText.text("The server returned a page instead of a media file.")
     }
-    if bytes == 0 { return "The server returned an empty file." }
-    if bytes > limit { return "The file exceeds the download size limit." }
-    if let expectedBytes, expectedBytes > 0, bytes != expectedBytes { return "The downloaded file is incomplete. Try resuming it again." }
+    if bytes == 0 { return AppText.text("The server returned an empty file.") }
+    if bytes > limit { return AppText.text("The file exceeds the download size limit.") }
+    if let expectedBytes, expectedBytes > 0, bytes != expectedBytes { return AppText.text("The downloaded file is incomplete. Try resuming it again.") }
     return nil
   }
   static func completeRange(_ value: String?, bytes: Int64) -> Bool {

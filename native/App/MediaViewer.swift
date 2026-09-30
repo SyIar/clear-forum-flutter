@@ -56,7 +56,7 @@ struct MediaViewerDestination: View {
   }
   private var isImage: Bool { if case .image = item { return true }; return false }
   private var title: String {
-    switch item { case .image: return "Image"; case .video: return "Video" }
+    switch item { case .image: return AppText.text("Image"); case .video: return AppText.text("Video") }
   }
   var body: some View {
     MediaViewerContent(item: item, state: state)
@@ -71,10 +71,10 @@ struct MediaViewerDestination: View {
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           if isImage {
-            Button("Share image", systemImage: "square.and.arrow.up") { state.image?.shareImage() }
+            Button(AppText.text("Share image"), systemImage: "square.and.arrow.up") { state.image?.shareImage() }
           } else if let download = state.download {
             VideoDownloadButton(state: state, download: download)
-            Button("Refresh video", systemImage: "arrow.clockwise") { state.player?.reload() }
+            Button(AppText.text("Refresh video"), systemImage: "arrow.clockwise") { state.player?.reload() }
           }
         }
       }
@@ -141,21 +141,21 @@ struct ImageViewerSheet: View {
       .overlay {
         if entries.count > 1 {
           HStack {
-            galleryButton("Previous image", symbol: "chevron.left", disabled: index == 0) { index -= 1 }
+            galleryButton(AppText.text("Previous image"), symbol: "chevron.left", disabled: index == 0) { index -= 1 }
             Spacer()
-            galleryButton("Next image", symbol: "chevron.right", disabled: index == entries.count - 1) { index += 1 }
+            galleryButton(AppText.text("Next image"), symbol: "chevron.right", disabled: index == entries.count - 1) { index += 1 }
           }.padding(.horizontal, 12)
         }
       }
       .padding(6).glassEffect(.regular, in: RoundedRectangle(cornerRadius: 30)).padding(8)
-      .navigationTitle(entries.count > 1 ? "Image \(index + 1) of \(entries.count)" : "Image")
+      .navigationTitle(entries.count > 1 ? AppText.format("Image %@ of %@", String(describing: index + 1), String(describing: entries.count)) : AppText.text("Image"))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          Button("Close", systemImage: "xmark") { dismiss() }
+          Button(AppText.text("Close"), systemImage: "xmark") { dismiss() }
         }
         ToolbarItem(placement: .topBarTrailing) {
-          Button("Share image", systemImage: "square.and.arrow.up") { state.image?.shareImage() }
+          Button(AppText.text("Share image"), systemImage: "square.and.arrow.up") { state.image?.shareImage() }
             .disabled(loadedSource?.url != selected.url)
         }
       }

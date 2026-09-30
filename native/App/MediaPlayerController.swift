@@ -60,7 +60,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = "Video"
+    title = AppText.text("Video")
     view.backgroundColor = .systemBackground
     // The parent SwiftUI destination owns the navigation bar and system back gesture.
     let configuration = WKWebViewConfiguration()
@@ -162,8 +162,8 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     configuration.baseForegroundColor = .label
     configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
     fullscreenButton.configuration = configuration
-    fullscreenButton.accessibilityLabel = immersive ? "Exit full screen" : "Full screen"
-    fullscreenButton.accessibilityHint = immersive ? "Restore the title bar" : "Hide the title bar without restarting playback"
+    fullscreenButton.accessibilityLabel = immersive ? AppText.text("Exit full screen") : AppText.text("Full screen")
+    fullscreenButton.accessibilityHint = immersive ? AppText.text("Restore the title bar") : AppText.text("Hide the title bar without restarting playback")
   }
   private func updateDownloadButton() {
     guard !closed else { return }
@@ -200,7 +200,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
 
   private func configureWaitingView() {
     spinner.translatesAutoresizingMaskIntoConstraints = false
-    spinner.accessibilityLabel = "Loading video"
+    spinner.accessibilityLabel = AppText.text("Loading video")
     waitingView.addSubview(spinner)
     errorScroll.translatesAutoresizingMaskIntoConstraints = false
     errorScroll.isHidden = true
@@ -222,7 +222,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
       attributes.font = browserFont
       return attributes
     }
-    webButton.setTitle("Open in browser", for: .normal)
+    webButton.setTitle(AppText.text("Open in browser"), for: .normal)
     webButton.addTarget(self, action: #selector(openInBrowser), for: .touchUpInside)
     let stack = UIStackView(arrangedSubviews: [messageLabel, hintLabel, webButton])
     stack.axis = .vertical; stack.alignment = .fill; stack.spacing = 20
@@ -263,7 +263,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     waitingView.isHidden = false
     errorScroll.isHidden = false
     spinner.stopAnimating()
-    messageLabel.text = networkMessageShown ? "Connection lost" : (hasPlayed ? "Playback interrupted" : "Could not start video")
+    messageLabel.text = networkMessageShown ? AppText.text("Connection lost") : (hasPlayed ? AppText.text("Playback interrupted") : AppText.text("Could not start video"))
     hintLabel.text = message
     webView.isUserInteractionEnabled = false
   }
@@ -283,7 +283,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
             self.networkUnavailable, self.waitingForPlayback else { return }
       // Keep the player alive so a brief network change can recover in place.
       self.networkMessageShown = true
-      self.showError("Check your connection, then try again.")
+      self.showError(AppText.text("Check your connection, then try again."))
     }
     networkLossWork = work
     DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
@@ -347,7 +347,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
           case .success(let media):
             self.startPlayer(media.url, cookies: media.cookies)
           case .failure:
-            self.fail("The video provider could not load this video. Refresh or open it in the browser.")
+            self.fail(AppText.text("The video provider could not load this video. Refresh or open it in the browser."))
           }
         })
         self.resolver = resolver
@@ -373,13 +373,13 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     playerController.player = player
     notifications.append(NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] _ in
       guard let self = self, self.active(epoch) else { return }
-      self.fail("The video stopped loading. Refresh or open it in the browser.", allowWebFallback: true)
+      self.fail(AppText.text("The video stopped loading. Refresh or open it in the browser."), allowWebFallback: true)
     })
     statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
       DispatchQueue.main.async {
         guard let self = self, self.active(epoch) else { return }
         if item.status == .failed {
-          self.fail("This video could not be played. Refresh or open it in the browser.", allowWebFallback: true)
+          self.fail(AppText.text("This video could not be played. Refresh or open it in the browser."), allowWebFallback: true)
         } else if item.status == .readyToPlay {
           self.downloadSource = (url, applicable)
           self.updateDownloadButton()
@@ -478,7 +478,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
     if response.isForMainFrame, let http = response.response as? HTTPURLResponse, http.statusCode >= 400 {
       decisionHandler(.cancel)
-      fail("The video page is unavailable. Refresh or open it in the browser.")
+      fail(AppText.text("The video page is unavailable. Refresh or open it in the browser."))
       return
     }
     decisionHandler(closed ? .cancel : .allow)
@@ -501,7 +501,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private func webFailed(_ error: Error) {
     let error = error as NSError
     guard !closed, error.code != NSURLErrorCancelled else { return }
-    fail("The video page could not load. Check your connection or open it in the browser.")
+    fail(AppText.text("The video page could not load. Check your connection or open it in the browser."))
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
     if let navigation = navigation, navigation === activeNavigation { webFailed(error) }

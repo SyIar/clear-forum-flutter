@@ -41,7 +41,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     configuration.image = UIImage(systemName: "magnifyingglass")
     configuration.cornerStyle = .capsule; configuration.baseForegroundColor = .white
     originalButton.configuration = configuration
-    originalButton.accessibilityLabel = "View source image at full resolution"
+    originalButton.accessibilityLabel = AppText.text("View source image at full resolution")
     originalButton.translatesAutoresizingMaskIntoConstraints = false
     originalButton.addTarget(self, action: #selector(loadOriginal), for: .touchUpInside)
     view.addSubview(originalButton)
@@ -91,9 +91,9 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
               let values = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = values[kCGImagePropertyPixelWidth] as? Int, let height = values[kCGImagePropertyPixelHeight] as? Int,
               width > 0, height > 0, Double(width) * Double(height) <= 80_000_000 else {
-          return .failure(MediaFileError(message: "This image is invalid or exceeds the full-resolution memory limit."))
+          return .failure(MediaFileError(message: AppText.text("This image is invalid or exceeds the full-resolution memory limit.")))
         }
-        guard let image = UIImage(contentsOfFile: file.path) else { return .failure(MediaFileError(message: "Could not open the source image.")) }
+        guard let image = UIImage(contentsOfFile: file.path) else { return .failure(MediaFileError(message: AppText.text("Could not open the source image."))) }
         return .success(image)
       }.value
       guard let self, !Task.isCancelled else { return }
@@ -104,7 +104,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
         self.scroll.setZoomScale(1, animated: false)
         self.imageView.image = image; self.originalLoaded = true
         self.view.setNeedsLayout()
-        self.originalButton.accessibilityLabel = "Zoom source image"
+        self.originalButton.accessibilityLabel = AppText.text("Zoom source image")
       case .failure(let error): self.failed(error)
       }
     }
@@ -113,9 +113,9 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     originalButton.configuration?.showsActivityIndicator = false
     if let file { try? FileManager.default.removeItem(at: file); self.file = nil }
     guard !(error is CancellationError), viewIfLoaded?.window != nil, presentedViewController == nil else { return }
-    let message = (error as? MediaFileError)?.message ?? "Could not open the source image. Tap the magnifier to retry."
-    let alert = UIAlertController(title: "Image", message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+    let message = (error as? MediaFileError)?.message ?? AppText.text("Could not open the source image. Tap the magnifier to retry.")
+    let alert = UIAlertController(title: AppText.text("Image"), message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: AppText.text("OK"), style: .cancel))
     present(alert, animated: true)
   }
   func stopLoading() {

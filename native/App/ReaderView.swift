@@ -69,10 +69,10 @@ struct ReaderView: View {
           Color.clear.frame(height: 1).id("top")
           if let error {
             ContentUnavailableView {
-              Label("Could not load page", systemImage: "wifi.exclamationmark")
+              Label(AppText.text("Could not load page"), systemImage: "wifi.exclamationmark")
             } description: { Text(error) } actions: {
-              Button("Retry") { reload() }.buttonStyle(.borderedProminent)
-              Button("Site browser") { openBrowser(current) }.buttonStyle(.bordered)
+              Button(AppText.text("Retry")) { reload() }.buttonStyle(.borderedProminent)
+              Button(AppText.text("Site browser")) { openBrowser(current) }.buttonStyle(.bordered)
             }
           } else if let page = displayPage {
             let visible = library.document.visibleContent(in: page)
@@ -86,7 +86,7 @@ struct ReaderView: View {
                       .padding(.horizontal, 6).frame(minHeight: 36)
                   }
                 }
-              }.scrollIndicators(.hidden).accessibilityLabel("Forum navigation")
+              }.scrollIndicators(.hidden).accessibilityLabel(AppText.text("Forum navigation"))
             }
             if !page.tags.isEmpty { ForumTagStrip(tags: page.tags, navigate: navigate) }
             Text(page.title).font(.forum(.title2, weight: .bold)).padding(.horizontal, 4)
@@ -100,12 +100,12 @@ struct ReaderView: View {
                          authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false,
                          authorAction: authorAction(for: post)).id(post.id)
               }
-              if visible.posts.isEmpty { ContentUnavailableView("No visible replies", systemImage: "person.slash") }
+              if visible.posts.isEmpty { ContentUnavailableView(AppText.text("No visible replies"), systemImage: "person.slash") }
             } else {
               directoryEntries(in: visible)
-              if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? "No threads yet" : "No visible threads", systemImage: "tray") }
+              if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? AppText.text("No threads yet") : AppText.text("No visible threads"), systemImage: "tray") }
             }
-          } else { ProgressView("Loading page...").frame(maxWidth: .infinity).padding(.top, 100) }
+          } else { ProgressView(AppText.text("Loading page...")).frame(maxWidth: .infinity).padding(.top, 100) }
         }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 14)
       }
       // Visibility is observation only. Binding the first visible row back to
@@ -129,32 +129,32 @@ struct ReaderView: View {
         if phase == .idle { applyAdjacentPage() }
       }
       .background(Color(uiColor: .systemGroupedBackground))
-      .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? "Author threads" : page?.kind == .posts ? "Thread" : "Forums").navigationBarTitleDisplayMode(.inline)
+      .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? AppText.text("Author threads") : page?.kind == .posts ? AppText.text("Thread") : AppText.text("Forums")).navigationBarTitleDisplayMode(.inline)
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          Button("Home", systemImage: "house", action: home)
-          Button("Bookmark", systemImage: library.contains(current) ? "bookmark.fill" : "bookmark") {
+          Button(AppText.text("Home"), systemImage: "house", action: home)
+          Button(AppText.text("Bookmark"), systemImage: library.contains(current) ? "bookmark.fill" : "bookmark") {
             library.toggle(current, title: page?.title ?? current.path)
           }.disabled(page == nil || loading)
           Menu {
-            ShareLink(item: current) { Label("Share link", systemImage: "square.and.arrow.up") }
-            Button("Site browser", systemImage: "globe") { openBrowser(current) }
-            Button("Sign in", systemImage: "person.crop.circle") { openBrowser(session.site.login) }
-            if session.site == .south { Button("Blocked authors", systemImage: "person.slash") { showingBlockedAuthors = true } }
-            Button("Clear session", systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
+            ShareLink(item: current) { Label(AppText.text("Share link"), systemImage: "square.and.arrow.up") }
+            Button(AppText.text("Site browser"), systemImage: "globe") { openBrowser(current) }
+            Button(AppText.text("Sign in"), systemImage: "person.crop.circle") { openBrowser(session.site.login) }
+            if session.site == .south { Button(AppText.text("Blocked authors"), systemImage: "person.slash") { showingBlockedAuthors = true } }
+            Button(AppText.text("Clear session"), systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
           } label: { Image(systemName: "ellipsis") }.disabled(purchasing)
         }
         ToolbarItemGroup(placement: .bottomBar) {
-          Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
+          Button(AppText.text("Previous page"), systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
-            Text("Page \(page?.pageNumber ?? 1)").font(.forum(.subheadline, weight: .semibold)).monospacedDigit()
-          }.disabled(page == nil || loading || purchasing).accessibilityLabel("Choose page")
-          Button("Next page", systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
+            Text(AppText.format("Page %@", String(describing: page?.pageNumber ?? 1))).font(.forum(.subheadline, weight: .semibold)).monospacedDigit()
+          }.disabled(page == nil || loading || purchasing).accessibilityLabel(AppText.text("Choose page"))
+          Button(AppText.text("Next page"), systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
-          Button("Refresh", systemImage: "arrow.clockwise") { reload() }.disabled(loading || purchasing)
+          Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { reload() }.disabled(loading || purchasing)
         }
   }
   private func activeReader(proxy: ScrollViewProxy) -> some View {
@@ -208,8 +208,8 @@ struct ReaderView: View {
       .overlay(alignment: .bottomTrailing) {
         if page != nil, error == nil {
           VStack(spacing: 8) {
-            Button("Top of page", systemImage: "arrow.up.to.line") { jumpToBoundary(bottom: false, proxy: proxy) }
-            Button("Bottom of page", systemImage: "arrow.down.to.line") { jumpToBoundary(bottom: true, proxy: proxy) }
+            Button(AppText.text("Top of page"), systemImage: "arrow.up.to.line") { jumpToBoundary(bottom: false, proxy: proxy) }
+            Button(AppText.text("Bottom of page"), systemImage: "arrow.down.to.line") { jumpToBoundary(bottom: true, proxy: proxy) }
           }.labelStyle(.iconOnly).font(.body.weight(.semibold))
             .buttonStyle(.glass).buttonBorderShape(.circle).controlSize(.large)
             .disabled(loading).padding(.trailing, 14).padding(.bottom, 12)
@@ -248,22 +248,22 @@ struct ReaderView: View {
         ReaderView(initialURL: item.url, library: library, session: session, home: home)
       }
       .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
-      .confirmationDialog(authorSelection?.post.author ?? "Author", isPresented: $showingAuthorActions, titleVisibility: .visible, presenting: authorSelection) { selection in
-        Button("View full-size avatar") { openAvatar(selection) }.disabled(selection.post.avatarOriginal == nil && selection.post.avatar == nil)
-        Button("View author threads") {
+      .confirmationDialog(authorSelection?.post.author ?? AppText.text("Author"), isPresented: $showingAuthorActions, titleVisibility: .visible, presenting: authorSelection) { selection in
+        Button(AppText.text("View full-size avatar")) { openAvatar(selection) }.disabled(selection.post.avatarOriginal == nil && selection.post.avatar == nil)
+        Button(AppText.text("View author threads")) {
           if let id = selection.post.authorID, let target = SouthSitePolicy.authorTopics(id) { navigate(target) }
         }.disabled(selection.post.authorID.flatMap(SouthSitePolicy.authorTopics) == nil)
         if let id = selection.post.authorID, SouthSitePolicy.validAuthorID(id) {
           if library.document.followsAuthor(id) {
-            Button("Unfollow author") { library.unfollow(id) }
+            Button(AppText.text("Unfollow author")) { library.unfollow(id) }
           } else {
-            Button("Follow author") { library.follow(selection.post, session: session) }
+            Button(AppText.text("Follow author")) { library.follow(selection.post, session: session) }
           }
         }
-        Button("Block author", role: .destructive) {
+        Button(AppText.text("Block author"), role: .destructive) {
           if let id = selection.post.authorID { library.change { $0.blockAuthor(id: id, name: selection.post.author) } }
         }.disabled(purchasing || (selection.post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true))
-        Button("Cancel", role: .cancel) {}
+        Button(AppText.text("Cancel"), role: .cancel) {}
       }
       .sheet(item: $imageSheet) { item in
         ImageViewerSheet(source: item.source).environmentObject(session)
@@ -294,18 +294,18 @@ struct ReaderView: View {
               library.remember(parsed, session: session)
               proxy.scrollTo("top", anchor: .top)
             }
-            catch { self.error = error.localizedDescription }
+            catch { self.error = AppText.error(error) }
           } else { page = nil; readingPages.reset(); reload() }
         }.ignoresSafeArea()
       }
-      .confirmationDialog("Clear forum session?", isPresented: $clearSession, titleVisibility: .visible) {
-        Button("Clear session", role: .destructive) { Task { await session.clear(); reload() } }
+      .confirmationDialog(AppText.text("Clear forum session?"), isPresented: $clearSession, titleVisibility: .visible) {
+        Button(AppText.text("Clear session"), role: .destructive) { Task { await session.clear(); reload() } }
       }
-      .alert("Purchase", isPresented: Binding(get: { purchaseMessage != nil }, set: { if !$0 { purchaseMessage = nil } })) {
-        Button("OK", role: .cancel) { purchaseMessage = nil }
+      .alert(AppText.text("Purchase"), isPresented: Binding(get: { purchaseMessage != nil }, set: { if !$0 { purchaseMessage = nil } })) {
+        Button(AppText.text("OK"), role: .cancel) { purchaseMessage = nil }
       } message: { Text(purchaseMessage ?? "") }
-      .alert("Reading library", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
-        Button("OK", role: .cancel) { library.error = nil }
+      .alert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
+        Button(AppText.text("OK"), role: .cancel) { library.error = nil }
       } message: { Text(library.error ?? "") }
       .background(ExternalBrowserPresenter(url: $external).frame(width: 0, height: 0))
   }
@@ -406,7 +406,7 @@ struct ReaderView: View {
         purchaseMessage = result.message
       } catch {
         guard !Task.isCancelled, expected == requestID, epoch == session.generation else { return }
-        purchaseMessage = error.localizedDescription
+        purchaseMessage = AppText.error(error)
       }
     }
   }
@@ -432,7 +432,7 @@ struct ReaderView: View {
       startPurchase()
     } catch {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
-      self.error = error.localizedDescription
+      self.error = AppText.error(error)
     }
     return nil
   }
@@ -469,7 +469,7 @@ struct ReaderView: View {
         if scrollPhase == .idle { applyAdjacentPage() }
       } catch {
         guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
-        edgeFailure = ReaderEdgeFailure(edge: edge, message: error.localizedDescription)
+        edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.error(error))
       }
     }
   }
@@ -487,7 +487,7 @@ struct ReaderView: View {
     var updated = readingPages
     guard updated.insert(incoming, at: edge, keeping: protected) else {
       pendingPage = nil; edgeLoading = nil
-      edgeFailure = ReaderEdgeFailure(edge: edge, message: "Could not join this page. Try again.")
+      edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.text("Could not join this page. Try again."))
       return
     }
     session.pages.store(updated.page(for: incoming.url) ?? incoming)

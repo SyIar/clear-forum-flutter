@@ -19,7 +19,7 @@ struct HostedFileEntry: Identifiable, Hashable {
   var id: String { HostedFilePolicy.key(pageURL) }
   var sizeDescription: String {
     if let size, size >= 0 { return ByteCountFormatter.string(fromByteCount: size, countStyle: .file) }
-    return reportedSize ?? "Size unknown"
+    return reportedSize ?? AppText.text("Size unknown")
   }
   var symbol: String {
     folder ? "folder.fill" : mime.hasPrefix("video/") ? "play.rectangle.fill" : mime.hasPrefix("image/") ? "photo" : "doc.fill"
@@ -140,13 +140,13 @@ enum HostedFilePolicy {
     }
   }
   static func responseError(status: Int, mime: String?, bytes: Int64, expected: Int64?, prefix: Data) -> String? {
-    guard status == 200 else { return "The server did not return a complete file (HTTP \(status))." }
-    guard bytes > 0, bytes <= GofilePolicy.fileLimit else { return "The file is empty or exceeds the download size limit." }
-    if let expected, expected > 0, bytes != expected { return "The downloaded file size is incorrect. Please retry." }
+    guard status == 200 else { return AppText.format("The server did not return a complete file (HTTP %@).", String(describing: status)) }
+    guard bytes > 0, bytes <= GofilePolicy.fileLimit else { return AppText.text("The file is empty or exceeds the download size limit.") }
+    if let expected, expected > 0, bytes != expected { return AppText.text("The downloaded file size is incorrect. Please retry.") }
     let type = mime?.lowercased() ?? ""
     let start = String(decoding: prefix.prefix(1024), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if ["text/html", "application/xhtml+xml", "application/json"].contains(type) || start.hasPrefix("<!doctype html") || start.hasPrefix("<html") || start.hasPrefix("{\"error") {
-      return "The server returned a web page or error instead of the file. Open the website to check access."
+      return AppText.text("The server returned a web page or error instead of the file. Open the website to check access.")
     }
     return nil
   }
@@ -158,12 +158,12 @@ enum HostedFileFailure: Error, LocalizedError {
   var retryDate: Date? { if case .rateLimited(let date) = self { return date }; return nil }
   var errorDescription: String? {
     switch self {
-    case .unsupported: return "This address is not supported by the file browser."
-    case .format: return "Could not read the complete file list. Open the website or try refreshing."
-    case .access: return "This file needs website access, a password or an account, or has reached its download limit. Open the website to check."
-    case .missing: return "This file or folder is no longer available."
-    case .limit: return "This file list is too large or has too many folder levels. Open a smaller folder."
-    case .rateLimited: return "The server asked downloads to pause. Wait before continuing; saved files are kept."
+    case .unsupported: return AppText.text("This address is not supported by the file browser.")
+    case .format: return AppText.text("Could not read the complete file list. Open the website or try refreshing.")
+    case .access: return AppText.text("This file needs website access, a password or an account, or has reached its download limit. Open the website to check.")
+    case .missing: return AppText.text("This file or folder is no longer available.")
+    case .limit: return AppText.text("This file list is too large or has too many folder levels. Open a smaller folder.")
+    case .rateLimited: return AppText.text("The server asked downloads to pause. Wait before continuing; saved files are kept.")
     }
   }
 }

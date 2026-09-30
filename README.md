@@ -49,6 +49,17 @@ The sample mode is clearly marked and contains only invented, non-account conten
 
 ## Run and build
 
+The native interface uses Simplified Chinese for app-owned labels, prompts,
+errors, download states, accessibility descriptions and Photos permission text.
+Forum text, website notices, author names, original file names, provider brands
+and original browser pages are preserved. English source keys are localized at
+their creation sites with `AppText`; downloaded content is not run through a
+translation lookup. Chinese text is confined to
+`native/Resources/zh-Hans.lproj/Localizable.strings` and `InfoPlist.strings`, the
+localization-only exception to the repository's English source rule requested
+on 2026-09-30. CI checks resource syntax, key coverage, format placeholders,
+Foundation lookup and the resources actually included in the IPA.
+
 Font resources live in [native/Resources/Fonts](native/Resources/Fonts/README.md).
 Large binary asset uploads are handled by the repository owner: prepare the
 folder and source links, then sync and validate the uploaded assets. The native

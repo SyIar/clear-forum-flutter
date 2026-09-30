@@ -39,22 +39,22 @@ enum GofilePolicy {
     var value = String(raw.unicodeScalars.map { bad.contains($0) ? "_" : String($0) }.joined().prefix(160))
       .trimmingCharacters(in: .whitespacesAndNewlines)
     while value.utf8.count > 220 { value.removeLast() }
-    return value.isEmpty || value == "." || value == ".." ? "Download" : value
+    return value.isEmpty || value == "." || value == ".." ? AppText.text("Download") : value
   }
   static func responseError(status: Int, url: URL, mime: String?, expectedMIME: String?, bytes: Int64,
                             expectedBytes: Int64?, prefix: Data, limit: Int64 = fileLimit) -> String? {
-    guard status == 200 else { return "The server did not return a complete file (HTTP \(status))." }
-    guard fileURL(url) else { return "Gofile returned a web page. Refresh the folder to restore the download session." }
-    guard bytes <= limit else { return "This file exceeds the download size limit." }
-    if let expectedBytes, expectedBytes != bytes { return "The downloaded size does not match the file. Refresh the folder and try again." }
+    guard status == 200 else { return AppText.format("The server did not return a complete file (HTTP %@).", String(describing: status)) }
+    guard fileURL(url) else { return AppText.text("Gofile returned a web page. Refresh the folder to restore the download session.") }
+    guard bytes <= limit else { return AppText.text("This file exceeds the download size limit.") }
+    if let expectedBytes, expectedBytes != bytes { return AppText.text("The downloaded size does not match the file. Refresh the folder and try again.") }
     let mime = mime?.lowercased() ?? ""
     let expected = expectedMIME?.lowercased() ?? ""
     let text = String(decoding: prefix.prefix(512), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if expected != "text/html" && expected != "application/xhtml+xml" &&
         (["text/html", "application/xhtml+xml"].contains(mime) || text.hasPrefix("<!doctype html") || text.hasPrefix("<html")) {
-      return "Gofile returned an HTML page instead of the file. Refresh the folder and try again."
+      return AppText.text("Gofile returned an HTML page instead of the file. Refresh the folder and try again.")
     }
-    if mime == "application/json" && expected != "application/json" { return "Gofile returned an error response instead of the file." }
+    if mime == "application/json" && expected != "application/json" { return AppText.text("Gofile returned an error response instead of the file.") }
     return nil
   }
 }
@@ -108,7 +108,8 @@ struct GofileListing {
         return url
       }
       let bytes = (row["size"] as? NSNumber)?.int64Value
-      return GofileEntry(id: id, name: String((row["name"] as? String ?? "File").prefix(512)), folder: type == "folder",
+      let name = (row["name"] as? String) ?? AppText.text("File")
+      return GofileEntry(id: id, name: String(name.prefix(512)), folder: type == "folder",
                          size: bytes.flatMap { $0 >= 0 ? $0 : nil }, mime: String((row["mimetype"] as? String ?? "").prefix(128)).lowercased(),
                          link: address("link"), thumbnail: address("thumbnail"),
                          unavailable: row["isFrozen"] as? Bool == true || row["overloaded"] as? Bool == true || row["canAccess"] as? Bool == false)
@@ -125,14 +126,14 @@ enum GofileFailure: Error, LocalizedError, Equatable {
   case rateLimited(Date)
   var title: String {
     switch self {
-    case .password: return "Password required"
-    case .notFound: return "Content not found"
-    case .expired: return "Link expired"
-    case .access: return "Private content"
-    case .premium: return "Premium access required"
-    case .rateLimited: return "Downloads paused"
-    case .unavailable: return "File unavailable"
-    default: return "Could not load content"
+    case .password: return AppText.text("Password required")
+    case .notFound: return AppText.text("Content not found")
+    case .expired: return AppText.text("Link expired")
+    case .access: return AppText.text("Private content")
+    case .premium: return AppText.text("Premium access required")
+    case .rateLimited: return AppText.text("Downloads paused")
+    case .unavailable: return AppText.text("File unavailable")
+    default: return AppText.text("Could not load content")
     }
   }
   var symbol: String {
@@ -147,15 +148,15 @@ enum GofileFailure: Error, LocalizedError, Equatable {
   var needsPassword: Bool { if case .password = self { return true }; return false }
   var errorDescription: String? {
     switch self {
-    case .stale: return "The folder changed while it was loading. Please refresh."
-    case .website: return "Could not read this folder. Open the website to check access, then return to Files."
-    case .access: return "The owner has not made this content public. Ask the owner for access."
-    case .password(let wrong): return wrong ? "Incorrect password. Please try again." : "Enter the password shared by the owner."
-    case .notFound: return "This content was removed, or the link is incorrect."
-    case .expired: return "The owner set an expiration date for this link. Ask for a new link."
-    case .premium: return "Gofile requires Premium access for this content."
-    case .unavailable: return "This file is temporarily unavailable or restricted by Gofile."
-    case .rateLimited: return "Gofile asked this device to slow down. Wait before resuming; completed files are safe."
+    case .stale: return AppText.text("The folder changed while it was loading. Please refresh.")
+    case .website: return AppText.text("Could not read this folder. Open the website to check access, then return to Files.")
+    case .access: return AppText.text("The owner has not made this content public. Ask the owner for access.")
+    case .password(let wrong): return wrong ? AppText.text("Incorrect password. Please try again.") : AppText.text("Enter the password shared by the owner.")
+    case .notFound: return AppText.text("This content was removed, or the link is incorrect.")
+    case .expired: return AppText.text("The owner set an expiration date for this link. Ask for a new link.")
+    case .premium: return AppText.text("Gofile requires Premium access for this content.")
+    case .unavailable: return AppText.text("This file is temporarily unavailable or restricted by Gofile.")
+    case .rateLimited: return AppText.text("Gofile asked this device to slow down. Wait before resuming; completed files are safe.")
     }
   }
 }

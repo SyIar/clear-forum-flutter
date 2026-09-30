@@ -18,7 +18,7 @@ private final class HostedBrowserModel: ObservableObject {
     catch is CancellationError { }
     catch {
       guard !Task.isCancelled else { return }
-      self.error = error.localizedDescription; retryAfter = (error as? HostedFileFailure)?.retryDate
+      self.error = AppText.error(error); retryAfter = (error as? HostedFileFailure)?.retryDate
     }
   }
 }
@@ -46,36 +46,36 @@ struct HostedFilesView: View {
         Section {
           Text(listing.title).font(.forum(.headline)).textSelection(.enabled)
           if listing.expandedAlbum {
-            Label("Showing the complete album", systemImage: "rectangle.stack").font(.forum(.caption)).foregroundStyle(.secondary)
+            Label(AppText.text("Showing the complete album"), systemImage: "rectangle.stack").font(.forum(.caption)).foregroundStyle(.secondary)
           }
           HStack(spacing: 12) {
             if listing.entries.contains(where: { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }) {
               Button { enqueue(listing) } label: {
-                Text("Download all").font(.forum(.subheadline, weight: .semibold))
+                Text(AppText.text("Download all")).font(.forum(.subheadline, weight: .semibold))
                   .lineLimit(1).minimumScaleFactor(0.85).padding(.horizontal, 8)
                   .frame(minHeight: 32, alignment: .center)
               }.buttonStyle(.glassProminent).disabled(model.loading || model.error != nil)
             }
             Spacer(minLength: 0)
-            Text(listing.entries.count == 1 ? "1 item" : "\(listing.entries.count) items")
+            Text(listing.entries.count == 1 ? AppText.text("1 item") : AppText.format("%@ items", String(describing: listing.entries.count)))
               .font(.forum(.caption)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
           }
         }
       }
-      if model.loading { Section { HStack { ProgressView(); Text("Loading files").foregroundStyle(.secondary) } } }
+      if model.loading { Section { HStack { ProgressView(); Text(AppText.text("Loading files")).foregroundStyle(.secondary) } } }
       if let error = model.error {
         Section {
           Label(error, systemImage: "exclamationmark.triangle").font(.forum(.subheadline)).foregroundStyle(.secondary)
           TimelineView(.periodic(from: .now, by: 1)) { context in
             if let date = model.retryAfter, date > context.date {
-              Text("Try again in \(Int(ceil(date.timeIntervalSince(context.date))))s").font(.forum(.caption)).monospacedDigit()
-            } else { Button("Retry", systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading) }
+              Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).font(.forum(.caption)).monospacedDigit()
+            } else { Button(AppText.text("Retry"), systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading) }
           }
-          Button("Open website", systemImage: "safari") { website = url }
+          Button(AppText.text("Open website"), systemImage: "safari") { website = url }
         }
       }
       if !visible.isEmpty {
-        Section("Files") {
+        Section(AppText.text("Files")) {
           ForEach(visible) { entry in
             if entry.folder {
               NavigationLink { HostedFilesView(url: entry.pageURL) } label: { fileLabel(entry) }
@@ -95,32 +95,32 @@ struct HostedFilesView: View {
                         else { Image(systemName: "play.circle") }
                       }.font(.body.weight(.medium))
                         .frame(width: 44, height: 44).contentShape(Rectangle())
-                    }.buttonStyle(.borderless).disabled(opening != nil).accessibilityLabel("Play \(entry.name)")
+                    }.buttonStyle(.borderless).disabled(opening != nil).accessibilityLabel(AppText.format("Play %@", String(describing: entry.name)))
                   }
                   Button { enqueue(HostedFileListing(url: entry.pageURL, title: entry.name, entries: [entry])) } label: {
                     Image(systemName: "arrow.down.circle").font(.body.weight(.medium))
                       .frame(width: 44, height: 44).contentShape(Rectangle())
-                  }.buttonStyle(.borderless).accessibilityLabel("Download \(entry.name)")
+                  }.buttonStyle(.borderless).accessibilityLabel(AppText.format("Download %@", String(describing: entry.name)))
                 }
-              }.contextMenu { Button("Open website", systemImage: "safari") { website = entry.pageURL } }
+              }.contextMenu { Button(AppText.text("Open website"), systemImage: "safari") { website = entry.pageURL } }
             }
           }
         }
       } else if model.listing != nil, !model.loading, model.error == nil {
-        ContentUnavailableView(query.isEmpty ? "This folder is empty" : "No matching files", systemImage: "folder")
+        ContentUnavailableView(query.isEmpty ? AppText.text("This folder is empty") : AppText.text("No matching files"), systemImage: "folder")
       }
       if downloads.items.contains(where: { $0.sourceKey == HostedFilePolicy.key(model.listing?.url ?? url) }) {
-        Section("Downloads") {
+        Section(AppText.text("Downloads")) {
           ForEach(downloads.items.filter { $0.sourceKey == HostedFilePolicy.key(model.listing?.url ?? url) }) { HostedBatchRow(batch: $0) }
         }
       }
-    }.navigationTitle(HostedFilePolicy.provider(url)?.title ?? "Files").navigationBarTitleDisplayMode(.inline)
+    }.navigationTitle(HostedFilePolicy.provider(url)?.title ?? AppText.text("Files")).navigationBarTitleDisplayMode(.inline)
       .toolbarRole(.editor).toolbar(.hidden, for: .bottomBar)
-      .searchable(text: $query, prompt: "Find a file")
+      .searchable(text: $query, prompt: AppText.text("Find a file"))
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          Button("Open website", systemImage: "safari") { website = model.listing?.url ?? url }
-          Button("Refresh", systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading)
+          Button(AppText.text("Open website"), systemImage: "safari") { website = model.listing?.url ?? url }
+          Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading)
         }
       }
       .task(id: revision) { await model.load(url, revision: revision) }
@@ -128,9 +128,9 @@ struct HostedFilesView: View {
       .navigationDestination(isPresented: $showingBatch) { if let batch { HostedBatchView(batch: batch) } }
       .navigationDestination(item: $media) { MediaViewerDestination(item: $0) }
       .background { ExternalBrowserPresenter(url: $website, useFileBrowser: false).frame(width: 0, height: 0) }
-      .alert("Could not open video", isPresented: Binding(get: { playError != nil }, set: { if !$0 { playError = nil } })) {
-        Button("Open website") { website = url }
-        Button("Close", role: .cancel) { playError = nil }
+      .alert(AppText.text("Could not open video"), isPresented: Binding(get: { playError != nil }, set: { if !$0 { playError = nil } })) {
+        Button(AppText.text("Open website")) { website = url }
+        Button(AppText.text("Close"), role: .cancel) { playError = nil }
       } message: { Text(playError ?? "") }
   }
   private func fileLabel(_ entry: HostedFileEntry) -> some View {
@@ -139,7 +139,7 @@ struct HostedFilesView: View {
         .frame(width: 44, height: 44).background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
       VStack(alignment: .leading, spacing: 4) {
         Text(entry.name).font(.forum(.subheadline)).foregroundStyle(.primary).lineLimit(3)
-        Text(entry.folder ? "Folder" : entry.sizeDescription).font(.forum(.caption)).foregroundStyle(.secondary)
+        Text(entry.folder ? AppText.text("Folder") : entry.sizeDescription).font(.forum(.caption)).foregroundStyle(.secondary)
       }
     }.padding(.vertical, 4)
   }
@@ -154,7 +154,7 @@ struct HostedFilesView: View {
         let request = try await model.client.resolve(entry, download: false)
         try Task.checkCancellation()
         media = .video(request.url, true, request.referer)
-      } catch { if !Task.isCancelled { playError = error.localizedDescription } }
+      } catch { if !Task.isCancelled { playError = AppText.error(error) } }
     }
   }
 }
@@ -165,8 +165,9 @@ struct HostedModalRoot: View {
   var body: some View {
     NavigationStack {
       HostedFilesView(url: url).toolbar {
-        ToolbarItem(placement: .topBarLeading) { Button("Back", systemImage: "chevron.left", action: close) }
+        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
     }.font(.forum(.body))
+      .environment(\.locale, AppText.locale)
   }
 }

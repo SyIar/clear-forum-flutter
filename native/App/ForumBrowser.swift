@@ -59,8 +59,8 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     super.viewDidLoad()
     title = site.host
     view.backgroundColor = .systemBackground
-    navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Done", style: .plain, target: self, action: #selector(close))
-    navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Read page", style: .done, target: self, action: #selector(readPage))
+    navigationItem.leftBarButtonItem = UIBarButtonItem(title: AppText.text("Done"), style: .plain, target: self, action: #selector(close))
+    navigationItem.rightBarButtonItem = UIBarButtonItem(title: AppText.text("Read page"), style: .done, target: self, action: #selector(readPage))
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = dataStore
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
@@ -96,21 +96,21 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     }
   }
   @objc private func readPage() {
-    guard !capturing, let url = webView.url, site.accepts(url) else { notice("Open a forum or thread before choosing Read page."); return }
+    guard !capturing, let url = webView.url, site.accepts(url) else { notice(AppText.text("Open a forum or thread before choosing Read page.")); return }
     capturing = true
     // Keep login/logout structure for the parser, but never copy entered form values.
     let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,textarea,select,svg,noscript').forEach(e=>e.remove());root.querySelectorAll('input').forEach(e=>{const marker=document.createElement('input');for(const name of ['name','type']){if(e.hasAttribute(name))marker.setAttribute(name,e.getAttribute(name));}e.replaceWith(marker);});return {url:location.href,html:root.outerHTML,hasPurchases:!!root.querySelector('h6.quote.jumbotron input[type=button]'),hasPoll:!!root.querySelector('form[name=vote]')};})()"#
     webView.evaluateJavaScript(script) { [weak self] value, error in
       guard let self = self else { return }
       self.capturing = false
-      guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), self.site.accepts(finalURL) else { self.notice("This page is not ready for clean view. Finish loading or sign in and try again."); return }
+      guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), self.site.accepts(finalURL) else { self.notice(AppText.text("This page is not ready for clean view. Finish loading or sign in and try again.")); return }
       self.finish(page)
     }
   }
   private func notice(_ text: String) {
     guard presentedViewController == nil, !finished else { return }
-    let alert = UIAlertController(title: "Site browser", message: text, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "OK", style: .default))
+    let alert = UIAlertController(title: AppText.text("Site browser"), message: text, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: AppText.text("OK"), style: .default))
     present(alert, animated: true)
   }
   private func openExternal(_ url: URL) {
@@ -141,5 +141,5 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     }
     return nil
   }
-  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { notice("Could not load this page. Check the connection and try again.") } }
+  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { notice(AppText.text("Could not load this page. Check the connection and try again.")) } }
 }

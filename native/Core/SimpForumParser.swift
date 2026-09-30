@@ -98,7 +98,7 @@ struct SimpForumParser {
         breadcrumbs.append(ForumEntry(title: text(link), url: target))
       }
     }
-    return ForumPage(url: url, title: title.isEmpty ? "Forums" : title, kind: kind, entries: forums + threads, posts: posts,
+    return ForumPage(url: url, title: title.isEmpty ? AppText.text("Forums") : title, kind: kind, entries: forums + threads, posts: posts,
                      previous: try paging("prev"), next: next, pageNumber: pageNumber,
                      loggedIn: try doc.select("html").first()?.attr("data-logged-in") == "true",
                      lastPage: lastPage, maximumPostNumber: maximum, breadcrumbs: breadcrumbs, tags: headingTags, totalPages: totalPages,
@@ -180,7 +180,7 @@ struct SimpForumParser {
         flush()
         let anchor = try node.select(".js-unfurl-title a").first()
         if let url = SimpSitePolicy.linkDestination(try anchor?.attr("href"), from: page) {
-          blocks.append(BodyBlock(kind: .link, label: text(anchor).isEmpty ? url.host ?? "Link" : text(anchor), url: url))
+          blocks.append(BodyBlock(kind: .link, label: text(anchor).isEmpty ? url.host ?? AppText.text("Link") : text(anchor), url: url))
         }
         return
       }
@@ -190,7 +190,7 @@ struct SimpForumParser {
         flush()
         let lazy = try node.attr("data-src")
         if let url = SimpSitePolicy.resolve(lazy.isEmpty ? try node.attr("src") : lazy, from: page) {
-          blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? "Image" : alt, url: url,
+          blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? AppText.text("Image") : alt, url: url,
                                   original: OriginalImageSource.resolve(node, page: page, preview: url, link: href), aspectRatio: ratio(node)))
         }
         return
@@ -201,7 +201,7 @@ struct SimpForumParser {
         if tag != "iframe" { candidates.append(try node.select("source[src]").first()?.attr("src") ?? "") }
         let url = SimpSitePolicy.resolve(candidates.first { !$0.isEmpty }, from: page)
         let poster = try SimpSitePolicy.resolve(node.attr("poster"), from: page) ?? SimpSitePolicy.resolve(node.attr("data-poster"), from: page)
-        blocks.append(BodyBlock(kind: .media, label: url?.host ?? "Embedded media", url: url, poster: poster, aspectRatio: ratio(node), direct: tag != "iframe"))
+        blocks.append(BodyBlock(kind: .media, label: url?.host ?? AppText.text("Embedded media"), url: url, poster: poster, aspectRatio: ratio(node), direct: tag != "iframe"))
         return
       }
       if tag == "blockquote" || node.hasClass("bbCodeBlock--quote") {
@@ -216,7 +216,7 @@ struct SimpForumParser {
         if node.hasClass("bbCodeInlineSpoiler") { children = [BodyBlock(kind: .paragraph, runs: [TextRun(text: text(node))])] }
         else if let content = try node.select(".bbCodeSpoiler-content").first() { children = try parseBody(content, page: page) }
         else { children = [] }
-        blocks.append(BodyBlock(kind: .spoiler, children: children, label: "Spoiler"))
+        blocks.append(BodyBlock(kind: .spoiler, children: children, label: AppText.text("Spoiler")))
         return
       }
       if tag == "pre" { flush(); blocks.append(BodyBlock(kind: .code, label: text(node))); return }

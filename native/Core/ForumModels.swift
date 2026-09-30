@@ -5,14 +5,14 @@ enum ReaderFailure: String, Error, LocalizedError {
   case login, verification, forbidden, rateLimit, network, unsupported, storage, encoding
   var errorDescription: String? {
     switch self {
-    case .login: return "Sign in to read this page."
-    case .verification: return "Complete the site's verification in Site browser, then choose Read page."
-    case .forbidden: return "Your account cannot access this page."
-    case .rateLimit: return "The site is receiving too many requests. Try again later."
-    case .network: return "Could not load the page. Check your connection and try again."
-    case .unsupported: return "This page cannot be displayed in the reader. Try Site browser."
-    case .encoding: return "Could not decode this page. Open Site browser and choose Read page."
-    case .storage: return "Could not read your saved library. Your existing data has been preserved."
+    case .login: return AppText.text("Sign in to read this page.")
+    case .verification: return AppText.text("Complete the site's verification in Site browser, then choose Read page.")
+    case .forbidden: return AppText.text("Your account cannot access this page.")
+    case .rateLimit: return AppText.text("The site is receiving too many requests. Try again later.")
+    case .network: return AppText.text("Could not load the page. Check your connection and try again.")
+    case .unsupported: return AppText.text("This page cannot be displayed in the reader. Try Site browser.")
+    case .encoding: return AppText.text("Could not decode this page. Open Site browser and choose Read page.")
+    case .storage: return AppText.text("Could not read your saved library. Your existing data has been preserved.")
     }
   }
 }

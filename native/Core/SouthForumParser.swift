@@ -56,7 +56,7 @@ struct SouthForumParser {
         let floor = floorNumber(container, body: body)
         let blocks = try SouthBodyParser().parseBody(body, page: url)
         guard !blocks.isEmpty else { continue }
-        posts.append(ForumPost(id: id, author: identity.name.isEmpty ? "Member" : identity.name, date: date,
+        posts.append(ForumPost(id: id, author: identity.name.isEmpty ? AppText.text("Member") : identity.name, date: date,
                               number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar, avatarOriginal: identity.original,
                               authorFilterURL: authorFilter(container, page: url, authorID: identity.id)))
       }
@@ -116,11 +116,11 @@ struct SouthForumParser {
     let maximumIsKnown = thread && SouthSitePolicy.authorID(url) == nil && next == nil && (declaredTotals.contains(number) || explicitLast)
     let maximum = maximumIsKnown ? posts.compactMap { Int($0.number.dropFirst()) }.max() : nil
     let heading = first(doc, thread ? "#subject_tpc,h1.thread-title,h1" : "h1,.forum-title,#thread-title")
-    let fallbackTitle = breadcrumbs.last?.title ?? pageTitle.components(separatedBy: " - ").first ?? "Forum"
+    let fallbackTitle = breadcrumbs.last?.title ?? pageTitle.components(separatedBy: " - ").first ?? AppText.text("Forum")
     let authorName = text(first(doc, "#u-top .u-h1"))
-    let title = topicAuthorID != nil ? (authorName.isEmpty ? "Author threads" : "\(authorName) - Threads") : (text(heading).isEmpty ? fallbackTitle : text(heading))
+    let title = topicAuthorID != nil ? (authorName.isEmpty ? AppText.text("Author threads") : AppText.format("%@ - Threads", String(describing: authorName))) : (text(heading).isEmpty ? fallbackTitle : text(heading))
     let kind: PageKind = thread ? .posts : (SouthSitePolicy.route(url)?.path == "/index.php" ? .forums : .threads)
-    return ForumPage(url: url, title: title.isEmpty ? "Forum" : title, kind: kind, entries: entries, posts: posts,
+    return ForumPage(url: url, title: title.isEmpty ? AppText.text("Forum") : title, kind: kind, entries: entries, posts: posts,
                      previous: previous, next: next, pageNumber: number, loggedIn: loggedIn,
                      lastPage: last, maximumPostNumber: maximum, breadcrumbs: breadcrumbs,
                      tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url))

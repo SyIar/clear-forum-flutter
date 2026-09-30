@@ -7,22 +7,22 @@ struct SouthBlockedAuthorsView: View {
     NavigationStack {
       List {
         if library.document.blockedAuthors.isEmpty {
-          ContentUnavailableView("No blocked authors", systemImage: "person.crop.circle.badge.checkmark")
+          ContentUnavailableView(AppText.text("No blocked authors"), systemImage: "person.crop.circle.badge.checkmark")
         }
         ForEach(library.document.blockedAuthors.keys.sorted(), id: \.self) { id in
           HStack {
             VStack(alignment: .leading, spacing: 4) {
-              Text(library.document.blockedAuthors[id] ?? "Member").font(.forum(.headline))
-              Text("UID \(id)").font(.forum(.caption)).foregroundStyle(.secondary)
+              Text(library.document.blockedAuthors[id] ?? AppText.text("Member")).font(.forum(.headline))
+              Text(AppText.format("UID %@", String(describing: id))).font(.forum(.caption)).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Unblock") { library.change { $0.unblockAuthor(id) } }.buttonStyle(.bordered)
+            Button(AppText.text("Unblock")) { library.change { $0.unblockAuthor(id) } }.buttonStyle(.bordered)
           }
         }
-      }.navigationTitle("Blocked authors").navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } } }
-        .alert("Reading library", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
-          Button("OK", role: .cancel) { library.error = nil }
+      }.navigationTitle(AppText.text("Blocked authors")).navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .confirmationAction) { Button(AppText.text("Close")) { dismiss() } } }
+        .alert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
+          Button(AppText.text("OK"), role: .cancel) { library.error = nil }
         } message: { Text(library.error ?? "") }
     }
   }

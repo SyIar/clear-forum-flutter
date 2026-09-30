@@ -3,6 +3,7 @@ import json
 import os
 import plistlib
 import struct
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -29,6 +30,15 @@ for name in fonts:
     assert bundled.is_file(), f'Missing bundled font: {name}'
     assert hashlib.sha256(source.read_bytes()).digest() == hashlib.sha256(bundled.read_bytes()).digest(), f'Font changed during packaging: {name}'
 assert (app / 'SourceHanSerif-LICENSE.txt').is_file(), 'Missing bundled font license'
+assert info.get('CFBundleDevelopmentRegion') == 'zh-Hans', 'Unexpected default app language'
+for table in ['Localizable', 'InfoPlist']:
+    localized = app / 'zh-Hans.lproj' / (table + '.strings')
+    assert localized.is_file(), f'Missing Chinese resource: {table}'
+    values = json.loads(subprocess.check_output(['plutil', '-convert', 'json', '-o', '-', str(localized)]))
+    assert values, f'Empty Chinese resource: {table}'
+    if table == 'Localizable':
+        from check_localization import read_strings
+        assert values == read_strings(Path('native/Resources/zh-Hans.lproj/Localizable.strings')), 'Packaged translations differ from source'
 assert info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon'), 'Missing primary icon'
 output = Path('artifacts/native')
 output.mkdir(parents=True, exist_ok=True)

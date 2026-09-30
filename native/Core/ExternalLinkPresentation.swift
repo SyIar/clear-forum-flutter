@@ -35,12 +35,12 @@ enum ExternalLinkPresentation {
 
   static func title(url: URL, label: String, site: ForumSite) -> String {
     let clean = label.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-    guard isExternal(url, site: site) else { return clean.isEmpty ? url.host ?? "Link" : clean }
+    guard isExternal(url, site: site) else { return clean.isEmpty ? url.host ?? AppText.text("Link") : clean }
     let prefix = providerLabel(url)
     let raw = clean.lowercased()
     let usesAddress = clean.isEmpty || raw.hasPrefix("https://") || raw.hasPrefix("http://") ||
       raw.hasPrefix("www.") || raw == url.host?.lowercased()
-    let name = usesAddress ? (url.lastPathComponent.isEmpty ? "Open link" : url.lastPathComponent) : clean
+    let name = usesAddress ? (url.lastPathComponent.isEmpty ? AppText.text("Open link") : url.lastPathComponent) : clean
     return prefix + "## " + name
   }
 

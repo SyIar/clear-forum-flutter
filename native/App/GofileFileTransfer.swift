@@ -66,12 +66,12 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   }
   private func begin(_ url: URL) {
     guard hosted?.accepts(url) ?? GofilePolicy.fileURL(url), fileSize.map({ $0 <= limit }) ?? true else {
-      fail("This file address is unavailable or the file exceeds the download limit."); return
+      fail(AppText.text("This file address is unavailable or the file exceeds the download limit.")); return
     }
     if let expectedBytes = fileSize,
        let values = try? FileManager.default.temporaryDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
        let available = values.volumeAvailableCapacityForImportantUsage, expectedBytes > max(0, available - 64 * 1024 * 1024) {
-      fail("There is not enough free space for this file."); return
+      fail(AppText.text("There is not enough free space for this file.")); return
     }
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpCookieStorage = nil; configuration.httpShouldSetCookies = false
@@ -112,7 +112,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
           hosted?.accepts(url) ?? (GofilePolicy.fileURL(url) &&
           url.path.split(separator: "/").dropFirst(2).first == task.originalRequest?.url?.path.split(separator: "/").dropFirst(2).first) else {
       completionHandler(nil)
-      fail("The server redirected outside the file endpoint. Refresh the folder or open the website to check access.")
+      fail(AppText.text("The server redirected outside the file endpoint. Refresh the folder or open the website to check access."))
       return
     }
     completionHandler(request(url))
@@ -120,7 +120,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
                   totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
     guard completion != nil else { return }
-    guard totalBytesWritten <= limit, totalBytesExpectedToWrite <= limit else { fail("This file exceeds the download size limit."); return }
+    guard totalBytesWritten <= limit, totalBytesExpectedToWrite <= limit else { fail(AppText.text("This file exceeds the download size limit.")); return }
     let expected = fileSize ?? totalBytesExpectedToWrite
     progress(expected > 0 ? min(1, Double(totalBytesWritten) / Double(expected)) : nil)
   }
@@ -128,7 +128,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     guard completion != nil else { return }
     var directory: URL?
     do {
-      guard let response = downloadTask.response as? HTTPURLResponse, let url = response.url else { throw MediaFileError(message: "Invalid download response.") }
+      guard let response = downloadTask.response as? HTTPURLResponse, let url = response.url else { throw MediaFileError(message: AppText.text("Invalid download response.")) }
       if response.statusCode == 429 || response.statusCode == 503 {
         let retry = response.value(forHTTPHeaderField: "Retry-After")
         let format = DateFormatter(); format.locale = Locale(identifier: "en_US_POSIX")
@@ -145,7 +145,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       if response.statusCode == 404 || response.statusCode == 410 { throw GofileFailure.notFound }
       if response.statusCode == 401 || response.statusCode == 403 { throw GofileFailure.access }
       let bytes = (try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value ?? 0
-      guard bytes <= limit else { throw MediaFileError(message: "This file exceeds the download size limit.") }
+      guard bytes <= limit else { throw MediaFileError(message: AppText.text("This file exceeds the download size limit.")) }
       let handle = try FileHandle(forReadingFrom: location)
       let prefix = try handle.read(upToCount: 512) ?? Data()
       try handle.close()
@@ -176,7 +176,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
     guard let error, completion != nil else { return }
     if (error as NSError).code == NSURLErrorCancelled { finish(.failure(CancellationError())) }
-    else { fail("The file could not finish downloading. Check the connection and try again.") }
+    else { fail(AppText.text("The file could not finish downloading. Check the connection and try again.")) }
   }
   static func remove(_ file: URL) {
     let parent = file.deletingLastPathComponent()

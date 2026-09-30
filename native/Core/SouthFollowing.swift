@@ -22,7 +22,7 @@ extension LibraryDocument {
   mutating func followAuthor(id: String, name: String, avatar: URL? = nil, at date: Date = Date()) {
     guard site == .south, SouthSitePolicy.validAuthorID(id), !blocksAuthor(id) else { return }
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    var author = followedAuthors[id] ?? SouthFollowedAuthor(id: id, name: "UID \(id)", followedAt: date)
+    var author = followedAuthors[id] ?? SouthFollowedAuthor(id: id, name: AppText.format("UID %@", String(describing: id)), followedAt: date)
     if !trimmed.isEmpty {
       author.name = String(trimmed.prefix(200))
       author.nameFromPost = true
@@ -36,7 +36,7 @@ extension LibraryDocument {
     for post in page.posts {
       guard let id = post.authorID, followedAuthors[id] != nil,
             !post.author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            post.author != "Member" else { continue }
+            post.author != AppText.text("Member") else { continue }
       followAuthor(id: id, name: post.author, avatar: post.avatar)
       for key in Array(presentations.keys) where presentations[key]?.authorID == id {
         presentations[key]?.authorName = followedAuthors[id]?.name

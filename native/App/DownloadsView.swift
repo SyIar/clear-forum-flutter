@@ -32,8 +32,8 @@ struct FloatingDownloads: View {
           }
       }.buttonStyle(.glass).buttonBorderShape(.circle)
         .animation(reduceMotion ? nil : .spring(duration: 0.3), value: unfinishedCount)
-        .accessibilityLabel("Downloads")
-        .accessibilityValue("\(activeCount) active, \(unfinishedCount) unfinished")
+        .accessibilityLabel(AppText.text("Downloads"))
+        .accessibilityValue(AppText.format("%@ active, %@ unfinished", String(describing: activeCount), String(describing: unfinishedCount)))
         .padding(.trailing, 10)
         .transition(.scale.combined(with: .opacity))
     }
@@ -52,10 +52,10 @@ struct DownloadsView: View {
           Section { Label(message, systemImage: "exclamationmark.triangle").font(.forum(.subheadline)).foregroundStyle(.secondary) }
         }
         if manager.items.isEmpty && gofile.items.isEmpty && hosted.items.isEmpty {
-          ContentUnavailableView("No downloads", systemImage: "arrow.down.to.line")
+          ContentUnavailableView(AppText.text("No downloads"), systemImage: "arrow.down.to.line")
         }
         if !manager.items.isEmpty {
-          Section("Videos") {
+          Section(AppText.text("Videos")) {
             ForEach(manager.items.reversed()) { VideoDownloadRow(download: $0, manager: manager) }
           }
         }
@@ -65,19 +65,19 @@ struct DownloadsView: View {
           }
         }
         if !hosted.items.isEmpty {
-          Section("File hosts") { ForEach(hosted.items.reversed()) { HostedBatchRow(batch: $0) } }
+          Section(AppText.text("File hosts")) { ForEach(hosted.items.reversed()) { HostedBatchRow(batch: $0) } }
         }
-      }.navigationTitle("Downloads").navigationBarTitleDisplayMode(.inline)
+      }.navigationTitle(AppText.text("Downloads")).navigationBarTitleDisplayMode(.inline)
         .toolbar {
-          ToolbarItem(placement: .topBarLeading) { Button("Close", systemImage: "xmark") { dismiss() } }
+          ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Close"), systemImage: "xmark") { dismiss() } }
           ToolbarItemGroup(placement: .topBarTrailing) {
-            Button("Pause all", systemImage: "pause") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
+            Button(AppText.text("Pause all"), systemImage: "pause") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
               .disabled(!manager.items.contains(where: \.canPause) && gofile.active.isEmpty && hosted.active.isEmpty)
-            Button("Continue all", systemImage: "play") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
+            Button(AppText.text("Continue all"), systemImage: "play") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
               .disabled(!manager.items.contains(where: \.canResume) && gofile.resumable.isEmpty && hosted.resumable.isEmpty)
-            InfoButton(title: "Downloads", message: DownloadHelp.overview)
-            Button("Clear", systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
-              .accessibilityLabel("Clear finished downloads")
+            InfoButton(title: AppText.text("Downloads"), message: DownloadHelp.overview)
+            Button(AppText.text("Clear"), systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
+              .accessibilityLabel(AppText.text("Clear finished downloads"))
           }
         }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -93,16 +93,16 @@ private struct VideoDownloadRow: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack {
         Image(systemName: download.phase == .saved ? "checkmark.circle.fill" : "video").foregroundStyle(.blue)
-        Text("Video").font(.forum(.headline))
+        Text(AppText.text("Video")).font(.forum(.headline))
         Spacer()
         Text(download.created, format: .dateTime.month().day().hour().minute().second()).font(.forum(.caption)).foregroundStyle(.secondary)
       }
       if download.phase == .paused {
         HStack {
-          Text("Paused").font(.forum(.subheadline)).foregroundStyle(.secondary)
+          Text(AppText.text("Paused")).font(.forum(.subheadline)).foregroundStyle(.secondary)
           Spacer()
-          if !download.message.isEmpty && download.message != "Paused" {
-            InfoButton(title: "Resume download", message: download.message)
+          if !download.message.isEmpty && download.message != AppText.text("Paused") {
+            InfoButton(title: AppText.text("Resume download"), message: download.message)
           }
         }
       } else {
@@ -119,19 +119,19 @@ private struct VideoDownloadRow: View {
           }.font(.forum(.caption)).foregroundStyle(.secondary)
         } else if download.busy { ProgressView() }
         HStack(spacing: 12) {
-          if download.canPause { Button("Pause", systemImage: "pause") { download.pause() } }
-          if download.canResume { Button(download.phase == .failed ? "Retry" : "Continue", systemImage: "play") { download.resume() } }
-          if download.canCancel { Button("Cancel", systemImage: "xmark", role: .destructive) { download.cancel() } }
+          if download.canPause { Button(AppText.text("Pause"), systemImage: "pause") { download.pause() } }
+          if download.canResume { Button(download.phase == .failed ? AppText.text("Retry") : AppText.text("Continue"), systemImage: "play") { download.resume() } }
+          if download.canCancel { Button(AppText.text("Cancel"), systemImage: "xmark", role: .destructive) { download.cancel() } }
         }.buttonStyle(.glass).labelStyle(.iconOnly)
       }
       if let file = download.exportFile {
-        Button("Save to Files", systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: file) }.font(.forum(.subheadline))
+        Button(AppText.text("Save to Files"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: file) }.font(.forum(.subheadline))
       }
       if download.phase == .failed, let context = download.context {
-        Button("Reopen video", systemImage: "play.rectangle") { reopen = .video(download.source, context.direct, context.referer) }.font(.forum(.subheadline))
+        Button(AppText.text("Reopen video"), systemImage: "play.rectangle") { reopen = .video(download.source, context.direct, context.referer) }.font(.forum(.subheadline))
       }
     }.padding(.vertical, 6)
-      .swipeActions { if !download.busy { Button("Remove", role: .destructive) { manager.remove(download) } } }
+      .swipeActions { if !download.busy { Button(AppText.text("Remove"), role: .destructive) { manager.remove(download) } } }
       .sheet(item: $export) { GofileExport(file: $0.url) }
       .navigationDestination(item: $reopen) { MediaViewerDestination(item: $0) }
   }
@@ -142,18 +142,6 @@ private struct VideoDownloadRow: View {
 }
 
 enum DownloadHelp {
-  static let overview = """
-  Downloads continue while you browse the app. Switching apps or locking the screen pauses them.
-
-  Previously active videos resume when you return. File-host batches need Continue; the current file restarts.
-
-  Videos save to Photos. File-host batches save to Files. Quitting the app clears unfinished file-host queues, but keeps saved files.
-  """
-  static let gofile = """
-  Downloads continue after you close this page. Reopen them from the floating download button.
-
-  Switching apps or locking the screen pauses the batch. Continue restarts the current file; saved files are kept.
-
-  Quitting the app clears unfinished Gofile queues.
-  """
+  static let overview = AppText.text("Downloads continue while you browse the app. Switching apps or locking the screen pauses them.\n\nPreviously active videos resume when you return. File-host batches need Continue; the current file restarts.\n\nVideos save to Photos. File-host batches save to Files. Quitting the app clears unfinished file-host queues, but keeps saved files.")
+  static let gofile = AppText.text("Downloads continue after you close this page. Reopen them from the floating download button.\n\nSwitching apps or locking the screen pauses the batch. Continue restarts the current file; saved files are kept.\n\nQuitting the app clears unfinished Gofile queues.")
 }

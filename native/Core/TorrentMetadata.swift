@@ -131,5 +131,5 @@ struct TorrentMetadata {
 
 enum TorrentError: LocalizedError {
   case invalid
-  var errorDescription: String? { "This torrent is invalid, unsupported, or larger than the 8 MB metadata limit." }
+  var errorDescription: String? { AppText.text("This torrent is invalid, unsupported, or larger than the 8 MB metadata limit.") }
 }

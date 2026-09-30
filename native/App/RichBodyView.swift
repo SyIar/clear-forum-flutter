@@ -12,7 +12,7 @@ struct ForumTagStrip: View {
             Text(tag.title).font(.forum(.caption2, weight: .semibold)).lineLimit(1)
               .padding(.horizontal, 7).padding(.vertical, 5)
               .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-          }.buttonStyle(.plain).foregroundStyle(.blue).accessibilityLabel("Filter by \(tag.title)")
+          }.buttonStyle(.plain).foregroundStyle(.blue).accessibilityLabel(AppText.format("Filter by %@", String(describing: tag.title)))
         }
       }.padding(.vertical, 2)
     }.scrollIndicators(.hidden)
@@ -37,7 +37,7 @@ struct ForumEntryCard: View {
             if entry.postedAt != nil || entry.totalPostCount != nil {
               HStack(spacing: 8) {
                 if let date = entry.postedAt, !entry.subtitle.contains(date) { Text(date) }
-                if let count = entry.totalPostCount { Text("\(count) posts").monospacedDigit() }
+                if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(describing: count))).monospacedDigit() }
               }.font(.forum(.caption2)).foregroundStyle(.secondary).lineLimit(1)
             }
           }
@@ -96,7 +96,7 @@ struct PostCard: View {
           Text(post.author).font(.forum(.subheadline, weight: .bold))
           if post.authorID != nil || !post.date.isEmpty {
             HStack(spacing: 6) {
-              if let id = post.authorID { Text("UID \(id)") }
+              if let id = post.authorID { Text(AppText.format("UID %@", String(describing: id))) }
               if post.authorID != nil && !post.date.isEmpty { Text("\u{00B7}") }
               if !post.date.isEmpty { Text(post.date.replacingOccurrences(of: "T", with: " ").prefix(16)) }
             }.font(.forum(.caption)).foregroundStyle(.secondary).lineLimit(1)
@@ -108,8 +108,8 @@ struct PostCard: View {
             Image(systemName: "scope").font(.system(size: 17, weight: .medium)).frame(width: 30, height: 30)
           }.buttonStyle(.glass).buttonBorderShape(.circle)
             .disabled(purchasing || authorFilterActive)
-            .accessibilityLabel("Only posts by \(post.author)")
-            .accessibilityValue(authorFilterActive ? "Active" : "")
+            .accessibilityLabel(AppText.format("Only posts by %@", String(describing: post.author)))
+            .accessibilityValue(authorFilterActive ? AppText.text("Active") : "")
         }
         if !post.number.isEmpty { Text(post.number).font(.forum(.caption, weight: .semibold)).foregroundStyle(.blue) }
       }
@@ -156,7 +156,7 @@ struct PostAvatar: View {
     Group {
       if let action {
         Button { action(image) } label: { avatar.frame(width: 44, height: 44).contentShape(Rectangle()) }
-          .buttonStyle(.plain).accessibilityLabel("Actions for \(author)")
+          .buttonStyle(.plain).accessibilityLabel(AppText.format("Actions for %@", String(describing: author)))
       } else { avatar.accessibilityHidden(true) }
     }.frame(width: 44, height: 44)
       .task(id: url) {
@@ -248,11 +248,11 @@ struct RichBodyView: View {
       if let offer = block.purchase {
         HStack(spacing: 12) {
           Image(systemName: "lock.fill").foregroundStyle(.secondary)
-          Text("\(offer.priceText) SP").font(.forum(.subheadline, weight: .semibold))
+          Text(AppText.format("%@ SP", String(describing: offer.priceText))).font(.forum(.subheadline, weight: .semibold))
           Spacer(minLength: 0)
           Button { purchase(offer) } label: {
             if purchasing { ProgressView().controlSize(.small) }
-            else { Text(offer.isFree ? "Unlock free" : "Buy for \(offer.priceText) SP") }
+            else { Text(offer.isFree ? AppText.text("Unlock free") : AppText.format("Buy for %@ SP", String(describing: offer.priceText))) }
           }.buttonStyle(.glass).disabled(purchasing)
         }.padding(12).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
       }
@@ -314,7 +314,7 @@ struct MediaRow: View {
       Button { play(block) } label: {
         VStack(alignment: .leading, spacing: 8) {
           Text(block.label).font(.forum(.caption)).foregroundStyle(.secondary).lineLimit(1)
-          Label("Play", systemImage: "play.fill").font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.blue)
+          Label(AppText.text("Play"), systemImage: "play.fill").font(.forum(.subheadline, weight: .semibold)).foregroundStyle(.blue)
         }.frame(maxWidth: .infinity, minHeight: 62, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
           .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
           .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.1)))
@@ -402,7 +402,7 @@ struct RemoteImageView: View {
           Image(uiImage: image).resizable().scaledToFit()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if loading { ProgressView() }
-        else { Button("Retry image", systemImage: "arrow.clockwise") { attempt += 1 }.font(.forum(.caption)) }
+        else { Button(AppText.text("Retry image"), systemImage: "arrow.clockwise") { attempt += 1 }.font(.forum(.caption)) }
       }
       .clipShape(RoundedRectangle(cornerRadius: 10))
       .contentShape(Rectangle())

@@ -39,7 +39,7 @@ struct SouthBodyParser {
         flush()
         let anchor = try node.select(".js-unfurl-title a").first()
         if let url = SouthSitePolicy.resolve(try anchor?.attr("href"), from: page) {
-          blocks.append(BodyBlock(kind: .link, label: text(anchor).isEmpty ? url.host ?? "Link" : text(anchor), url: url))
+          blocks.append(BodyBlock(kind: .link, label: text(anchor).isEmpty ? url.host ?? AppText.text("Link") : text(anchor), url: url))
         }
         return
       }
@@ -48,13 +48,13 @@ struct SouthBodyParser {
         let lazy = try node.attr("data-src")
         let source = SouthSitePolicy.resolve(lazy.isEmpty ? try node.attr("src") : lazy, from: page)
         if let source, SouthSitePolicy.isEmoticon(source) {
-          runs.append(TextRun(text: alt.isEmpty ? "Emoticon" : alt, bold: bold, italic: italic, url: href, emoticon: source))
+          runs.append(TextRun(text: alt.isEmpty ? AppText.text("Emoticon") : alt, bold: bold, italic: italic, url: href, emoticon: source))
           return
         }
         if node.hasClass("smilie") { runs.append(TextRun(text: alt)); return }
         flush()
         if let url = source {
-          blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? "Image" : alt, url: url,
+          blocks.append(BodyBlock(kind: .image, label: alt.isEmpty ? AppText.text("Image") : alt, url: url,
                                   original: OriginalImageSource.resolve(node, page: page, preview: url, link: href), aspectRatio: ratio(node)))
         }
         return
@@ -65,7 +65,7 @@ struct SouthBodyParser {
         if tag != "iframe" { candidates.append(try node.select("source[src]").first()?.attr("src") ?? "") }
         let url = SouthSitePolicy.resolve(candidates.first { !$0.isEmpty }, from: page)
         let poster = try SouthSitePolicy.resolve(node.attr("poster"), from: page) ?? SouthSitePolicy.resolve(node.attr("data-poster"), from: page)
-        blocks.append(BodyBlock(kind: .media, label: url?.host ?? "Embedded media", url: url, poster: poster, aspectRatio: ratio(node), direct: tag != "iframe"))
+        blocks.append(BodyBlock(kind: .media, label: url?.host ?? AppText.text("Embedded media"), url: url, poster: poster, aspectRatio: ratio(node), direct: tag != "iframe"))
         return
       }
       if tag == "blockquote" || node.hasClass("bbCodeBlock--quote") || node.hasClass("blockquote") {
@@ -80,7 +80,7 @@ struct SouthBodyParser {
         if node.hasClass("bbCodeInlineSpoiler") { children = try parseBody(node, page: page) }
         else if let content = try node.select(".bbCodeSpoiler-content").first() { children = try parseBody(content, page: page) }
         else { children = [] }
-        blocks.append(BodyBlock(kind: .spoiler, children: children, label: "Spoiler"))
+        blocks.append(BodyBlock(kind: .spoiler, children: children, label: AppText.text("Spoiler")))
         return
       }
       if tag == "pre" { flush(); blocks.append(BodyBlock(kind: .code, label: text(node))); return }
