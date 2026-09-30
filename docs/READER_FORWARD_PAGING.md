@@ -21,6 +21,8 @@ The next-page loading/error indicator is in a reserved content footer. It does
 not overlap the bottom toolbar. Existing window joins preserve post identities
 and visible anchors. Loaded page one and page two remain joined; the next
 request comes from the window's last page.
+Forward responses append immediately during a drag or flick when no content
+above the viewport needs eviction; prepend/eviction waits for a settled anchor.
 
 South post menus use a 24 x 18 point rounded rectangle with a 6 point continuous
 corner radius and 10 point ellipsis. The 44 x 44 point transparent hit area is

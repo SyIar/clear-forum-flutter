@@ -494,8 +494,8 @@ struct ReaderView: View {
         guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
         guard SitePolicy.pageCacheKey(incoming.url) == SitePolicy.pageCacheKey(target), incoming.kind == page?.kind else { throw ReaderFailure.unsupported }
         pendingPage = incoming
-        lastEdgeEvent = "Received \(edge), page \(incoming.pageNumber); waiting for scroll idle"
-        if scrollPhase == .idle { applyAdjacentPage() }
+        lastEdgeEvent = "Received \(edge), page \(incoming.pageNumber)"
+        applyAdjacentPage()
       } catch {
         guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
         edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.error(error))
@@ -505,8 +505,9 @@ struct ReaderView: View {
   }
   private func applyAdjacentPage() {
     guard let incoming = pendingPage, let edge = edgeLoading, let page else { return }
-    // Commit only after the drag/bounce ends, keeping a real content ID pinned.
-    // New pages reuse existing post/block identities instead of rebuilding them.
+    // Appending below the viewport can continue the same drag or flick.
+    // Prepending, or evicting content above it, needs a settled anchor.
+    guard edge == .next || scrollPhase == .idle else { return }
     let visible = library.document.visibleContent(in: readingPages.combined(active: page))
     let fallback = visible.posts.first?.id ?? visible.entries.first?.id
     // The global title sentinel changes meaning when an older page is
@@ -520,6 +521,7 @@ struct ReaderView: View {
       edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.text("Could not join this page. Try again."))
       return
     }
+    guard scrollPhase == .idle || updated.pages.first?.url == priorFirst else { return }
     session.pages.store(updated.page(for: incoming.url) ?? incoming)
     lastEdgeEvent = "Joined \(edge), page \(incoming.pageNumber)"
     let active = updated.page(for: protected) ?? page
