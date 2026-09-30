@@ -44,31 +44,31 @@ struct HostedFilesView: View {
     List {
       if let listing = model.listing {
         Section {
-          Text(listing.title).forumFont(.headline).textSelection(.enabled)
+          Text(listing.title).appFont(.headline).textSelection(.enabled)
           if listing.expandedAlbum {
-            Label(AppText.text("Showing the complete album"), systemImage: "rectangle.stack").forumFont(.caption).foregroundStyle(.secondary)
+            Label(AppText.text("Showing the complete album"), systemImage: "rectangle.stack").appFont(.caption).foregroundStyle(.secondary)
           }
           HStack(spacing: 12) {
             if listing.entries.contains(where: { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }) {
               Button { enqueue(listing) } label: {
-                Text(AppText.text("Download all")).forumFont(.subheadline, weight: .semibold)
+                Text(AppText.text("Download all")).appFont(.subheadline, weight: .semibold)
                   .lineLimit(1).minimumScaleFactor(0.85).padding(.horizontal, 8)
                   .frame(minHeight: 32, alignment: .center)
               }.buttonStyle(.glassProminent).disabled(model.loading || model.error != nil)
             }
             Spacer(minLength: 0)
             Text(listing.entries.count == 1 ? AppText.text("1 item") : AppText.format("%@ items", String(describing: listing.entries.count)))
-              .forumFont(.caption).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+              .appFont(.caption).foregroundStyle(.secondary).lineLimit(1).fixedSize()
           }
         }
       }
       if model.loading { Section { HStack { ProgressView(); Text(AppText.text("Loading files")).foregroundStyle(.secondary) } } }
       if let error = model.error {
         Section {
-          Label(error, systemImage: "exclamationmark.triangle").forumFont(.subheadline).foregroundStyle(.secondary)
+          Label(error, systemImage: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
           TimelineView(.periodic(from: .now, by: 1)) { context in
             if let date = model.retryAfter, date > context.date {
-              Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).forumFont(.caption).monospacedDigit()
+              Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).appFont(.caption).monospacedDigit()
             } else { Button(AppText.text("Retry"), systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading) }
           }
           Button(AppText.text("Open website"), systemImage: "safari") { website = url }
@@ -138,8 +138,8 @@ struct HostedFilesView: View {
       Image(systemName: entry.symbol).font(.title2).foregroundStyle(.blue)
         .frame(width: 44, height: 44).background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
       VStack(alignment: .leading, spacing: 4) {
-        Text(entry.name).forumFont(.subheadline).foregroundStyle(.primary).lineLimit(3)
-        Text(entry.folder ? AppText.text("Folder") : entry.sizeDescription).forumFont(.caption).foregroundStyle(.secondary)
+        Text(entry.name).appFont(.subheadline).foregroundStyle(.primary).lineLimit(3)
+        Text(entry.folder ? AppText.text("Folder") : entry.sizeDescription).appFont(.caption).foregroundStyle(.secondary)
       }
     }.padding(.vertical, 4)
   }
@@ -167,7 +167,7 @@ struct HostedModalRoot: View {
       HostedFilesView(url: url).toolbar {
         ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
-    }.forumFont(.body)
+    }.appFont(.body)
       .environment(\.locale, AppText.locale)
   }
 }

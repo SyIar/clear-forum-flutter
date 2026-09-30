@@ -153,6 +153,8 @@
 "Purchase" = "购买";
 "Active" = "已开启";
 "Unlock free" = "免费解锁";
+"Buy" = "\U8D2D\U4E70";
+"Wallpaper source" = "\U58C1\U7EB8\U6765\U6E90";
 "Play" = "播放";
 "Retry image" = "重新加载图片";
 "No blocked authors" = "黑名单为空";
@@ -398,3 +400,5 @@
 "Exports include page content and image addresses. Cookies, form values and scripts are removed. Nothing is uploaded automatically." = "导出内容包含网页正文和图片地址，已移除 Cookie、表单值及脚本。不会自动上传。";
 
 "Capture page diagnostics" = "重新获取页面诊断";
+
+"Could not resolve the download address. Refresh or open the original website." = "\U65e0\U6cd5\U89e3\U6790\U4e0b\U8f7d\U5730\U5740\Uff0c\U8bf7\U5237\U65b0\U6216\U6253\U5f00\U539f\U7f51\U9875\U3002";

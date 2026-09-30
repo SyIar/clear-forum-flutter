@@ -63,11 +63,11 @@ struct ReplyEditor: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section(context.forum.name) { TextEditor(text: $text).frame(minHeight: 180).tiebaFont(.body) }
+        Section(context.forum.name) { TextEditor(text: $text).frame(minHeight: 180).appFont(.body) }
         if !attachments.isEmpty {
           Section {
             ScrollView(.horizontal) { HStack { ForEach(attachments, id: \.self) { file in
-              VStack { if let image = UIImage(contentsOfFile: file.path) { Image(uiImage: image).resizable().scaledToFill().frame(width: 80, height: 80).clipped() }; Button(tr("removeImage"), role: .destructive) { attachments.removeAll { $0 == file } }.tiebaFont(.caption) }
+              VStack { if let image = UIImage(contentsOfFile: file.path) { Image(uiImage: image).resizable().scaledToFill().frame(width: 80, height: 80).clipped() }; Button(tr("removeImage"), role: .destructive) { attachments.removeAll { $0 == file } }.appFont(.caption) }
             } } }
           }
         }
@@ -154,7 +154,7 @@ struct DraftsView: View {
           opening = true; defer { opening = false }
           do { let result = try await app.api.forum(string(draft["forumName"])); selection = ReplyContext(thread: string(draft["threadId"]), forum: result.forum ?? Forum(), parent: string(draft["parentPostId"]), subpost: string(draft["targetSubPostId"]), replyUser: string(draft["replyUserId"]), restored: draft) }
           catch { app.error = error.localizedDescription }
-        } } label: { VStack(alignment: .leading, spacing: 6) { Text(string(draft["forumName"])).tiebaFont(.caption).foregroundStyle(.secondary); Text(string(draft["content"])).lineLimit(3) } }.disabled(opening)
+        } } label: { VStack(alignment: .leading, spacing: 6) { Text(string(draft["forumName"])).tiebaFont(.caption).foregroundStyle(.secondary); Text(string(draft["content"])).tiebaFont(.body).lineLimit(3) } }.disabled(opening)
           .swipeActions { Button(tr("discard"), role: .destructive) { app.updateLibrary { $0.removeDraft(string(draft["key"])) } } }
       }
       if drafts.isEmpty { ContentUnavailableView(tr("emptyDrafts"), systemImage: "doc") }

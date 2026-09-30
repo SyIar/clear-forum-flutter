@@ -3,6 +3,30 @@ import SwiftSoup
 
 struct SouthBodyParser {
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
+  private func contentChildren(_ node: Element, page: URL) -> [Node] {
+    let children = node.getChildNodes()
+    // Only omit PHPWind's generated prefix on an uploaded-image attachment.
+    // Identical words in an author's body, caption, or quote remain readable.
+    guard node.id().range(of: #"^att_[0-9]+$"#, options: .regularExpression) != nil,
+          node.parents().contains(where: { $0.hasClass("tpc_content") }),
+          !node.parents().contains(where: { $0.id().hasPrefix("read_") }) else { return children }
+    var index = 0
+    while index < children.count, let text = children[index] as? TextNode,
+          text.getWholeText().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { index += 1 }
+    guard index < children.count, let label = children[index] as? TextNode,
+          ["\u{56fe}\u{7247}\u{ff1a}", "\u{56fe}\u{7247}:"].contains(label.getWholeText().trimmingCharacters(in: .whitespacesAndNewlines)) else { return children }
+    index += 1
+    var hasBreak = false
+    while index < children.count {
+      if let text = children[index] as? TextNode, text.getWholeText().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { index += 1 }
+      else if let element = children[index] as? Element, element.tagName() == "br" { hasBreak = true; index += 1 }
+      else { break }
+    }
+    guard hasBreak, index < children.count, let image = children[index] as? Element, image.tagName() == "img",
+          let source = SouthSitePolicy.resolve(try? image.attr("src"), from: page),
+          SouthSitePolicy.sameOrigin(source), source.path.hasPrefix("/attachment/") else { return children }
+    return Array(children.dropFirst(index))
+  }
   private func ratio(_ node: Element) -> Double? {
     guard let w = Double((try? node.attr("width")) ?? ""), let h = Double((try? node.attr("height")) ?? ""),
           w > 0, h > 0, (w / h).isFinite else { return nil }
@@ -93,13 +117,13 @@ struct SouthBodyParser {
         let address = try node.attr("href")
         link = SouthSitePolicy.resolve(address, from: page) ?? SouthTextLinks.destination(address, from: page)
       } else { link = href }
-      for child in node.getChildNodes() {
+      for child in contentChildren(node, page: page) {
         try walk(child, bold: bold || ["b", "strong", "h1", "h2", "h3", "h4"].contains(tag), italic: italic || ["i", "em"].contains(tag), href: link,
                  detectLinks: detectLinks && tag != "code")
       }
       if boundary { flush() }
     }
-    for child in root.getChildNodes() { try walk(child) }
+    for child in contentChildren(root, page: page) { try walk(child) }
     flush()
     return blocks
   }

@@ -33,6 +33,7 @@ struct ReaderView: View {
   @State private var quickActionsExpanded = false
   @State private var showingDiagnostics = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.scenePhase) private var scenePhase
   @State private var showingBlockedAuthors = false
   @State private var showingPinnedThreads = false
   @State private var selectedPinnedThread: URL?
@@ -48,6 +49,13 @@ struct ReaderView: View {
   @StateObject private var posters = PosterStore()
   private var current: URL { SouthSitePolicy.canonicalThreadURL(url ?? initialURL) }
   private var displayPage: ForumPage? { page.map { readingPages.combined(active: $0) } }
+  private var canRecordReading: Bool {
+    session.site == .south && isVisible && scenePhase == .active && !loading && error == nil &&
+      loadedGeneration == session.generation && completedRequestID == requestID && pendingScrollAnchor == nil &&
+      destination == nil && media == nil && imageSheet == nil && external == nil && presentation == nil &&
+      gofile == nil && hostedFiles == nil && textSelection == nil && !showingDiagnostics &&
+      !selectingPage && !showingBlockedAuthors && !clearSession
+  }
   private var pinnedThreads: [ForumEntry] {
     guard session.site == .south, let page = displayPage, page.kind == .threads else { return [] }
     return library.document.visibleContent(in: page).entries.filter(\.pinned)
@@ -127,6 +135,8 @@ struct ReaderView: View {
         let visible = library.document.visibleContent(in: page)
         let ordered = ["top", "poll"] + visible.posts.map(\.id) + visible.entries.map(\.id)
         if let first = ordered.first(where: { ids.contains($0) }) { visibleID = first }
+        scrollTracking.visiblePostIDs = Set(ids).intersection(visible.posts.map(\.id))
+        recordVisibleProgress()
       }
       .scrollBounceBehavior(.always, axes: .vertical)
       .onScrollGeometryChange(for: ReaderEdgePull.self) { ReaderEdgePull($0) } action: { _, pull in
@@ -174,7 +184,7 @@ struct ReaderView: View {
         ToolbarItemGroup(placement: .bottomBar) {
           Button(AppText.text("Previous page"), systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
-            Text(AppText.format("Page %@", String(error == nil ? page?.pageNumber ?? SitePolicy.pageNumber(current) : SitePolicy.pageNumber(current)))).forumFont(.subheadline, weight: .semibold).monospacedDigit()
+            Text(AppText.format("Page %@", String(error == nil ? page?.pageNumber ?? SitePolicy.pageNumber(current) : SitePolicy.pageNumber(current)))).appFont(.subheadline, weight: .semibold).monospacedDigit()
           }.disabled(page == nil || loading || purchasing).accessibilityLabel(AppText.text("Choose page"))
           Button(AppText.text("Next page"), systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }
@@ -249,6 +259,7 @@ struct ReaderView: View {
       }
       .onDisappear { quickActionsExpanded = false; purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
       .onChange(of: purchasing) { _, value in if value { setQuickActions(false) } }
+      .onChange(of: canRecordReading) { _, value in if value { recordVisibleProgress() } }
       .onChange(of: visibleID) { old, value in
         guard !loading, error == nil else { return }
         if let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
@@ -349,6 +360,10 @@ struct ReaderView: View {
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
   }
+  private func recordVisibleProgress() {
+    guard canRecordReading, let page = displayPage, page.kind == .posts else { return }
+    library.recordVisiblePosts(scrollTracking.visiblePostIDs, in: page)
+  }
   private func openAvatar(_ post: ForumPost) {
     guard let url = post.avatarOriginal ?? post.avatar else { return }
     let preview = UIImage(systemName: "person.crop.circle")?.withTintColor(.systemGray, renderingMode: .alwaysOriginal) ?? UIImage()
@@ -427,6 +442,7 @@ struct ReaderView: View {
     guard !purchasing else { return visibleID }
     let expected = requestID
     let epoch = session.generation
+    scrollTracking.visiblePostIDs = []
     loading = true
     error = nil
     defer { if requestID == expected { loading = false } }

@@ -4,21 +4,16 @@ import CoreText
 
 enum AppTypography {
   @MainActor static func uiFont(_ style: UIFont.TextStyle, bold: Bool = false) -> UIFont {
+    let font = UIFont.preferredFont(forTextStyle: style)
+    guard bold, let descriptor = font.fontDescriptor.withSymbolicTraits(.traitBold) else { return font }
+    return UIFont(descriptor: descriptor, size: 0)
+  }
+
+  @MainActor static func contentUIFont(_ style: UIFont.TextStyle, bold: Bool = false) -> UIFont {
     let traits = UITraitCollection(preferredContentSizeCategory: .large)
     let size = UIFont.preferredFont(forTextStyle: style, compatibleWith: traits).pointSize
     let base = MixedScriptFont.font(size: size, bold: bold) as UIFont
     return UIFontMetrics(forTextStyle: style).scaledFont(for: base)
-  }
-
-  @MainActor static func configureNavigation() {
-    // Change text attributes only, preserving the system's glass appearances.
-    UINavigationBar.appearance().titleTextAttributes = [.font: uiFont(.headline, bold: true)]
-    UINavigationBar.appearance().largeTitleTextAttributes = [.font: uiFont(.largeTitle, bold: true)]
-    let item = UIBarButtonItem.appearance()
-    for state in [UIControl.State.normal, .highlighted, .disabled] {
-      item.setTitleTextAttributes([.font: uiFont(.body)], for: state)
-    }
-    UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).font = uiFont(.body)
   }
 
   static func richText(_ run: TextRun, size: CGFloat) -> AttributedString {
@@ -64,6 +59,10 @@ private struct ForumFont: ViewModifier {
 }
 
 extension View {
+  func appFont(_ style: Font.TextStyle, weight: Font.Weight? = nil) -> some View {
+    font(weight.map { Font.system(style).weight($0) } ?? .system(style))
+  }
+
   func forumFont(_ style: Font.TextStyle, weight: Font.Weight? = nil) -> some View {
     modifier(ForumFont(style, weight: weight))
   }

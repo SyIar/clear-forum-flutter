@@ -8,7 +8,7 @@ struct SouthFollowingSection: View {
   var body: some View {
     Section {
       if library.document.following.isEmpty {
-        Text(AppText.text("No followed authors")).forumFont(.subheadline).foregroundStyle(.secondary)
+        Text(AppText.text("No followed authors")).appFont(.subheadline).foregroundStyle(.secondary)
       }
       ForEach(library.document.following) { author in
         VStack(alignment: .leading, spacing: 12) {
@@ -32,7 +32,7 @@ struct SouthFollowingSection: View {
                 Text(topic.title).forumFont(.subheadline).foregroundStyle(.primary).lineLimit(2)
                   .frame(maxWidth: .infinity, alignment: .leading)
                 if library.document.isUnreadSouthThread(topic.url) {
-                  Text(AppText.text("New")).forumFont(.caption2, weight: .semibold).foregroundStyle(.blue)
+                  Text(AppText.text("New")).appFont(.caption2, weight: .semibold).foregroundStyle(.blue)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(.blue.opacity(0.12), in: Capsule()).fixedSize()
                 }
@@ -41,14 +41,14 @@ struct SouthFollowingSection: View {
           }
           if let error = library.authorErrors[author.id] {
             HStack(alignment: .top) {
-              Text(error).forumFont(.caption).foregroundStyle(.secondary)
+              Text(error).appFont(.caption).foregroundStyle(.secondary)
               Spacer(minLength: 8)
               Button(AppText.text("Retry")) { Task { await library.refreshAuthor(author.id, session: session) } }
-                .forumFont(.caption).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
+                .appFont(.caption).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
             }
           } else if author.topics.isEmpty && !library.refreshingAuthors.contains(author.id) {
             Text(author.checkedAt == nil ? AppText.text("Not refreshed") : AppText.text("No topics"))
-              .forumFont(.caption).foregroundStyle(.secondary)
+              .appFont(.caption).foregroundStyle(.secondary)
           }
         }.padding(.vertical, 6)
       }

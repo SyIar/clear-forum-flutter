@@ -85,7 +85,7 @@ struct RemotePicture: View {
           Color(uiColor: .tertiarySystemFill)
           if loading { ProgressView() }
           else if preview { Image(systemName: "photo").foregroundStyle(Color(uiColor: .secondaryLabel)) }
-          else { Button(tr(manual || automatic ? "retry" : "tapToLoad"), systemImage: "photo") { manual = true; attempt += 1 }.tiebaFont(.caption) }
+          else { Button(tr(manual || automatic ? "retry" : "tapToLoad"), systemImage: "photo") { manual = true; attempt += 1 }.appFont(.caption) }
         }.frame(height: preview ? 88 : 160)
       }
     }.clipShape(RoundedRectangle(cornerRadius: 10))
@@ -211,7 +211,7 @@ struct RichContent: View {
           else if [3, 20].contains(part.type), !settings.flag("hideMedia"), let url = part.url { RemotePicture(url: url, thumbnail: part.thumbnail, open: { gallery = url }) }
           else if [5, 10].contains(part.type), !settings.flag("hideMedia"), let url = part.url {
             Button { playback = url } label: { Label(tr(part.type == 10 ? "audio" : "video"), systemImage: "play.circle.fill").frame(maxWidth: .infinity, alignment: .leading).padding(12) }.buttonStyle(.glass)
-          } else if !part.text.isEmpty { Text(part.text).foregroundStyle(.secondary) }
+          } else if !part.text.isEmpty { Text(part.text).tiebaFont(.body).foregroundStyle(.secondary) }
         }
       }
     }.onAppear { Emoticons.learn(parts) }

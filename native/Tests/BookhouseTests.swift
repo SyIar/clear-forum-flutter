@@ -28,6 +28,17 @@ final class BookhouseTests: XCTestCase {
   }
 
   private let start = BookhouseSitePolicy.start
+  func testLibraryKeepsSavedBooksWithoutCheckingThreadUpdates() throws {
+    var library = LibraryDocument(site: .bookhouse)
+    let url = try XCTUnwrap(BookhouseSitePolicy.thread("20"))
+    library.remember(SavedPage(url: url, title: "Book"))
+    XCTAssertEqual(library.trackedThreads, [url])
+    XCTAssertFalse(library.hasRefreshTargets)
+    XCTAssertFalse(ForumSite.bookhouse.supportsThreadUpdates)
+    XCTAssertNil(ThreadReadState(seenMaximum: 5, latestMaximum: 10).displayedReadMaximum(for: .bookhouse))
+    XCTAssertTrue(ForumSite.south.supportsThreadUpdates)
+    XCTAssertTrue(ForumSite.simp.supportsThreadUpdates)
+  }
   private func url(_ query: String) -> URL { URL(string: "https://www.cool18.com/bbs4/index.php?" + query)! }
   private let rows = #"[{"tid":"30","rootid":"0","uptid":"0","uid":"101","username":"Writer A","subject":"<b>A quiet library</b>","dateline":"09/30/26"},{"tid":"35","rootid":"30","uptid":"30","username":"Reader","subject":"A reply"},{"tid":"20","rootid":"0","uptid":"0","uid":"102","username":"Writer B","subject":"Another book"}]"#
 

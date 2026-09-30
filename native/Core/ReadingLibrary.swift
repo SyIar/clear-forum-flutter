@@ -39,9 +39,20 @@ struct ThreadPresentation: Codable, Equatable {
   }
 }
 struct ThreadReadState: Codable, Equatable {
+  // Legacy visit snapshot used for new-reply detection, never a South reading position.
   var seenMaximum: Int?
   var latestMaximum: Int?
   var checkedAt: Date?
+  var viewedMaximum: Int?
+  func displayedReadMaximum(for site: ForumSite) -> Int? {
+    guard site.supportsThreadUpdates else { return nil }
+    return site == .south ? viewedMaximum : seenMaximum
+  }
+  @discardableResult mutating func viewed(maximum: Int) -> Bool {
+    guard maximum >= 0, maximum > (viewedMaximum ?? -1) else { return false }
+    viewedMaximum = maximum
+    return true
+  }
   var updated: Bool {
     guard let seenMaximum, let latestMaximum else { return false }
     return latestMaximum > seenMaximum
@@ -173,6 +184,19 @@ struct LibraryDocument: Codable {
     recent.removeAll { Self.recentKey($0.url) == Self.recentKey(page.url) }
     recent.insert(page, at: 0)
     recent = Array(recent.prefix(10))
+  }
+  @discardableResult mutating func recordVisiblePosts(_ ids: Set<String>, in page: ForumPage) -> Bool {
+    guard site == .south, site.accepts(page.url), page.kind == .posts,
+          let key = SitePolicy.threadKey(page.url), !ids.isEmpty else { return false }
+    let maximum = visibleContent(in: page).posts.filter { ids.contains($0.id) }.compactMap { post -> Int? in
+      guard post.number.hasPrefix("#"), let number = Int(post.number.dropFirst()), number >= 0 else { return nil }
+      return number
+    }.max()
+    guard let maximum else { return false }
+    var state = threads[key] ?? ThreadReadState()
+    guard state.viewed(maximum: maximum) else { return false }
+    threads[key] = state
+    return true
   }
   func subtitle(for page: SavedPage) -> String? {
     guard site != .simp else { return page.url.path }

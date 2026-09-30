@@ -25,7 +25,7 @@ struct PostTextSelectionSheet: View {
           copied = true
         } label: {
           Label(AppText.text("Copy all"), systemImage: copied ? "checkmark" : "doc.on.doc")
-            .forumFont(.headline).padding(.horizontal, 16).padding(.vertical, 8)
+            .appFont(.headline).padding(.horizontal, 16).padding(.vertical, 8)
         }.buttonStyle(.glass).disabled(selection.text.isEmpty)
           .accessibilityValue(copied ? AppText.text("Copied") : "")
           .padding(.bottom, 12)
@@ -58,7 +58,7 @@ private struct SelectablePostText: UIViewRepresentable {
   func updateUIView(_ view: UITextView, context: Context) {
     // Avoid resetting the user's selection while the sheet updates.
     if view.text != text { view.text = text }
-    let font = AppTypography.uiFont(.body)
+    let font = AppTypography.contentUIFont(.body)
     if view.font != font { view.font = font }
     view.textColor = .label
   }

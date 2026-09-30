@@ -3,6 +3,7 @@ import TiebaFeature
 
 @main
 struct ForumLiteApp: App {
+  @StateObject private var wallpaper = DailyWallpaperStore()
   @StateObject private var downloads = VideoDownloadManager.shared
   @StateObject private var gofileDownloads = GofileDownloadManager.shared
   @StateObject private var hostedDownloads = HostedDownloadManager.shared
@@ -16,7 +17,6 @@ struct ForumLiteApp: App {
   @StateObject private var tieba = TiebaModuleSession()
   @State private var showingTieba = false
   @State private var path: [ForumDestination] = []
-  init() { AppTypography.configureNavigation() }
   var body: some Scene {
     WindowGroup {
       Group {
@@ -60,7 +60,8 @@ struct ForumLiteApp: App {
             .environmentObject(session(for: site))
           }
       }.tint(.blue)
-        .forumFont(.body)
+        .environmentObject(wallpaper)
+        .appFont(.body)
   }
   private func library(for site: ForumSite) -> LibraryStore {
     site == .bookhouse ? bookhouseLibrary : site == .simp ? simpLibrary : southLibrary
@@ -90,44 +91,6 @@ struct ForumLogo: View {
       .frame(maxWidth: .infinity).frame(height: 102)
       .background(site == .bookhouse ? Color(red: 0.99, green: 0.98, blue: 0.94) : site == .simp ? Color(white: 0.11) : Color.white, in: RoundedRectangle(cornerRadius: 13))
       .accessibilityHidden(true)
-  }
-}
-
-struct ForumSelectionView: View {
-  let openTieba: () -> Void
-  var body: some View {
-    ScrollView {
-      VStack(spacing: 22) {
-        ForEach(ForumSite.allCases) { site in
-          NavigationLink(value: ForumDestination.home(site)) {
-            VStack(spacing: 17) {
-              ForumLogo(site: site)
-              Text(site.host).forumFont(.caption).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 18)
-            .frame(maxWidth: .infinity, minHeight: 182)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 27))
-            .overlay(RoundedRectangle(cornerRadius: 27).strokeBorder(Color.primary.opacity(0.04)))
-            .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
-          }.buttonStyle(.plain).accessibilityLabel(AppText.format("Open %@ home", String(describing: site.host)))
-        }
-        Button(action: openTieba) {
-          VStack(spacing: 17) {
-            Image("TiebaLogo").resizable().scaledToFit().frame(height: 102)
-              .clipShape(RoundedRectangle(cornerRadius: 22)).frame(maxWidth: .infinity)
-              .accessibilityHidden(true)
-            Text("tieba.baidu.com").forumFont(.caption).foregroundStyle(.secondary)
-          }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 18)
-            .frame(maxWidth: .infinity, minHeight: 182)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 27))
-            .overlay(RoundedRectangle(cornerRadius: 27).strokeBorder(Color.primary.opacity(0.04)))
-            .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
-        }.buttonStyle(.plain).accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
-      }.frame(maxWidth: 520).padding(.horizontal, 22).padding(.top, 53).padding(.bottom, 40)
-        .frame(maxWidth: .infinity)
-    }
-    .background(Color(uiColor: .systemGroupedBackground))
-    .toolbar(.hidden, for: .navigationBar)
   }
 }
 
@@ -171,7 +134,7 @@ final class LibraryStore: ObservableObject {
                                                 authorID: entry.authorID, authorName: entry.authorName), for: page.url)
       }
     }
-    guard site != .bookhouse, checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
+    guard site.supportsThreadUpdates, checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
     visitTasks[key]?.cancel()
     let token = UUID()
     visitTokens[key] = token
@@ -188,8 +151,14 @@ final class LibraryStore: ObservableObject {
       }
     }
   }
+  func recordVisiblePosts(_ ids: Set<String>, in page: ForumPage) {
+    guard ready else { return }
+    var next = document
+    guard next.recordVisiblePosts(ids, in: page) else { return }
+    change { $0 = next }
+  }
   func refresh(session: ForumSession) async {
-    guard session.site == site, ready, !refreshing else { return }
+    guard site.supportsThreadUpdates, session.site == site, ready, !refreshing else { return }
     let targets = document.trackedThreads
     guard document.hasRefreshTargets else { refreshMessage = nil; return }
     refreshing = true
@@ -208,7 +177,6 @@ final class LibraryStore: ObservableObject {
         let page = try await session.load(url)
         guard !Task.isCancelled else { return }
         change { $0.capturePresentation(page) }
-        if site == .bookhouse { checked += 1; continue }
         let maximum = try await session.maximumPostNumber(from: page)
         guard !Task.isCancelled else { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.
@@ -378,7 +346,7 @@ struct HomeView: View {
           SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
         }
         if let message = library.refreshMessage {
-          Section { Text(message).forumFont(.caption).foregroundStyle(.secondary) }
+          Section { Text(message).appFont(.caption).foregroundStyle(.secondary) }
         }
       }
       .navigationTitle(session.site.host)
@@ -400,6 +368,7 @@ struct HomeView: View {
         }
       }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
+        if session.site.supportsThreadUpdates {
         Button { Task { await library.refresh(session: session) } } label: {
           Group {
             if library.refreshing { ProgressView() }
@@ -409,10 +378,11 @@ struct HomeView: View {
           .disabled(library.refreshing || !library.document.hasRefreshTargets)
           .accessibilityLabel(AppText.text("Refresh thread and author updates"))
           .padding(.trailing, 16).padding(.bottom, 8)
+        }
       }
-      .refreshable { await library.refresh(session: session) }
+      .modifier(LibraryUpdateRefresh(library: library, session: session))
       .task {
-        guard !checkedUpdatesOnLaunch else { return }
+        guard session.site.supportsThreadUpdates, !checkedUpdatesOnLaunch else { return }
         checkedUpdatesOnLaunch = true
         await library.refresh(session: session)
       }
@@ -445,7 +415,7 @@ struct HomeView: View {
   private func savedRow(_ entry: SavedPage) -> some View {
     let key = SitePolicy.threadKey(entry.url)
     let presentation = key.flatMap { library.document.presentations[$0] }
-    let state = key.flatMap { library.document.threads[$0] }
+    let state = library.site.supportsThreadUpdates ? key.flatMap { library.document.threads[$0] } : nil
     return VStack(alignment: .leading, spacing: 6) {
       if let tags = presentation?.tags, !tags.isEmpty {
         ForumTagStrip(tags: tags) { path.append(.reader($0)) }
@@ -456,9 +426,9 @@ struct HomeView: View {
           else { Image(systemName: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 8) {
-              Text(entry.title).lineLimit(2).foregroundStyle(.primary)
+              Text(entry.title).forumFont(.body).lineLimit(2).foregroundStyle(.primary)
               if state?.updated == true {
-                Text(AppText.text("Updated")).forumFont(.caption2, weight: .semibold).foregroundStyle(.blue)
+                Text(AppText.text("Updated")).appFont(.caption2, weight: .semibold).foregroundStyle(.blue)
                   .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.12), in: Capsule())
                   .fixedSize()
               }
@@ -467,11 +437,11 @@ struct HomeView: View {
               Text(subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             if let state {
-              if let seen = state.seenMaximum {
-                Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : AppText.format("Seen #%@", String(describing: seen)))
-                  .forumFont(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
-              } else if let latest = state.latestMaximum {
-                Text("#\(latest)").forumFont(.caption).foregroundStyle(.secondary)
+              if let seen = state.displayedReadMaximum(for: library.site) {
+                Text(library.site != .south && state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : AppText.format("Seen #%@", String(describing: seen)))
+                  .appFont(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
+              } else if library.site != .south, let latest = state.latestMaximum {
+                Text("#\(latest)").appFont(.caption).foregroundStyle(.secondary)
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
@@ -480,6 +450,18 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
     }.padding(.vertical, 3)
+  }
+}
+
+private struct LibraryUpdateRefresh: ViewModifier {
+  let library: LibraryStore
+  let session: ForumSession
+  func body(content: Content) -> some View {
+    if session.site.supportsThreadUpdates {
+      content.refreshable { await library.refresh(session: session) }
+    } else {
+      content
+    }
   }
 }
 

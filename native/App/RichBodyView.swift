@@ -45,7 +45,6 @@ struct ForumEntryCard: View {
           if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
           else { Image(systemName: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
-            Text(bookTitle?.title ?? entry.title).forumFont(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
             if let tags = bookTitle?.tags, !tags.isEmpty {
               ScrollView(.horizontal) {
                 HStack(spacing: 5) {
@@ -57,14 +56,15 @@ struct ForumEntryCard: View {
                 }
               }.scrollIndicators(.hidden)
             }
+            Text(bookTitle?.title ?? entry.title).forumFont(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
             if !entry.excerpt.isEmpty { Text(entry.excerpt).forumFont(.subheadline).foregroundStyle(.secondary).lineLimit(3) }
             if inlineMetadata, !entry.pinned {
               HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(bookTitle?.author ?? entry.authorName ?? entry.subtitle).lineLimit(1)
+                Text(bookTitle?.author ?? entry.authorName ?? entry.subtitle).forumFont(.caption2).lineLimit(1)
                 Spacer(minLength: 6)
                 if let date = entry.postedAt { Text(date).fixedSize(horizontal: true, vertical: false) }
                 if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(count))).monospacedDigit().fixedSize() }
-              }.forumFont(.caption2).foregroundStyle(.secondary)
+              }.appFont(.caption2).foregroundStyle(.secondary)
             } else if !entry.pinned && !entry.subtitle.isEmpty {
               Text(entry.subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -72,7 +72,7 @@ struct ForumEntryCard: View {
               HStack(spacing: 8) {
                 if let date = entry.postedAt, !entry.subtitle.contains(date) { Text(date) }
                 if let count = entry.totalPostCount { Text(AppText.format("%@ posts", String(describing: count))).monospacedDigit() }
-              }.forumFont(.caption2).foregroundStyle(.secondary).lineLimit(1)
+              }.appFont(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
           Spacer(minLength: 0)
@@ -134,11 +134,11 @@ struct PostCard: View {
               if let id = post.authorID { Text(AppText.format("UID %@", String(describing: id))) }
               if post.authorID != nil && !post.date.isEmpty { Text("\u{00B7}") }
               if !post.date.isEmpty { Text(post.date.replacingOccurrences(of: "T", with: " ").prefix(16)) }
-            }.forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }.appFont(.caption).foregroundStyle(.secondary).lineLimit(1)
           }
         }
         Spacer(minLength: 8)
-        if !post.number.isEmpty { Text(post.number).forumFont(.caption, weight: .semibold).foregroundStyle(.blue) }
+        if !post.number.isEmpty { Text(post.number).appFont(.caption, weight: .semibold).foregroundStyle(.blue) }
         if let openAvatar, let selectText {
           SouthPostMenu(post: post, busy: purchasing, authorFilterActive: authorFilterActive,
                         navigate: navigate, openAvatar: openAvatar, selectText: selectText)
@@ -152,7 +152,7 @@ struct PostCard: View {
             Text(post.date.replacingOccurrences(of: "T", with: " "))
               .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
           }
-        }.forumFont(.caption2).foregroundStyle(.secondary)
+        }.appFont(.caption2).foregroundStyle(.secondary)
       }
       Divider()
       RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: { source in
@@ -279,9 +279,9 @@ struct RichBodyView: View {
         }
       }.padding(10).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
     case .spoiler:
-      DisclosureGroup(block.label) {
+      DisclosureGroup {
         AnyView(RichBodyView(blocks: block.children, posters: posters, navigate: navigate, play: play, openImage: openImage, purchase: purchase, purchasing: purchasing)).padding(.top, 8)
-      }.forumFont(.subheadline)
+      } label: { Text(block.label).forumFont(.subheadline) }
     case .code:
       ScrollView(.horizontal) { Text(block.label).font(.system(.caption, design: .monospaced)).textSelection(.enabled).padding(10) }
         .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
@@ -290,12 +290,12 @@ struct RichBodyView: View {
       if let offer = block.purchase {
         HStack(spacing: 12) {
           Image(systemName: "lock.fill").foregroundStyle(.secondary)
-          Text(AppText.format("%@ SP", String(describing: offer.priceText))).forumFont(.subheadline, weight: .semibold)
+          Text(AppText.format("%@ SP", String(describing: offer.priceText))).appFont(.subheadline, weight: .semibold)
           Spacer(minLength: 0)
           Button { purchase(offer) } label: {
             if purchasing { ProgressView().controlSize(.small) }
-            else { Text(offer.isFree ? AppText.text("Unlock free") : AppText.format("Buy for %@ SP", String(describing: offer.priceText))) }
-          }.buttonStyle(.glass).disabled(purchasing)
+            else { Text(offer.isFree ? AppText.text("Unlock free") : AppText.text("Buy")) }
+          }.appFont(.body).buttonStyle(.glass).disabled(purchasing)
         }.padding(12).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
       }
     }
@@ -468,7 +468,7 @@ struct RemoteImageView: View {
               .frame(width: bounds.size.width, height: bounds.size.height).clipped()
           }
         } else if loading { ProgressView() }
-        else { Button(AppText.text("Retry image"), systemImage: "arrow.clockwise") { attempt += 1 }.forumFont(.caption) }
+        else { Button(AppText.text("Retry image"), systemImage: "arrow.clockwise") { attempt += 1 }.appFont(.caption) }
       }
       .clipShape(RoundedRectangle(cornerRadius: 10))
       .contentShape(Rectangle())

@@ -16,14 +16,14 @@ struct SettingsView: View {
     Form {
       Section(tr("appearance")) {
         Picker(tr("theme"), selection: settings.stringBinding("themeMode")) { Text(tr("systemTheme")).tag("system"); Text(tr("lightTheme")).tag("light"); Text(tr("darkTheme")).tag("dark") }
-        HStack { Text(tr("fontSize")); Slider(value: Binding(get: { settings.fontScale }, set: { settings.set("fontScale", $0) }), in: 0.75...2, step: 0.05); Text(String(format: "%.0f%%", settings.fontScale * 100)).tiebaFont(.caption).monospacedDigit() }
+        HStack { Text(tr("fontSize")); Slider(value: Binding(get: { settings.fontScale }, set: { settings.set("fontScale", $0) }), in: 0.75...2, step: 0.05); Text(String(format: "%.0f%%", settings.fontScale * 100)).appFont(.caption).monospacedDigit() }
         HStack {
           Text(tr("accentColor")); Spacer()
           ForEach([0xFF007AFF, 0xFF34C759, 0xFFFF9500, 0xFFAF52DE, 0xFF808080], id: \.self) { value in
             Button { settings.set("customPrimaryColor", value) } label: {
               Circle().fill(Color(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)).frame(width: 24, height: 24)
                 .overlay {
-                  if Int(settings.number("customPrimaryColor")) == value { Image(systemName: "checkmark").tiebaFont(.caption2, weight: .bold).foregroundStyle(.white) }
+                  if Int(settings.number("customPrimaryColor")) == value { Image(systemName: "checkmark").appFont(.caption2, weight: .bold).foregroundStyle(.white) }
                 }
             }
           }
@@ -72,7 +72,7 @@ struct BlockRulesView: View {
   var body: some View {
     List {
       ForEach(Array(app.library.rows("blocks").enumerated()), id: \.offset) { index, rule in
-        HStack { Image(systemName: boolean(rule["allow"]) ? "checkmark.shield" : "eye.slash"); VStack(alignment: .leading) { Text(first(rule, ["label", "value"])); Text(string(rule["kind"])).tiebaFont(.caption).foregroundStyle(.secondary) } }
+        HStack { Image(systemName: boolean(rule["allow"]) ? "checkmark.shield" : "eye.slash"); VStack(alignment: .leading) { Text(first(rule, ["label", "value"])); Text(string(rule["kind"])).appFont(.caption).foregroundStyle(.secondary) } }
           .swipeActions { Button(tr("clear"), role: .destructive) { app.updateLibrary { var rules = $0.rows("blocks"); if rules.indices.contains(index) { rules.remove(at: index) }; $0.document["blocks"] = rules } } }
       }
     }.navigationTitle(tr("privacyAndFilters")).toolbar { ToolbarItem(placement: .topBarTrailing) { Button(tr("addKeyword"), systemImage: "plus") { adding = true } } }

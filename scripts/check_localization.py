@@ -7,11 +7,19 @@ folder = root / 'native/Resources/zh-Hans.lproj'
 pair = re.compile(r'("(?:[^"\\]|\\.)*")\s*=\s*("(?:[^"\\]|\\.)*")\s*;')
 
 
+def decode_string(value):
+    # OpenStep strings accept uppercase Unicode escapes. Preserve escaped
+    # backslashes while translating those escapes for the JSON decoder.
+    value = re.sub(r'\\(?:\\|U[0-9A-Fa-f]{4})',
+                   lambda match: match[0].replace('\\U', '\\u', 1), value)
+    return json.loads(value)
+
+
 def read_strings(path):
     source = path.read_text(encoding='utf-8')
     entries = {}
     for match in pair.finditer(source):
-        key, value = map(json.loads, match.groups())
+        key, value = map(decode_string, match.groups())
         assert key not in entries, f'Duplicate localization: {key}'
         assert value.strip(), f'Empty localization: {key}'
         assert key.count('%@') == value.count('%@'), f'Placeholder mismatch: {key}'

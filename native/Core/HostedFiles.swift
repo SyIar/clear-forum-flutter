@@ -92,8 +92,13 @@ enum HostedFilePolicy {
   }
   static func filesterServer(_ url: URL) -> Bool {
     guard publicHTTPS(url), let host = url.host?.lowercased(),
-          host.range(of: #"^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+filester\.[a-z]{2,63}$"#, options: .regularExpression) != nil else { return false }
-    return true
+          ["", "/"].contains(url.path), url.query == nil, url.fragment == nil else { return false }
+    // The public download API also returns this dedicated CDN for stored files.
+    return host == "fsc2.cdn.cr" ||
+      host.range(of: #"^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+filester\.[a-z]{2,63}$"#, options: .regularExpression) != nil
+  }
+  static func filesterFile(_ value: String) -> Bool {
+    value.range(of: #"\A[A-Za-z0-9_-]{1,128}(?:\.[A-Za-z0-9]{1,16}){0,3}\z"#, options: .regularExpression) != nil
   }
   static func acceptsMetadataRedirect(from original: URL, to target: URL, provider: FileHost) -> Bool {
     guard publicHTTPS(target) else { return false }
@@ -153,13 +158,14 @@ enum HostedFilePolicy {
 }
 
 enum HostedFileFailure: Error, LocalizedError {
-  case unsupported, format, access, missing, limit
+  case unsupported, format, downloadLink, access, missing, limit
   case rateLimited(Date)
   var retryDate: Date? { if case .rateLimited(let date) = self { return date }; return nil }
   var errorDescription: String? {
     switch self {
     case .unsupported: return AppText.text("This address is not supported by the file browser.")
     case .format: return AppText.text("Could not read the complete file list. Open the website or try refreshing.")
+    case .downloadLink: return AppText.text("Could not resolve the download address. Refresh or open the original website.")
     case .access: return AppText.text("This file needs website access, a password or an account, or has reached its download limit. Open the website to check.")
     case .missing: return AppText.text("This file or folder is no longer available.")
     case .limit: return AppText.text("This file list is too large or has too many folder levels. Open a smaller folder.")

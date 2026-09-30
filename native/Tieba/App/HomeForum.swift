@@ -39,9 +39,9 @@ struct HomeView: View {
     else { LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 14) { ForEach(visible, id: \.name) { forum in
       NavigationLink(value: Route.forum(forum.name)) {
         VStack(spacing: 7) {
-          AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(systemName: "bubble.left.and.bubble.right.fill").tiebaFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
+          AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(systemName: "bubble.left.and.bubble.right.fill").appFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
           Text(forum.name).tiebaFont(.subheadline).lineLimit(1)
-          if forum.following { Text(tr(forum.signed ? "checkedIn" : "notCheckedIn")).tiebaFont(.caption2).foregroundStyle(.secondary) }
+          if forum.following { Text(tr(forum.signed ? "checkedIn" : "notCheckedIn")).appFont(.caption2).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity).padding(.vertical, 7)
       }.buttonStyle(.plain).contextMenu { Button(tr("pin")) { app.updateLibrary { $0.togglePin(forum) } } }
     } } }
@@ -93,10 +93,10 @@ struct ForumView: View {
                 if index > 0 { Divider().padding(.leading, 38) }
                 NavigationLink(value: Route.thread(item.id, "", 1, false)) {
                   HStack(spacing: 10) {
-                    Image(systemName: "pin.fill").tiebaFont(.caption).foregroundStyle(settings.accent)
+                    Image(systemName: "pin.fill").appFont(.caption).foregroundStyle(settings.accent)
                     Text(item.title).tiebaFont(.subheadline).foregroundStyle(Color(uiColor: .label)).lineLimit(1)
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").tiebaFont(.caption2).foregroundStyle(Color(uiColor: .tertiaryLabel))
+                    Image(systemName: "chevron.right").appFont(.caption2).foregroundStyle(Color(uiColor: .tertiaryLabel))
                   }.padding(12).contentShape(Rectangle())
                 }.buttonStyle(.plain)
               }
@@ -166,7 +166,7 @@ struct ForumView: View {
           Text(forum.name.isEmpty ? name : forum.name).tiebaFont(.headline).foregroundStyle(Color(uiColor: .label))
           if !settings.flag("hideForumIntroAndStat") {
             Text([forum.members.map { "\(tr("members")) \($0.formatted())" }, "\(tr("threads")) \(forum.threads.formatted())"].compactMap { $0 }.joined(separator: " · "))
-              .tiebaFont(.caption).foregroundStyle(Color(uiColor: .secondaryLabel)).fixedSize(horizontal: false, vertical: true)
+              .appFont(.caption).foregroundStyle(Color(uiColor: .secondaryLabel)).fixedSize(horizontal: false, vertical: true)
           }
         }
         Spacer(minLength: 0)
@@ -182,7 +182,7 @@ struct ForumView: View {
         Button(tr((signed || forum.signed) ? "checkedIn" : "checkIn"), systemImage: (signed || forum.signed) ? "checkmark.circle.fill" : "checkmark.circle") {
           perform { try await app.sign(forum); signed = true; feed.markSigned() }
         }.buttonStyle(.glassProminent).disabled(signed || forum.signed || action)
-      }.tiebaFont(.subheadline)
+      }.appFont(.subheadline)
     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
       .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
   }

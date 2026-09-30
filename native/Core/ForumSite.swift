@@ -8,6 +8,7 @@ enum ForumSite: String, Codable, CaseIterable, Identifiable {
   var base: URL { self == .bookhouse ? BookhouseSitePolicy.base : self == .simp ? SimpSitePolicy.base : SouthSitePolicy.base }
   var start: URL { self == .bookhouse ? BookhouseSitePolicy.start : self == .simp ? base : SouthSitePolicy.start }
   var supportsLogin: Bool { self != .bookhouse }
+  var supportsThreadUpdates: Bool { self != .bookhouse }
   var login: URL { self == .bookhouse ? start : self == .simp ? base.appendingPathComponent("login/") : SouthSitePolicy.login }
   var search: URL { self == .bookhouse ? start : base.appendingPathComponent(self == .simp ? "search/" : "search.php") }
   init?(url: URL) {

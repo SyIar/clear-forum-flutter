@@ -129,6 +129,39 @@ final class HostedFilesTests: XCTestCase {
     let noSize = try HostedFileParser.filester("<h1 id='fileTitle'>demo.zip</h1>", url: listing.url)
     XCTAssertEqual(noSize.entries.first?.sizeDescription, "Size unknown")
   }
+  func testFilesterPublicTokenSupportsStoredFileExtensionsAndDedicatedCDN() throws {
+    let entry = HostedFileEntry(pageURL: URL(string: "https://filester.si/d/demo")!, name: "Example.zip")
+    let data = try json(["success": true, "file": "00000000-1111-2222-3333-444444444444.zip",
+                         "token": "synthetic&value", "server": "https://fsc2.cdn.cr", "name": "Example file.zip"])
+    let request = try HostedFileParser.filesterDownload(data, entry: entry)
+    XCTAssertEqual(request.url.host, "fsc2.cdn.cr")
+    XCTAssertEqual(request.url.path, "/v2/00000000-1111-2222-3333-444444444444.zip")
+    XCTAssertEqual(request.name, "Example file.zip")
+    XCTAssertEqual(URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems?
+      .first(where: { $0.name == "token" })?.value, "synthetic&value")
+    let view = try HostedFileParser.filesterDownload(data, entry: entry, download: false)
+    XCTAssertFalse(view.url.query?.contains("download=") ?? true)
+    XCTAssertTrue(HostedFilePolicy.filesterFile("example.tar.gz"))
+  }
+  func testFilesterRejectsTraversalLookalikeCDNsAndUnsuccessfulTokens() throws {
+    let entry = HostedFileEntry(pageURL: URL(string: "https://filester.si/d/demo")!, name: "Example.zip")
+    for file in ["../example.zip", "example/other.zip", "example.zip?token=other", "example.zip\n", "%2e%2e.zip"] {
+      XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": file, "token": "synthetic"]), entry: entry))
+    }
+    for server in ["https://fsc2.cdn.cr.evil.com", "https://other.cdn.cr", "http://fsc2.cdn.cr", "https://fsc2.cdn.cr/other", "https://cn1.filester.me/?override=1"] {
+      XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": "example.zip", "token": "synthetic", "server": server]), entry: entry))
+    }
+    XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["success": false, "file": "example.zip", "token": "synthetic"]), entry: entry))
+  }
+  @MainActor func testFilesterResolutionErrorsAreNotReportedAsListingFailures() async throws {
+    let client = HostedFileClient { _, _, _, _ in Data("<html>Unavailable</html>".utf8) }
+    let entry = HostedFileEntry(pageURL: URL(string: "https://filester.si/d/demo")!, name: "Example.zip")
+    do {
+      _ = try await client.resolve(entry)
+      XCTFail("Expected a download-address failure")
+    } catch HostedFileFailure.downloadLink { }
+    catch { XCTFail("Unexpected failure: \(error)") }
+  }
   func testFilesterFilenamePreservesUnicodeAndNeverFallsBackToBrandHeading() throws {
     let url = URL(string: "https://filester.si/d/demo")!
     let name = "Nature_\u{4F60}\u{597D}.zip"

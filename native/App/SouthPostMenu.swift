@@ -37,10 +37,10 @@ struct SouthPostMenu: View {
       }
     } label: {
       Image(systemName: "ellipsis").font(.system(size: 10, weight: .semibold))
-        .frame(width: 24, height: 18)
-        .glassEffect(.regular.tint(.blue.opacity(0.08)).interactive(), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .frame(width: 44, height: 44).contentShape(Rectangle())
-    }.buttonStyle(.plain).foregroundStyle(.blue).disabled(busy)
+        .frame(width: 24, height: 12)
+    }.buttonStyle(.glass).buttonBorderShape(.roundedRectangle(radius: 6))
+      .controlSize(.small).foregroundStyle(.blue).disabled(busy)
+      .frame(minWidth: 44, minHeight: 44)
       .accessibilityLabel(AppText.format("Actions for %@", post.author))
   }
 }

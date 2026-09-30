@@ -145,4 +145,28 @@ final class SouthPostStructureTests: XCTestCase {
     XCTAssertEqual(values.count, 2)
     XCTAssertEqual(values.map { $0.blocks.flatMap(\.runs).map(\.text).joined() }, ["First body", "Second body"])
   }
+  func testGeneratedAttachmentLabelsAreOmittedWithoutDroppingImagesOrCaptions() throws {
+    let label = "\u{56fe}\u{7247}\u{ff1a}"
+    let attachments = (1...3).map { index in
+      "<div id='att_\(index)'> \(label) <br><img src='//south-plus.net/attachment/Mon_2609/sample-\(index).jpeg'><p>Caption \(index)</p></div>"
+    }.joined()
+    let html = post(0, content: label + " Body text")
+      .replacingOccurrences(of: "<div class=\"f14\" id=\"read_tpc\">", with: attachments + "<div class=\"f14\" id=\"read_tpc\">")
+    let value = try XCTUnwrap(parse(html).posts.first)
+    XCTAssertEqual(value.blocks.filter { $0.kind == .image }.count, 3)
+    let text = value.blocks.flatMap(\.runs).map(\.text).joined()
+    XCTAssertEqual(text.components(separatedBy: label).count - 1, 1)
+    for index in 1...3 { XCTAssertTrue(text.contains("Caption \(index)")) }
+    XCTAssertTrue(text.contains(label + " Body text"))
+  }
+  func testAttachmentLikeTextInAuthorBodyAndOtherFilesIsPreserved() throws {
+    let label = "\u{56fe}\u{7247}:"
+    let body = "<div id='att_1'>\(label)<br><img src='/attachment/Mon_2609/inline.jpeg'></div>"
+    let download = "<div id='att_2'>\(label)<br><a href='/attachment/file.zip'>Download file</a></div>"
+    let html = post(0, content: body)
+      .replacingOccurrences(of: "<div class=\"f14\" id=\"read_tpc\">", with: download + "<div class=\"f14\" id=\"read_tpc\">")
+    let text = try parse(html).posts.flatMap(\.blocks).flatMap(\.runs).map(\.text).joined()
+    XCTAssertEqual(text.components(separatedBy: label).count - 1, 2)
+    XCTAssertTrue(text.contains("Download file"))
+  }
 }

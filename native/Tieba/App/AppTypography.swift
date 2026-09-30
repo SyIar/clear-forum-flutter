@@ -4,24 +4,9 @@ import CoreText
 
 enum AppTypography {
   @MainActor static func uiFont(_ style: UIFont.TextStyle, bold: Bool = false) -> UIFont {
-    let traits = UITraitCollection(preferredContentSizeCategory: .large)
-    let size = UIFont.preferredFont(forTextStyle: style, compatibleWith: traits).pointSize
-    let base = MixedScriptFont.font(size: size, bold: bold) as UIFont
-    return UIFontMetrics(forTextStyle: style).scaledFont(for: base)
-  }
-
-  @MainActor static func configureNavigation() {
-    // Keep the system glass appearances; only text attributes change.
-    UINavigationBar.appearance().titleTextAttributes = [.font: uiFont(.headline, bold: true)]
-    UINavigationBar.appearance().largeTitleTextAttributes = [.font: uiFont(.largeTitle, bold: true)]
-    for state in [UIControl.State.normal, .highlighted, .disabled] {
-      UIBarButtonItem.appearance().setTitleTextAttributes([.font: uiFont(.body)], for: state)
-    }
-    for state in [UIControl.State.normal, .selected, .disabled] {
-      UITabBarItem.appearance().setTitleTextAttributes([.font: uiFont(.caption2)], for: state)
-      UISegmentedControl.appearance().setTitleTextAttributes([.font: uiFont(.subheadline, bold: state == .selected)], for: state)
-    }
-    UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).font = uiFont(.body)
+    let font = UIFont.preferredFont(forTextStyle: style)
+    guard bold, let descriptor = font.fontDescriptor.withSymbolicTraits(.traitBold) else { return font }
+    return UIFont(descriptor: descriptor, size: 0)
   }
 
   static func size(_ style: Font.TextStyle) -> CGFloat {
@@ -45,17 +30,25 @@ private struct TiebaFont: ViewModifier {
   @EnvironmentObject private var settings: Preferences
   @ScaledMetric private var size: CGFloat
   private let bold: Bool
-  init(_ style: Font.TextStyle, weight: Font.Weight?, baseSize: CGFloat?) {
+  private let contentFont: Bool
+  private let weight: Font.Weight
+  init(_ style: Font.TextStyle, weight: Font.Weight?, baseSize: CGFloat?, contentFont: Bool) {
     _size = ScaledMetric(wrappedValue: baseSize ?? AppTypography.size(style), relativeTo: style)
     bold = weight.map { $0 == .semibold || $0 == .bold || $0 == .heavy || $0 == .black } ?? (style == .headline)
+    self.weight = weight ?? (style == .headline ? .semibold : .regular)
+    self.contentFont = contentFont
   }
   func body(content: Content) -> some View {
-    content.font(Font(MixedScriptFont.font(size: size * settings.fontScale, bold: bold)))
+    content.font(contentFont ? Font(MixedScriptFont.font(size: size * settings.fontScale, bold: bold)) :
+      .system(size: size * settings.fontScale, weight: weight))
   }
 }
 
 extension View {
   func tiebaFont(_ style: Font.TextStyle, weight: Font.Weight? = nil, baseSize: CGFloat? = nil) -> some View {
-    modifier(TiebaFont(style, weight: weight, baseSize: baseSize))
+    modifier(TiebaFont(style, weight: weight, baseSize: baseSize, contentFont: true))
+  }
+  func appFont(_ style: Font.TextStyle, weight: Font.Weight? = nil, baseSize: CGFloat? = nil) -> some View {
+    modifier(TiebaFont(style, weight: weight, baseSize: baseSize, contentFont: false))
   }
 }

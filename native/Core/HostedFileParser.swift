@@ -113,7 +113,8 @@ enum HostedFileParser {
 
   static func filesterDownload(_ data: Data, entry: HostedFileEntry, download: Bool = true) throws -> HostedFileRequest {
     guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let file = json["file"] as? String, HostedFilePolicy.validID(file),
+          json["success"] as? Bool != false,
+          let file = json["file"] as? String, HostedFilePolicy.filesterFile(file),
           let token = json["token"] as? String, !token.isEmpty, token.utf8.count <= 8192,
           let base = URL(string: (json["server"] as? String) ?? "https://cn1.filester.me"),
           HostedFilePolicy.filesterServer(base) else { throw HostedFileFailure.format }

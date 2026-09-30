@@ -24,6 +24,7 @@ final class ReaderScrollTracking {
   var trigger = ReaderEdgeTrigger()
   var peakTopPull = 0
   var peakBottomPull = 0
+  var visiblePostIDs: Set<String> = []
   func record(_ value: ReaderEdgePull, interacting: Bool) {
     pull = value
     if interacting {
@@ -49,8 +50,8 @@ struct ReaderEdgeIndicator: View {
         .accessibilityLabel(edge == .previous ? AppText.text("Loading previous page") : AppText.text("Loading next page"))
     } else if let failure, failure.edge == edge {
       HStack(spacing: 8) {
-        Text(failure.message).forumFont(.caption).lineLimit(3)
-        Button(AppText.text("Retry"), action: retry).forumFont(.caption, weight: .bold)
+        Text(failure.message).appFont(.caption).lineLimit(3)
+        Button(AppText.text("Retry"), action: retry).appFont(.caption, weight: .bold)
       }.padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
     }

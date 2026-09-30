@@ -131,12 +131,12 @@ struct HostedBatchRow: View {
   var body: some View {
     NavigationLink { HostedBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
-        Label(batch.listing.title, systemImage: "folder").forumFont(.headline).lineLimit(2)
-        Text(AppText.format("%@ · %@ saved · %@ pending", String(describing: batch.provider), String(describing: batch.saved.count), String(describing: batch.pending))).forumFont(.caption).foregroundStyle(.secondary)
+        Label(batch.listing.title, systemImage: "folder").appFont(.headline).lineLimit(2)
+        Text(AppText.format("%@ · %@ saved · %@ pending", String(describing: batch.provider), String(describing: batch.saved.count), String(describing: batch.pending))).appFont(.caption).foregroundStyle(.secondary)
         if batch.running {
           if let progress = batch.progress { ProgressView(value: progress) } else { ProgressView() }
-          Text(batch.current).forumFont(.caption).lineLimit(1).foregroundStyle(.secondary)
-        } else { Text(batch.status).forumFont(.caption).foregroundStyle(.secondary) }
+          Text(batch.current).appFont(.caption).lineLimit(1).foregroundStyle(.secondary)
+        } else { Text(batch.status).appFont(.caption).foregroundStyle(.secondary) }
       }.padding(.vertical, 4)
     }.swipeActions {
       if batch.finished { Button(AppText.text("Remove from list"), systemImage: "xmark") { HostedDownloadManager.shared.remove(batch) } }
@@ -152,13 +152,13 @@ struct HostedBatchView: View {
   var body: some View {
     List {
       Section {
-        Text(batch.listing.title).forumFont(.headline)
-        Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.saved.count), String(describing: batch.skipped.count), String(describing: batch.pending))).forumFont(.subheadline).foregroundStyle(.secondary)
-        if !batch.current.isEmpty { Text(batch.current).forumFont(.subheadline).lineLimit(3) }
+        Text(batch.listing.title).appFont(.headline)
+        Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.saved.count), String(describing: batch.skipped.count), String(describing: batch.pending))).appFont(.subheadline).foregroundStyle(.secondary)
+        if !batch.current.isEmpty { Text(batch.current).appFont(.subheadline).lineLimit(3) }
         if batch.running {
           if let progress = batch.progress {
             ProgressView(value: progress)
-            Text("\(Int(progress * 100))%").forumFont(.caption).monospacedDigit()
+            Text("\(Int(progress * 100))%").appFont(.caption).monospacedDigit()
           } else { ProgressView() }
           Button(AppText.text("Pause"), systemImage: "pause", action: batch.pause)
         } else {
@@ -166,7 +166,7 @@ struct HostedBatchView: View {
           if batch.phase == .paused {
             TimelineView(.periodic(from: .now, by: 1)) { context in
               if let date = batch.retryAfter, date > context.date {
-                Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).forumFont(.caption).monospacedDigit()
+                Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).appFont(.caption).monospacedDigit()
               } else { Button(AppText.text("Continue"), systemImage: "play", action: batch.resume).disabled(!batch.canResume) }
             }
             Button(AppText.text("Skip this item"), systemImage: "forward.end", action: batch.skip).disabled(batch.pending == 0)
@@ -176,7 +176,7 @@ struct HostedBatchView: View {
       }
       if let directory = batch.directory {
         Section {
-          Label(AppText.text("Files → On My iPhone → Forum Lite → File Downloads"), systemImage: "folder").forumFont(.caption)
+          Label(AppText.text("Files → On My iPhone → Forum Lite → File Downloads"), systemImage: "folder").appFont(.caption)
           Button(AppText.text("Export folder"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }.disabled(batch.running)
         }
       }
@@ -193,8 +193,8 @@ struct HostedBatchView: View {
         Section(AppText.text("Skipped items")) {
           ForEach(batch.skipped) { item in
             VStack(alignment: .leading, spacing: 4) {
-              Text(item.name).forumFont(.subheadline)
-              Text(item.reason).forumFont(.caption).foregroundStyle(.secondary)
+              Text(item.name).appFont(.subheadline)
+              Text(item.reason).appFont(.caption).foregroundStyle(.secondary)
             }
           }
         }

@@ -78,7 +78,8 @@ final class HostedFileClient {
     case .filester:
       let data = try await metadata(URL(string: "/v2/api/public/" + (download ? "download" : "view"), relativeTo: entry.pageURL)!.absoluteURL, provider: provider,
                                     body: ["file_slug": entry.pageURL.lastPathComponent], referer: entry.pageURL)
-      return try HostedFileParser.filesterDownload(data, entry: entry, download: download)
+      do { return try HostedFileParser.filesterDownload(data, entry: entry, download: download) }
+      catch { throw HostedFileFailure.downloadLink }
     case .bunkr:
       var item = entry
       if item.remoteID == nil {

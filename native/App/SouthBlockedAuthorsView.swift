@@ -13,7 +13,7 @@ struct SouthBlockedAuthorsView: View {
           HStack {
             VStack(alignment: .leading, spacing: 4) {
               Text(library.document.blockedAuthors[id] ?? AppText.text("Member")).forumFont(.headline)
-              Text(AppText.format("UID %@", String(describing: id))).forumFont(.caption).foregroundStyle(.secondary)
+              Text(AppText.format("UID %@", String(describing: id))).appFont(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             Button(AppText.text("Unblock")) { library.change { $0.unblockAuthor(id) } }.buttonStyle(.bordered)

@@ -105,7 +105,7 @@ struct BookhouseReaderView: View {
         ToolbarItemGroup(placement: .bottomBar) {
           Button(AppText.text("Previous page"), systemImage: "chevron.left") { if let target = page?.previous { startLoad(target) } }
             .disabled(loading || page?.previous == nil)
-          Text(AppText.format("Page %@", String(page?.pageNumber ?? 1))).forumFont(.subheadline).monospacedDigit()
+          Text(AppText.format("Page %@", String(page?.pageNumber ?? 1))).appFont(.subheadline).monospacedDigit()
           Button(AppText.text("Next page"), systemImage: "chevron.right") { if let target = page?.next { startLoad(target) } }
             .disabled(loading || page?.next == nil)
         }
@@ -125,7 +125,7 @@ struct BookhouseReaderView: View {
     if !featured.isEmpty {
       DisclosureGroup(AppText.text("Featured novels")) {
         ForEach(featured) { entry in ForumEntryCard(entry: entry, isForum: false, navigate: open, formatBookhouseTitle: true).id(entry.id) }
-      }.forumFont(.subheadline).padding(14)
+      }.appFont(.subheadline).padding(14)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
     }
     ForEach(page.entries.filter { !$0.pinned }) { entry in
@@ -142,9 +142,9 @@ struct BookhouseReaderView: View {
   @ViewBuilder private func novel(_ page: ForumPage) -> some View {
     if let post = page.posts.first {
       HStack(spacing: 12) {
-        if !post.author.isEmpty { Label(post.author, systemImage: "person") }
+        if !post.author.isEmpty { Label(post.author, systemImage: "person").forumFont(.caption) }
         Text(post.date)
-      }.forumFont(.caption).foregroundStyle(.secondary)
+      }.appFont(.caption).foregroundStyle(.secondary)
       Divider().padding(.bottom, 6)
       ForEach(Array(post.blocks.enumerated()), id: \.offset) { index, block in
         RichBodyView(blocks: [block], posters: posters, navigate: open,
@@ -154,14 +154,14 @@ struct BookhouseReaderView: View {
       }
       Divider().padding(.top, 16)
       VStack(alignment: .leading, spacing: 12) {
-        Text(AppText.text("Replies and continuations")).forumFont(.headline)
+        Text(AppText.text("Replies and continuations")).appFont(.headline)
         if !repliesLoaded {
           Button(AppText.text("Show replies and continuations")) { operation = Task { await loadReplies() } }
             .buttonStyle(.glass).disabled(repliesLoading || loading)
           if repliesLoading { ProgressView() }
-          if let repliesError { Text(repliesError).forumFont(.caption).foregroundStyle(.secondary) }
+          if let repliesError { Text(repliesError).appFont(.caption).foregroundStyle(.secondary) }
         } else if page.entries.isEmpty {
-          Text(AppText.text("No replies yet")).forumFont(.subheadline).foregroundStyle(.secondary)
+          Text(AppText.text("No replies yet")).appFont(.subheadline).foregroundStyle(.secondary)
         }
       }.id("replies")
       ForEach(page.entries) { entry in ForumEntryCard(entry: entry, isForum: false, navigate: open).id(entry.id) }
