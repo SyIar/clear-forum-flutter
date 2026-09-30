@@ -21,8 +21,8 @@ struct InfoButton: View {
   }
   private var information: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(title).font(.headline)
-      Text(message).font(.subheadline).foregroundStyle(.secondary)
+      Text(title).font(.forum(.headline))
+      Text(message).font(.forum(.subheadline)).foregroundStyle(.secondary)
     }.textCase(nil).padding(20).fixedSize(horizontal: false, vertical: true)
   }
 }

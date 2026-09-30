@@ -49,7 +49,7 @@ struct DownloadsView: View {
     NavigationStack {
       List {
         if let message = manager.storageError {
-          Section { Label(message, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary) }
+          Section { Label(message, systemImage: "exclamationmark.triangle").font(.forum(.subheadline)).foregroundStyle(.secondary) }
         }
         if manager.items.isEmpty && gofile.items.isEmpty && hosted.items.isEmpty {
           ContentUnavailableView("No downloads", systemImage: "arrow.down.to.line")
@@ -93,20 +93,20 @@ private struct VideoDownloadRow: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack {
         Image(systemName: download.phase == .saved ? "checkmark.circle.fill" : "video").foregroundStyle(.blue)
-        Text("Video").font(.headline)
+        Text("Video").font(.forum(.headline))
         Spacer()
-        Text(download.created, format: .dateTime.month().day().hour().minute().second()).font(.caption).foregroundStyle(.secondary)
+        Text(download.created, format: .dateTime.month().day().hour().minute().second()).font(.forum(.caption)).foregroundStyle(.secondary)
       }
       if download.phase == .paused {
         HStack {
-          Text("Paused").font(.subheadline).foregroundStyle(.secondary)
+          Text("Paused").font(.forum(.subheadline)).foregroundStyle(.secondary)
           Spacer()
           if !download.message.isEmpty && download.message != "Paused" {
             InfoButton(title: "Resume download", message: download.message)
           }
         }
       } else {
-        Text(download.message).font(.subheadline).foregroundStyle(download.phase == .failed ? .red : .secondary)
+        Text(download.message).font(.forum(.subheadline)).foregroundStyle(download.phase == .failed ? .red : .secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
       if download.busy || download.phase == .paused || download.phase == .failed {
@@ -116,7 +116,7 @@ private struct VideoDownloadRow: View {
             Text(bytes)
             Spacer()
             Text("\(Int(progress * 100))%").monospacedDigit()
-          }.font(.caption).foregroundStyle(.secondary)
+          }.font(.forum(.caption)).foregroundStyle(.secondary)
         } else if download.busy { ProgressView() }
         HStack(spacing: 12) {
           if download.canPause { Button("Pause", systemImage: "pause") { download.pause() } }
@@ -125,10 +125,10 @@ private struct VideoDownloadRow: View {
         }.buttonStyle(.glass).labelStyle(.iconOnly)
       }
       if let file = download.exportFile {
-        Button("Save to Files", systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: file) }.font(.subheadline)
+        Button("Save to Files", systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: file) }.font(.forum(.subheadline))
       }
       if download.phase == .failed, let context = download.context {
-        Button("Reopen video", systemImage: "play.rectangle") { reopen = .video(download.source, context.direct, context.referer) }.font(.subheadline)
+        Button("Reopen video", systemImage: "play.rectangle") { reopen = .video(download.source, context.direct, context.referer) }.font(.forum(.subheadline))
       }
     }.padding(.vertical, 6)
       .swipeActions { if !download.busy { Button("Remove", role: .destructive) { manager.remove(download) } } }

@@ -12,8 +12,8 @@ struct SouthBlockedAuthorsView: View {
         ForEach(library.document.blockedAuthors.keys.sorted(), id: \.self) { id in
           HStack {
             VStack(alignment: .leading, spacing: 4) {
-              Text(library.document.blockedAuthors[id] ?? "Member").font(.headline)
-              Text("UID \(id)").font(.caption).foregroundStyle(.secondary)
+              Text(library.document.blockedAuthors[id] ?? "Member").font(.forum(.headline))
+              Text("UID \(id)").font(.forum(.caption)).foregroundStyle(.secondary)
             }
             Spacer()
             Button("Unblock") { library.change { $0.unblockAuthor(id) } }.buttonStyle(.bordered)

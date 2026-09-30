@@ -131,12 +131,12 @@ struct HostedBatchRow: View {
   var body: some View {
     NavigationLink { HostedBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
-        Label(batch.listing.title, systemImage: "folder").font(.headline).lineLimit(2)
-        Text("\(batch.provider) · \(batch.saved.count) saved · \(batch.pending) pending").font(.caption).foregroundStyle(.secondary)
+        Label(batch.listing.title, systemImage: "folder").font(.forum(.headline)).lineLimit(2)
+        Text("\(batch.provider) · \(batch.saved.count) saved · \(batch.pending) pending").font(.forum(.caption)).foregroundStyle(.secondary)
         if batch.running {
           if let progress = batch.progress { ProgressView(value: progress) } else { ProgressView() }
-          Text(batch.current).font(.caption).lineLimit(1).foregroundStyle(.secondary)
-        } else { Text(batch.status).font(.caption).foregroundStyle(.secondary) }
+          Text(batch.current).font(.forum(.caption)).lineLimit(1).foregroundStyle(.secondary)
+        } else { Text(batch.status).font(.forum(.caption)).foregroundStyle(.secondary) }
       }.padding(.vertical, 4)
     }.swipeActions {
       if batch.finished { Button("Remove from list", systemImage: "xmark") { HostedDownloadManager.shared.remove(batch) } }
@@ -152,13 +152,13 @@ struct HostedBatchView: View {
   var body: some View {
     List {
       Section {
-        Text(batch.listing.title).font(.headline)
-        Text("\(batch.saved.count) saved · \(batch.skipped.count) skipped · \(batch.pending) pending").font(.subheadline).foregroundStyle(.secondary)
-        if !batch.current.isEmpty { Text(batch.current).font(.subheadline).lineLimit(3) }
+        Text(batch.listing.title).font(.forum(.headline))
+        Text("\(batch.saved.count) saved · \(batch.skipped.count) skipped · \(batch.pending) pending").font(.forum(.subheadline)).foregroundStyle(.secondary)
+        if !batch.current.isEmpty { Text(batch.current).font(.forum(.subheadline)).lineLimit(3) }
         if batch.running {
           if let progress = batch.progress {
             ProgressView(value: progress)
-            Text("\(Int(progress * 100))%").font(.caption).monospacedDigit()
+            Text("\(Int(progress * 100))%").font(.forum(.caption)).monospacedDigit()
           } else { ProgressView() }
           Button("Pause", systemImage: "pause", action: batch.pause)
         } else {
@@ -166,7 +166,7 @@ struct HostedBatchView: View {
           if batch.phase == .paused {
             TimelineView(.periodic(from: .now, by: 1)) { context in
               if let date = batch.retryAfter, date > context.date {
-                Text("Try again in \(Int(ceil(date.timeIntervalSince(context.date))))s").font(.caption).monospacedDigit()
+                Text("Try again in \(Int(ceil(date.timeIntervalSince(context.date))))s").font(.forum(.caption)).monospacedDigit()
               } else { Button("Continue", systemImage: "play", action: batch.resume).disabled(!batch.canResume) }
             }
             Button("Skip this item", systemImage: "forward.end", action: batch.skip).disabled(batch.pending == 0)
@@ -176,7 +176,7 @@ struct HostedBatchView: View {
       }
       if let directory = batch.directory {
         Section {
-          Label("Files → On My iPhone → Forum Lite → File Downloads", systemImage: "folder").font(.caption)
+          Label("Files → On My iPhone → Forum Lite → File Downloads", systemImage: "folder").font(.forum(.caption))
           Button("Export folder", systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }.disabled(batch.running)
         }
       }
@@ -193,8 +193,8 @@ struct HostedBatchView: View {
         Section("Skipped items") {
           ForEach(batch.skipped) { item in
             VStack(alignment: .leading, spacing: 4) {
-              Text(item.name).font(.subheadline)
-              Text(item.reason).font(.caption).foregroundStyle(.secondary)
+              Text(item.name).font(.forum(.subheadline))
+              Text(item.reason).font(.forum(.caption)).foregroundStyle(.secondary)
             }
           }
         }

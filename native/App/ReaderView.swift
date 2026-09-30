@@ -82,14 +82,14 @@ struct ReaderView: View {
                   ForEach(Array(page.breadcrumbs.enumerated()), id: \.offset) { index, entry in
                     if index > 0 { Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
                     Button(entry.title) { navigate(entry.url) }
-                      .font(.caption.weight(.medium)).buttonStyle(.plain).foregroundStyle(.blue)
+                      .font(.forum(.caption, weight: .medium)).buttonStyle(.plain).foregroundStyle(.blue)
                       .padding(.horizontal, 6).frame(minHeight: 36)
                   }
                 }
               }.scrollIndicators(.hidden).accessibilityLabel("Forum navigation")
             }
             if !page.tags.isEmpty { ForumTagStrip(tags: page.tags, navigate: navigate) }
-            Text(page.title).font(.title2.bold()).padding(.horizontal, 4)
+            Text(page.title).font(.forum(.title2, weight: .bold)).padding(.horizontal, 4)
             if page.kind == .posts {
               if let poll = visible.poll {
                 SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
@@ -148,7 +148,7 @@ struct ReaderView: View {
         ToolbarItemGroup(placement: .bottomBar) {
           Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
-            Text("Page \(page?.pageNumber ?? 1)").font(.subheadline.weight(.semibold)).monospacedDigit()
+            Text("Page \(page?.pageNumber ?? 1)").font(.forum(.subheadline, weight: .semibold)).monospacedDigit()
           }.disabled(page == nil || loading || purchasing).accessibilityLabel("Choose page")
           Button("Next page", systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }

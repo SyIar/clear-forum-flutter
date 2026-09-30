@@ -20,6 +20,15 @@ assert not any(p.name in {'Flutter.framework', 'App.framework', 'flutter_assets'
 assert (app / 'MediaProbe.js').is_file(), 'Missing media compatibility script'
 assert (app / 'Assets.car').is_file(), 'Missing app assets'
 assert (app / 'ThirdPartyNotices.txt').is_file(), 'Missing dependency notice'
+fonts = ['SourceHanSerifSC-Regular.otf', 'SourceHanSerifSC-Bold.otf']
+assert sorted(info.get('UIAppFonts', [])) == sorted(fonts), 'Missing bundled font registration'
+for name in fonts:
+    source = Path('native/Resources/Fonts') / name
+    bundled = app / name
+    assert source.read_bytes()[:4] == b'OTTO', f'Expected an OTF font: {name}'
+    assert bundled.is_file(), f'Missing bundled font: {name}'
+    assert hashlib.sha256(source.read_bytes()).digest() == hashlib.sha256(bundled.read_bytes()).digest(), f'Font changed during packaging: {name}'
+assert (app / 'SourceHanSerif-LICENSE.txt').is_file(), 'Missing bundled font license'
 assert info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon'), 'Missing primary icon'
 output = Path('artifacts/native')
 output.mkdir(parents=True, exist_ok=True)

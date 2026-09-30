@@ -41,15 +41,15 @@ struct GofileBatchRow: View {
   var body: some View {
     NavigationLink { GofileBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
-        Label(batch.title, systemImage: "folder").font(.headline).lineLimit(2)
+        Label(batch.title, systemImage: "folder").font(.forum(.headline)).lineLimit(2)
         Text("\(batch.completed) saved · \(batch.skipped.count) skipped · \(batch.pending) pending")
-          .font(.caption).foregroundStyle(.secondary)
+          .font(.forum(.caption)).foregroundStyle(.secondary)
         if batch.running {
           if let progress = batch.progress { ProgressView(value: progress) }
           else { ProgressView() }
-          Text(batch.current).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          Text(batch.current).font(.forum(.caption)).foregroundStyle(.secondary).lineLimit(1)
         } else {
-          Text(status).font(.caption).foregroundStyle(.secondary)
+          Text(status).font(.forum(.caption)).foregroundStyle(.secondary)
         }
       }.padding(.vertical, 4)
     }.swipeActions {

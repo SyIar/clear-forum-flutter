@@ -13,7 +13,7 @@ struct EmoticonText: View {
     return runs.compactMap(\.emoticon).filter { seen.insert($0).inserted }
   }
   var body: some View {
-    paragraph.font(.body).lineSpacing(2).textSelection(.enabled)
+    paragraph.font(.forum(.body)).lineSpacing(2).textSelection(.enabled)
       .fixedSize(horizontal: false, vertical: true)
       .task(id: sources) {
         for source in sources where images[source] == nil {
@@ -32,13 +32,7 @@ struct EmoticonText: View {
         // A small text fallback never reserves a full photo-sized loading area.
         part = Text(Image(systemName: "face.smiling")).foregroundColor(.secondary)
       } else {
-        var value = AttributedString(run.text)
-        var intents: InlinePresentationIntent = []
-        if run.bold { intents.insert(.stronglyEmphasized) }
-        if run.italic { intents.insert(.emphasized) }
-        value.inlinePresentationIntent = intents
-        if let url = run.url { value.link = url; value.foregroundColor = .blue }
-        part = Text(value)
+        part = Text(AppTypography.richText(run))
       }
       return Text("\(result)\(part)")
     }

@@ -11,6 +11,7 @@ struct ForumLiteApp: App {
   @StateObject private var simpSession = ForumSession(site: .simp)
   @StateObject private var southSession = ForumSession(site: .south)
   @State private var path: [ForumDestination] = []
+  init() { AppTypography.configureNavigation() }
   var body: some Scene {
     WindowGroup {
       NavigationStack(path: $path) {
@@ -43,6 +44,7 @@ struct ForumLiteApp: App {
           if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
           else if value == .active { downloads.foregrounded() }
         }
+        .font(.forum(.body))
     }
   }
 }
@@ -78,7 +80,7 @@ struct ForumSelectionView: View {
           NavigationLink(value: ForumDestination.home(site)) {
             VStack(spacing: 17) {
               ForumLogo(site: site)
-              Text(site.host).font(.caption).foregroundStyle(.secondary)
+              Text(site.host).font(.forum(.caption)).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 18)
             .frame(maxWidth: .infinity, minHeight: 182)
@@ -341,7 +343,7 @@ struct HomeView: View {
           SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
         }
         if let message = library.refreshMessage {
-          Section { Text(message).font(.caption).foregroundStyle(.secondary) }
+          Section { Text(message).font(.forum(.caption)).foregroundStyle(.secondary) }
         }
       }
       .navigationTitle(session.site.host)
@@ -421,20 +423,20 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 8) {
               Text(entry.title).lineLimit(2).foregroundStyle(.primary)
               if state?.updated == true {
-                Text("Updated").font(.caption2.weight(.semibold)).foregroundStyle(.blue)
+                Text("Updated").font(.forum(.caption2, weight: .semibold)).foregroundStyle(.blue)
                   .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.12), in: Capsule())
                   .fixedSize()
               }
             }
             if let subtitle = library.document.subtitle(for: entry), !subtitle.isEmpty {
-              Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+              Text(subtitle).font(.forum(.caption)).foregroundStyle(.secondary).lineLimit(1)
             }
             if let state {
               if let seen = state.seenMaximum {
                 Text(state.updated ? "#\(seen) → #\(state.latestMaximum ?? seen)" : "Seen #\(seen)")
-                  .font(.caption).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
+                  .font(.forum(.caption)).monospacedDigit().foregroundStyle(state.updated ? .blue : .secondary)
               } else if let latest = state.latestMaximum {
-                Text("#\(latest)").font(.caption).foregroundStyle(.secondary)
+                Text("#\(latest)").font(.forum(.caption)).foregroundStyle(.secondary)
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)

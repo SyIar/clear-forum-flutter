@@ -15,7 +15,7 @@ South's parser is a compatibility preview tested against synthetic fixtures. Liv
 - Forum and thread lists, compact pinned notices, paged posts, quotes and spoilers.
 - A local bookmark library, an add-URL action, and the ten most recently read forums or threads.
 - Thread history keeps the latest visited page. Bookmarks preserve the exact page URL and post fragment.
-- System light/dark appearance, system font, compact layout and a translucent page bar.
+- System light/dark appearance, bundled Source Han Serif text with Dynamic Type, compact layout and a translucent page bar.
 - On-device WebKit session. No credentials in source control, analytics or a remote proxy.
 - GET-only HTML requests restricted to known read routes on the configured origin.
 - A visible browser fallback with a user-triggered **Read page** action.
@@ -48,6 +48,11 @@ Provider details were checked against [Pixeldrain's API](https://pixeldrain.com/
 The sample mode is clearly marked and contains only invented, non-account content. A successful build is not evidence that a real account session works on a phone.
 
 ## Run and build
+
+Font resources live in [native/Resources/Fonts](native/Resources/Fonts/README.md).
+Large binary asset uploads are handled by the repository owner: prepare the
+folder and source links, then sync and validate the uploaded assets. The native
+app uses the bundled Regular and Bold faces without downloading fonts at runtime.
 
 Use Xcode 26 or newer on macOS. Run `swift test --package-path native`, generate the project with `xcodegen generate --spec native/project.yml`, then build the `ForumLite` scheme. The `ios-native.yml` workflow builds and validates an unsigned device IPA. See [native migration](docs/SWIFT_MIGRATION.md) for the delivered build and device acceptance status.
 

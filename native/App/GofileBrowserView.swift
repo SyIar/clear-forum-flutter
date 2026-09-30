@@ -25,7 +25,7 @@ struct GofileBrowserView: View {
         }
       } else if let error = session.error {
         Section {
-          Label(error, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary)
+          Label(error, systemImage: "exclamationmark.triangle").font(.forum(.subheadline)).foregroundStyle(.secondary)
           Button("Open website", systemImage: "globe") { session.showWebsite() }
         }
       }
@@ -104,11 +104,11 @@ struct GofileBrowserView: View {
     HStack(spacing: 12) {
       GofileThumbnail(entry: entry, session: session)
       VStack(alignment: .leading, spacing: 4) {
-        Text(entry.name).font(.subheadline).lineLimit(2).foregroundStyle(.primary)
+        Text(entry.name).font(.forum(.subheadline)).lineLimit(2).foregroundStyle(.primary)
         Text(entry.folder ? "Folder" : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Size unknown")
-          .font(.caption).foregroundStyle(.secondary)
-        if entry.unavailable { Text("Unavailable on Gofile").font(.caption2).foregroundStyle(.secondary) }
-        if let error = session.downloads[entry.id]?.error { Text(error).font(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+          .font(.forum(.caption)).foregroundStyle(.secondary)
+        if entry.unavailable { Text("Unavailable on Gofile").font(.forum(.caption2)).foregroundStyle(.secondary) }
+        if let error = session.downloads[entry.id]?.error { Text(error).font(.forum(.caption2)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
       }.frame(maxWidth: .infinity, alignment: .leading)
     }.contentShape(Rectangle())
   }
@@ -193,7 +193,7 @@ struct GofileModalRoot: View {
       GofileBrowserView(url: url).toolbar {
         ToolbarItem(placement: .topBarLeading) { Button("Back", systemImage: "chevron.left", action: close) }
       }
-    }
+    }.font(.forum(.body))
   }
 }
 

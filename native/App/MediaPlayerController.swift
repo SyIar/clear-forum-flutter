@@ -206,16 +206,22 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     errorScroll.isHidden = true
     waitingView.addSubview(errorScroll)
     spinner.startAnimating()
-    messageLabel.font = .preferredFont(forTextStyle: .title2)
+    messageLabel.font = AppTypography.uiFont(.title2, bold: true)
     messageLabel.adjustsFontForContentSizeCategory = true
     messageLabel.numberOfLines = 0
     messageLabel.textAlignment = .center
-    hintLabel.font = .preferredFont(forTextStyle: .body)
+    hintLabel.font = AppTypography.uiFont(.body)
     hintLabel.adjustsFontForContentSizeCategory = true
     hintLabel.textColor = .secondaryLabel
     hintLabel.numberOfLines = 0
     hintLabel.textAlignment = .center
     webButton.configuration = .glass()
+    let browserFont = AppTypography.uiFont(.body)
+    webButton.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var attributes = attributes
+      attributes.font = browserFont
+      return attributes
+    }
     webButton.setTitle("Open in browser", for: .normal)
     webButton.addTarget(self, action: #selector(openInBrowser), for: .touchUpInside)
     let stack = UIStackView(arrangedSubviews: [messageLabel, hintLabel, webButton])

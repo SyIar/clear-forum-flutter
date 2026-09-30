@@ -8,10 +8,10 @@ struct SouthPollCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack {
-        Label("Poll", systemImage: "chart.bar.xaxis").font(.headline)
+        Label("Poll", systemImage: "chart.bar.xaxis").font(.forum(.headline))
         Spacer(minLength: 8)
         if let count = poll.participants {
-          Text("\(count.formatted()) participants").font(.caption).foregroundStyle(.secondary)
+          Text("\(count.formatted()) participants").font(.forum(.caption)).foregroundStyle(.secondary)
         }
         if !information.isEmpty { InfoButton(title: "Poll", message: information) }
       }
@@ -19,12 +19,12 @@ struct SouthPollCard: View {
         ForEach(poll.options) { option in
           VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-              Text("\(option.id + 1)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+              Text("\(option.id + 1)").font(.forum(.caption).monospacedDigit()).foregroundStyle(.secondary)
                 .frame(minWidth: 14)
-              Text(option.title).font(.subheadline).foregroundStyle(.primary).frame(maxWidth: .infinity, alignment: .leading)
+              Text(option.title).font(.forum(.subheadline)).foregroundStyle(.primary).frame(maxWidth: .infinity, alignment: .leading)
               if option.selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.blue).accessibilityLabel("Selected on website") }
               if let votes = option.votes {
-                Text("\(votes.formatted()) votes").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text("\(votes.formatted()) votes").font(.forum(.caption).monospacedDigit()).foregroundStyle(.secondary)
               } else {
                 Image(systemName: "eye.slash").font(.caption).foregroundStyle(.tertiary).accessibilityLabel("Votes hidden")
               }
@@ -40,11 +40,11 @@ struct SouthPollCard: View {
         VStack(alignment: .leading, spacing: 4) {
           if let start = poll.startsAt { Text("Started \(start)") }
           if let end = poll.endsAt { Text("Ends \(end)") }
-        }.font(.caption).foregroundStyle(.secondary)
+        }.font(.forum(.caption)).foregroundStyle(.secondary)
       }
       Button(action: openBrowser) {
         Label(poll.canVote ? "Vote" : "View poll", systemImage: "globe")
-          .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity).padding(.vertical, 4)
+          .font(.forum(.subheadline, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 4)
       }.buttonStyle(.glass).disabled(busy)
     }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .accessibilityElement(children: .contain)

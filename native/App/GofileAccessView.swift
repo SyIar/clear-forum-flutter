@@ -9,8 +9,8 @@ struct GofileAccessView: View {
   @State private var password = ""
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label(failure.title, systemImage: failure.symbol).font(.headline)
-      Text(failure.localizedDescription).font(.subheadline).foregroundStyle(.secondary)
+      Label(failure.title, systemImage: failure.symbol).font(.forum(.headline))
+      Text(failure.localizedDescription).font(.forum(.subheadline)).foregroundStyle(.secondary)
       if failure.needsPassword {
         SecureField("Password", text: $password).textContentType(.password)
           .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -24,13 +24,13 @@ struct GofileAccessView: View {
       } else if let date = failure.retryDate {
         TimelineView(.periodic(from: .now, by: 1)) { context in
           if context.date < date {
-            Text("Try again in \(Int(ceil(date.timeIntervalSince(context.date))))s").font(.caption).monospacedDigit()
+            Text("Try again in \(Int(ceil(date.timeIntervalSince(context.date))))s").font(.forum(.caption)).monospacedDigit()
           } else { Button("Try again", systemImage: "arrow.clockwise", action: retry).disabled(busy) }
         }
       } else {
         Button("Try again", systemImage: "arrow.clockwise", action: retry).disabled(busy)
       }
-      Button("Open website", systemImage: "globe", action: website).font(.subheadline).disabled(busy)
+      Button("Open website", systemImage: "globe", action: website).font(.forum(.subheadline)).disabled(busy)
     }.padding(.vertical, 8)
   }
 }
@@ -44,21 +44,21 @@ struct GofileBatchView: View {
     List {
       Section {
         Label(title, systemImage: batch.phase == .finished ? "checkmark.circle" : "arrow.down.doc")
-          .font(.headline)
+          .font(.forum(.headline))
         Text("\(batch.completed) saved · \(batch.skipped.count) skipped · \(batch.pending) pending")
-          .font(.subheadline).foregroundStyle(.secondary)
-        if !batch.current.isEmpty { Text(batch.current).font(.subheadline).lineLimit(3) }
+          .font(.forum(.subheadline)).foregroundStyle(.secondary)
+        if !batch.current.isEmpty { Text(batch.current).font(.forum(.subheadline)).lineLimit(3) }
         if batch.running {
           if let progress = batch.progress {
             ProgressView(value: progress)
-            Text("\(Int(progress * 100))%").font(.caption).monospacedDigit()
+            Text("\(Int(progress * 100))%").font(.forum(.caption)).monospacedDigit()
           } else { ProgressView() }
           Button("Pause", systemImage: "pause", action: batch.pause)
         } else if batch.phase == .paused && batch.gate == nil {
-          if let issue = batch.issue { Text(issue).font(.subheadline).foregroundStyle(.secondary) }
+          if let issue = batch.issue { Text(issue).font(.forum(.subheadline)).foregroundStyle(.secondary) }
           Button("Continue", systemImage: "play", action: batch.resume).disabled(!batch.canResume)
         } else if batch.phase == .cancelled, let issue = batch.issue {
-          Text(issue).font(.subheadline).foregroundStyle(.secondary)
+          Text(issue).font(.forum(.subheadline)).foregroundStyle(.secondary)
         }
       }
       if let gate = batch.gate {
@@ -85,8 +85,8 @@ struct GofileBatchView: View {
         Section("Skipped items") {
           ForEach(batch.skipped) { item in
             VStack(alignment: .leading, spacing: 4) {
-              Text(item.path).font(.subheadline)
-              Text(item.reason).font(.caption).foregroundStyle(.secondary)
+              Text(item.path).font(.forum(.subheadline))
+              Text(item.reason).font(.forum(.caption)).foregroundStyle(.secondary)
             }
           }
         }
