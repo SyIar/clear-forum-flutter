@@ -41,3 +41,21 @@ wrappers, response-versus-parser image counts, and complete export markers.
 Existing parser, URL normalization, session isolation, and pagination tests also
 run in CI. No simulator is used; physical-device image display remains to be
 confirmed by the user.
+
+## Verified delivery
+
+- Version: 0.3.0, build 1052.
+- Source: `3f7c00a89623de090d17aa3cf5571e68380b9abd`.
+- CI: https://github.com/SyIar/clear-forum-flutter/actions/runs/36702493785
+- 304 Forum Core tests and 20 Tieba Core tests passed, followed by native iPhone
+  compilation and package verification. No simulator was used.
+- Downloaded archive integrity, source/build metadata, unsigned arm64 executable,
+  font/localization resources, and embedded Tieba framework/resources verified.
+- IPA: `D:/workspace/sideloadly-setup/ForumLite-0.3.0-1052-unsigned.ipa`.
+- Size: 51,649,756 bytes.
+- SHA-256: `ea87010d511cd4268b802619b3529abb17e07ddbe66bb5d3e80ef4e257da8bf0`.
+
+The three uploaded images in the supplied HTML were independently checked on the
+local machine to be outside `read_*` and inside attachment/content wrappers.
+Device acceptance: refresh the affected thread and confirm all three attachment
+images display; use the image-count diagnostics if any request still fails.
