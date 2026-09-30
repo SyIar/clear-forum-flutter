@@ -74,7 +74,7 @@ final class ForumSearchTests: XCTestCase {
     """
     let page = try SimpSearch.parseResult(source, url: resultURL, status: 200)
     XCTAssertEqual(page.entries.count, 2)
-    XCTAssertEqual(page.entries.map(\.url.path), ["/posts/101/", "/posts/102/"])
+    XCTAssertEqual(page.entries.map(\.url.absoluteString), ["https://simpcity.cr/posts/101/", "https://simpcity.cr/posts/102/"])
     XCTAssertEqual(page.entries.first?.title, "Example sample title")
     XCTAssertEqual(page.entries.first?.excerpt, "Matching sample text")
     XCTAssertEqual(page.entries.first?.thumbnail?.absoluteString, "https://images.example/cover.jpg")

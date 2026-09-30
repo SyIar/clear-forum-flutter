@@ -18,8 +18,11 @@ struct SavedPage: Codable, Identifiable, Equatable {
     title = try values.decode(String.self, forKey: .title)
     // Older libraries cannot distinguish an explicit label from a fetched one.
     // Preserve existing names; only known empty/path placeholders auto-update.
+    // Foundation URL.path may omit the trailing slash retained by older labels.
+    let alternatePath = url.path.hasSuffix("/") ? String(url.path.dropLast()) : url.path + "/"
+    let placeholders = [url.path, alternatePath, url.absoluteString]
     titleIsCustom = try values.decodeIfPresent(Bool.self, forKey: .titleIsCustom) ??
-      (!title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && title != url.path && title != url.absoluteString)
+      (!title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !placeholders.contains(title))
   }
 }
 struct ThreadPresentation: Codable, Equatable {
