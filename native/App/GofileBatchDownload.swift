@@ -103,6 +103,8 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
           let target = item.path.reduce(directory) { $0.appendingPathComponent($1, isDirectory: true) }
           try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
           try plan?.expand(listing)
+        } else if TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
+          skipped.append(Skipped(path: current, reason: "Use Copy magnet in the file list.")); plan?.advance()
         } else {
           let file = try await session.transfer(item.entry) { [weak self] value in self?.progress = value }
           defer { GofileFileTransfer.remove(file) }

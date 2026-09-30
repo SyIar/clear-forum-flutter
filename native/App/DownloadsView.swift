@@ -3,15 +3,16 @@ import SwiftUI
 struct FloatingDownloads: View {
   @ObservedObject var manager: VideoDownloadManager
   @ObservedObject var gofile: GofileDownloadManager
+  @ObservedObject var hosted: HostedDownloadManager
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  private var activeCount: Int { manager.active.count + gofile.active.count }
-  private var unfinishedCount: Int { manager.unfinished.count + gofile.unfinished.count }
+  private var activeCount: Int { manager.active.count + gofile.active.count + hosted.active.count }
+  private var unfinishedCount: Int { manager.unfinished.count + gofile.unfinished.count + hosted.unfinished.count }
   var body: some View {
-    if !manager.items.isEmpty || !gofile.items.isEmpty {
+    if !manager.items.isEmpty || !gofile.items.isEmpty || !hosted.items.isEmpty {
       Button { manager.showingManager = true } label: {
         ZStack {
           Circle().stroke(.primary.opacity(0.12), lineWidth: 2.5)
-          if gofile.active.isEmpty, let fraction = manager.progress, !manager.active.isEmpty {
+          if gofile.active.isEmpty, hosted.active.isEmpty, let fraction = manager.progress, !manager.active.isEmpty {
             Circle().trim(from: 0, to: fraction)
               .stroke(.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).rotationEffect(.degrees(-90))
               .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: fraction)
@@ -42,6 +43,7 @@ struct FloatingDownloads: View {
 struct DownloadsView: View {
   @ObservedObject var manager: VideoDownloadManager
   @ObservedObject var gofile: GofileDownloadManager
+  @ObservedObject var hosted: HostedDownloadManager
   @Environment(\.dismiss) private var dismiss
   var body: some View {
     NavigationStack {
@@ -49,7 +51,7 @@ struct DownloadsView: View {
         if let message = manager.storageError {
           Section { Label(message, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary) }
         }
-        if manager.items.isEmpty && gofile.items.isEmpty {
+        if manager.items.isEmpty && gofile.items.isEmpty && hosted.items.isEmpty {
           ContentUnavailableView("No downloads", systemImage: "arrow.down.to.line")
         }
         if !manager.items.isEmpty {
@@ -62,16 +64,19 @@ struct DownloadsView: View {
             ForEach(gofile.items.reversed()) { GofileBatchRow(batch: $0, manager: gofile) }
           }
         }
+        if !hosted.items.isEmpty {
+          Section("File hosts") { ForEach(hosted.items.reversed()) { HostedBatchRow(batch: $0) } }
+        }
       }.navigationTitle("Downloads").navigationBarTitleDisplayMode(.inline)
         .toolbar {
           ToolbarItem(placement: .topBarLeading) { Button("Close", systemImage: "xmark") { dismiss() } }
           ToolbarItemGroup(placement: .topBarTrailing) {
-            Button("Pause all", systemImage: "pause") { manager.pauseAll(); gofile.pauseAll() }
-              .disabled(!manager.items.contains(where: \.canPause) && gofile.active.isEmpty)
-            Button("Continue all", systemImage: "play") { manager.resumeAll(); gofile.resumeAll() }
-              .disabled(!manager.items.contains(where: \.canResume) && gofile.resumable.isEmpty)
+            Button("Pause all", systemImage: "pause") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
+              .disabled(!manager.items.contains(where: \.canPause) && gofile.active.isEmpty && hosted.active.isEmpty)
+            Button("Continue all", systemImage: "play") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
+              .disabled(!manager.items.contains(where: \.canResume) && gofile.resumable.isEmpty && hosted.resumable.isEmpty)
             InfoButton(title: "Downloads", message: DownloadHelp.overview)
-            Button("Clear", systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished() }
+            Button("Clear", systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
               .accessibilityLabel("Clear finished downloads")
           }
         }
@@ -140,9 +145,9 @@ enum DownloadHelp {
   static let overview = """
   Downloads continue while you browse the app. Switching apps or locking the screen pauses them.
 
-  Previously active videos resume when you return. Gofile batches need Continue; the current file restarts.
+  Previously active videos resume when you return. File-host batches need Continue; the current file restarts.
 
-  Videos save to Photos. Gofile files save to Files. Quitting the app clears unfinished Gofile queues, but keeps saved files.
+  Videos save to Photos. File-host batches save to Files. Quitting the app clears unfinished file-host queues, but keeps saved files.
   """
   static let gofile = """
   Downloads continue after you close this page. Reopen them from the floating download button.

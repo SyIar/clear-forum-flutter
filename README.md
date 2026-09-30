@@ -29,6 +29,16 @@ The iOS display name and generated icon are updated; the bundle identifier remai
 
 See [September fixes and device acceptance](docs/FIXES_2026_09.md) for the current reader update and validation status.
 
+## Native file hosts
+
+Bunkr, Pixeldrain, Fileditch and Filester links open a native file list. Bunkr file pages expand their associated album, using the complete album metadata rather than the small related-file preview. Known Bunkr aliases share one identity. Filester folder pages are collected sequentially before displaying the complete list; nested folders expand as their batch reaches them.
+
+File-host batches share Gofile's serial transfer slot. A fresh download URL is resolved when each file reaches the front, and responses are checked for HTTP errors, unexpected HTML and incomplete sizes. No forum cookies are sent to these hosts. Rate limits pause the batch, and inaccessible items can be retried or explicitly skipped. Saved files live under **Files → On My iPhone → Forum Lite → File Downloads**. Closing a reader keeps its batch alive; backgrounding pauses it, Continue restarts the current file, and quitting clears unfinished batches while preserving completed files. Each batch is limited to 10,000 entries, 20 folder levels and 8 GB per file.
+
+Torrent entries offer **Copy magnet**, including in Gofile. Only the bounded torrent metadata is fetched temporarily and parsed locally; the file is not added to Downloads, and no BitTorrent payload or PikPak task is started. Batch downloads skip torrents. The original bencoded `info` bytes supply the v1/v2 hash. PikPak's [official iOS FAQ](https://mypikpak.com/en-US/faq) does not offer direct task creation inside its iOS app; paste the copied magnet into a supported client or its web drive yourself.
+
+Provider details were checked against [Pixeldrain's API](https://pixeldrain.com/api), Filester's own public download script, and the [upstream Bunkr integration](https://github.com/mikf/gallery-dl/blob/master/gallery_dl/extractor/bunkr.py). Torrent hashing follows [BEP 3](https://www.bittorrent.org/beps/bep_0003.html) and [BEP 52](https://www.bittorrent.org/beps/bep_0052.html). Site markup and access rules can change; a successful compile or metadata parse does not replace physical-device download acceptance.
+
 The sample mode is clearly marked and contains only invented, non-account content. A successful build is not evidence that a real account session works on a phone.
 
 ## Run and build

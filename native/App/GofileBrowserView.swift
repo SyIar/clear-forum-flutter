@@ -36,6 +36,11 @@ struct GofileBrowserView: View {
             HStack(spacing: 12) {
               if entry.folder {
                 NavigationLink { GofileBrowserView(url: entry.pageURL) } label: { entryLabel(entry) }
+              } else if TorrentMetadata.isTorrent(name: entry.name, mime: entry.mime) {
+                entryLabel(entry)
+                TorrentCopyButton(load: {
+                  try await session.transfer(entry, limit: Int64(TorrentMetadata.limit), progress: { _ in })
+                }, unavailable: entry.unavailable)
               } else {
                 Button { session.open(entry) } label: { entryLabel(entry) }.buttonStyle(.plain)
                 downloadButton(entry)
@@ -152,7 +157,7 @@ struct GofileExport: UIViewControllerRepresentable {
   func makeUIViewController(context: Context) -> UIDocumentPickerViewController { UIDocumentPickerViewController(forExporting: [file], asCopy: true) }
   func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
 }
-private struct GofileQuickLook: UIViewControllerRepresentable {
+struct GofileQuickLook: UIViewControllerRepresentable {
   let file: URL
   func makeCoordinator() -> Coordinator { Coordinator(file: file) }
   func makeUIViewController(context: Context) -> QLPreviewController {

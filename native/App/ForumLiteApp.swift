@@ -4,6 +4,7 @@ import SwiftUI
 struct ForumLiteApp: App {
   @StateObject private var downloads = VideoDownloadManager.shared
   @StateObject private var gofileDownloads = GofileDownloadManager.shared
+  @StateObject private var hostedDownloads = HostedDownloadManager.shared
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var simpLibrary = LibraryStore(site: .simp)
   @StateObject private var southLibrary = LibraryStore(site: .south)
@@ -35,11 +36,11 @@ struct ForumLiteApp: App {
       }.tint(.blue)
         .background { GofileDownloadSurfaces(manager: gofileDownloads) }
         .overlay(alignment: .trailing) {
-          FloatingDownloads(manager: downloads, gofile: gofileDownloads)
+          FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)
         }
-        .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads) }
+        .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
         .onChange(of: scenePhase) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded() }
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
           else if value == .active { downloads.foregrounded() }
         }
     }

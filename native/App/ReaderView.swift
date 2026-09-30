@@ -25,6 +25,7 @@ struct ReaderView: View {
   @State private var destination: ReaderDestination?
   @State private var external: URL?
   @State private var gofile: GofileDestination?
+  @State private var hostedFiles: HostedFilesDestination?
   @State private var purchasing = false
   @State private var purchaseMessage: String?
   @State private var purchaseTask: Task<Void, Never>?
@@ -269,6 +270,7 @@ struct ReaderView: View {
       }
       .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
       .navigationDestination(item: $gofile) { item in GofileBrowserView(url: item.url) }
+      .navigationDestination(item: $hostedFiles) { item in HostedFilesView(url: item.url) }
   }
   private func presentedReader(proxy: ScrollViewProxy) -> some View {
     routedReader(proxy: proxy)
@@ -359,11 +361,13 @@ struct ReaderView: View {
   }
   private func navigate(_ url: URL) {
     if let target = GofilePolicy.pageURL(url) { gofile = GofileDestination(url: target) }
+    else if HostedFilePolicy.provider(url) != nil { hostedFiles = HostedFilesDestination(url: url) }
     else if session.site.accepts(url) { destination = ReaderDestination(url: url) }
     else { external = url }
   }
   private func play(_ block: BodyBlock) {
     guard let url = block.url, MediaPolicy.allowed(url) else { return }
+    if HostedFilePolicy.provider(url) != nil { hostedFiles = HostedFilesDestination(url: url); return }
     media = .video(url, block.direct, session.site.base)
   }
   private func buy(_ offer: SouthPurchaseOffer) {
