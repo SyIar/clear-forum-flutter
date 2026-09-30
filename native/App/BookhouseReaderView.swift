@@ -25,8 +25,18 @@ struct BookhouseReaderView: View {
   private var blocks: [BodyBlock] { page?.posts.first?.blocks ?? [] }
 
   var body: some View {
-    ScrollViewReader { proxy in
-      ScrollView {
+    ScrollViewReader { readingScroll($0) }
+      .navigationTitle(AppText.text(page?.kind == .posts ? "Reading" : "Forbidden Library"))
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar { readerToolbar }
+      .background { ExternalBrowserPresenter(url: $external) }
+      .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
+      .task { if page == nil { await load(initialURL) } }
+      .onDisappear { savePosition(); operation?.cancel(); quickActions = false }
+  }
+
+  private var readingContent: some View {
+    ScrollView {
         LazyVStack(alignment: .leading, spacing: 16) {
           Color.clear.frame(height: 1).id("top")
           if let page {
@@ -34,27 +44,37 @@ struct BookhouseReaderView: View {
             if page.kind == .posts { novel(page) }
             else { catalog(page) }
           }
-          if let error {
-            VStack(alignment: .leading, spacing: 12) {
-              Text(error).foregroundStyle(.secondary)
-              HStack {
-                Button(AppText.text("Retry")) { startLoad(current, refresh: true) }.buttonStyle(.glass)
-                Button(AppText.text("Site browser")) { external = current }.buttonStyle(.glass)
-              }
-            }.padding(.vertical, 20)
-          }
+          if let error { errorPanel(error) }
           if loading { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24) }
           Color.clear.frame(height: 1).id("bottom")
         }.scrollTargetLayout().padding(.horizontal, 18).padding(.bottom, 28)
           .frame(maxWidth: 780).frame(maxWidth: .infinity)
+    }
+    .background(Color(uiColor: page?.kind == .posts ? .systemBackground : .systemGroupedBackground))
+  }
+
+  private func errorPanel(_ message: String) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(message).foregroundStyle(.secondary)
+      HStack {
+        Button(AppText.text("Retry")) { startLoad(current, refresh: true) }.buttonStyle(.glass)
+        Button(AppText.text("Site browser")) { external = current }.buttonStyle(.glass)
       }
-      .background(Color(uiColor: page?.kind == .posts ? .systemBackground : .systemGroupedBackground))
+    }.padding(.vertical, 20)
+  }
+
+  private var orderedIDs: [String] {
+    let contentIDs: [String]
+    if page?.kind == .posts { contentIDs = blocks.indices.map { "paragraph-\($0)" } + ["replies"] }
+    else { contentIDs = page?.entries.map(\.id) ?? [] }
+    return ["top"] + contentIDs + ["bottom"]
+  }
+
+  private func readingScroll(_ proxy: ScrollViewProxy) -> some View {
+    readingContent
       .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.1) { ids in
         guard !loading else { return }
-        let ordered = page?.kind == .posts
-          ? ["top"] + blocks.indices.map { "paragraph-\($0)" } + ["replies", "bottom"]
-          : ["top"] + (page?.entries.map(\.id) ?? []) + ["bottom"]
-        if let first = ordered.first(where: { ids.contains($0) }) { visibleID = first }
+        if let first = orderedIDs.first(where: { ids.contains($0) }) { visibleID = first }
       }
       .onChange(of: restoreID) { _, value in
         guard let value else { return }
@@ -70,10 +90,9 @@ struct BookhouseReaderView: View {
             .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         }
       }
-    }
-    .navigationTitle(AppText.text(page?.kind == .posts ? "Reading" : "Forbidden Library"))
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbar {
+  }
+
+  @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
       ToolbarItemGroup(placement: .topBarTrailing) {
         Button(AppText.text("Home"), systemImage: "house", action: home)
         Button(AppText.text("Bookmark"), systemImage: library.contains(current) ? "bookmark.fill" : "bookmark") {
@@ -97,11 +116,6 @@ struct BookhouseReaderView: View {
         } label: { Image(systemName: quickActions ? "xmark" : "ellipsis") }
           .accessibilityLabel(AppText.text("Page actions"))
       }
-    }
-    .background { ExternalBrowserPresenter(url: $external) }
-    .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
-    .task { if page == nil { await load(initialURL) } }
-    .onDisappear { savePosition(); operation?.cancel(); quickActions = false }
   }
 
   @ViewBuilder private func catalog(_ page: ForumPage) -> some View {
