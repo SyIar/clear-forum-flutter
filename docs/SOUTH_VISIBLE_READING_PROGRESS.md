@@ -47,3 +47,5 @@ progress across joined/author-filtered pages, blocked/missing/foreign posts,
 legacy migration, persisted progress, zero floor and duplicate callbacks, and
 scoped attachment-label filtering. UI appearance and physical scrolling require
 device acceptance; no simulator is used.
+
+Delivered in build 1053; see [the delivery record](GLASS_HOME_AND_CONTENT_TYPOGRAPHY.md#build-1053-delivery).

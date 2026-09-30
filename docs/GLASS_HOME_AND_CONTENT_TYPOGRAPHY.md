@@ -83,3 +83,18 @@ Windows checks cover syntax and repository resources, not native type checking.
 The macOS device build and tests are the native validation path; no simulator is
 used. Glass appearance, scroll tracking and network behavior still require
 physical-device acceptance.
+
+## Build 1053 delivery
+
+- Source: `2f4720037d1ee34e280a26338c277a2355069cf9`
+- [macOS CI run 36705730055](https://github.com/SyIar/clear-forum-flutter/actions/runs/36705730055): successful.
+- Forum Core: 321 tests passed; embedded Tieba Core: 20 tests passed.
+- Native iPhone Release build, compiled localization, CJK/Latin cascade,
+  repository policy and package verification passed. No simulator was used.
+- Delivered IPA: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1053-unsigned.ipa`
+- Size: 51732579 bytes.
+- SHA-256: `f7533888623aeaa55036768ee741fa5be912300769455d9d9e8457ea9cf74ce3`
+- Downloaded archive CRC, source/run metadata, arm64 executable, bundle identity,
+  font/localization resources, and embedded Tieba resources were verified locally.
+- Physical appearance, live scroll tracking and complete device downloads remain
+  for user acceptance.
