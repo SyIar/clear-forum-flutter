@@ -45,22 +45,20 @@ struct HostedFilesView: View {
       if let listing = model.listing {
         Section {
           Text(listing.title).font(.headline).textSelection(.enabled)
-          HStack {
-            Text(listing.entries.count == 1 ? "1 item" : "\(listing.entries.count) items")
-            if listing.entries.count == 1, let entry = listing.entries.first, !entry.folder {
-              Spacer()
-              Text(entry.sizeDescription)
-            }
-          }.font(.caption).foregroundStyle(.secondary)
           if listing.expandedAlbum {
             Label("Showing the complete album", systemImage: "rectangle.stack").font(.caption).foregroundStyle(.secondary)
           }
-          if listing.entries.contains(where: { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }) {
-            Button { enqueue(listing) } label: {
-              Text("Download all").font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
-                .multilineTextAlignment(.center)
-            }.buttonStyle(.glassProminent).disabled(model.loading || model.error != nil)
+          HStack(spacing: 12) {
+            if listing.entries.contains(where: { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }) {
+              Button { enqueue(listing) } label: {
+                Text("Download all").font(.subheadline.weight(.semibold))
+                  .lineLimit(1).minimumScaleFactor(0.85).padding(.horizontal, 8)
+                  .frame(minHeight: 32, alignment: .center)
+              }.buttonStyle(.glassProminent).disabled(model.loading || model.error != nil)
+            }
+            Spacer(minLength: 0)
+            Text(listing.entries.count == 1 ? "1 item" : "\(listing.entries.count) items")
+              .font(.caption).foregroundStyle(.secondary).lineLimit(1).fixedSize()
           }
         }
       }
