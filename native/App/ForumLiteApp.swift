@@ -274,7 +274,7 @@ final class LibraryStore: ObservableObject {
   func toggle(_ url: URL, title: String, titleIsCustom: Bool = false) {
     change { $0.toggle(SavedPage(url: url, title: title, titleIsCustom: titleIsCustom)) }
   }
-  func contains(_ url: URL) -> Bool { document.bookmarks.contains { $0.url == url } }
+  func contains(_ url: URL) -> Bool { document.containsBookmark(url) }
   func resolveBookmarkTitle(_ url: URL, session: ForumSession) {
     guard session.site == site, site.accepts(url) else { return }
     Task { [weak self] in

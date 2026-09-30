@@ -18,7 +18,9 @@ responsive CSS or repair native parser/layout defects.
 
 Apple documents the independent [custom User-Agent](https://developer.apple.com/documentation/webkit/wkwebview/customuseragent)
 and [preferred content mode](https://developer.apple.com/documentation/webkit/wkwebpagepreferences/preferredcontentmode)
-settings used here. No URL rewriting or new authentication flow is introduced.
+settings used here. Build 1043 introduced no URL rewriting or new authentication
+flow. The later [thread query URL change](SOUTH_THREAD_URLS.md) adds explicit
+South thread URL normalization while retaining these identity settings.
 
 ## Native controls
 

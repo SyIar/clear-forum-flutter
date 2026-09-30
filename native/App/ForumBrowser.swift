@@ -53,7 +53,9 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   private var observation: NSKeyValueObservation?
   private var finished = false
   private var capturing = false
-  init(url: URL, session: ForumSession, completion: @escaping ([String: Any]?) -> Void) { site = session.site; initialURL = url; self.session = session; self.completion = completion; super.init(nibName: nil, bundle: nil) }
+  private var rewrittenThread: URL?
+  private var rewriteAttempts = 0
+  init(url: URL, session: ForumSession, completion: @escaping ([String: Any]?) -> Void) { site = session.site; initialURL = SouthSitePolicy.canonicalThreadURL(url); self.session = session; self.completion = completion; super.init(nibName: nil, bundle: nil) }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -120,6 +122,26 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
+    if site == .south, navigationAction.targetFrame?.isMainFrame == true,
+       (navigationAction.request.httpMethod ?? "GET").uppercased() == "GET" {
+      if [.linkActivated, .backForward, .reload].contains(navigationAction.navigationType) {
+        rewrittenThread = nil; rewriteAttempts = 0
+      }
+      let target = SouthSitePolicy.canonicalThreadURL(url)
+      if target != url {
+        rewriteAttempts = rewrittenThread == target ? rewriteAttempts + 1 : 1
+        rewrittenThread = target
+        decisionHandler(.cancel)
+        guard rewriteAttempts <= 3 else {
+          notice(AppText.text("The website repeatedly redirected this thread. Reload or try another page."))
+          return
+        }
+        var request = navigationAction.request
+        request.url = target
+        webView.load(request)
+        return
+      }
+    }
     if site == .simp, navigationAction.navigationType == .linkActivated,
        let direct = SimpSitePolicy.browserRedirectDestination(url), direct != url {
       decisionHandler(.cancel)
@@ -136,7 +158,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
     if navigationAction.navigationType == .linkActivated, let requested = navigationAction.request.url {
-      let url = site == .simp ? SimpSitePolicy.browserRedirectDestination(requested) ?? requested : requested
+      let url = site == .simp ? SimpSitePolicy.browserRedirectDestination(requested) ?? requested : SouthSitePolicy.canonicalThreadURL(requested)
       if site.sameOrigin(url) { webView.load(url == requested ? navigationAction.request : URLRequest(url: url)) }
       else { openExternal(url) }
     }

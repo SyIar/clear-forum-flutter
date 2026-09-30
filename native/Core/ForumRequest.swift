@@ -9,7 +9,8 @@ enum ForumRequest {
   }
   static func page(site: ForumSite, url: URL, userAgent: String, cookies: [HTTPCookie]) throws -> URLRequest {
     guard site.accepts(url), !userAgent.isEmpty else { throw ReaderFailure.unsupported }
-    var request = URLRequest(url: SitePolicy.withoutFragment(url), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
+    let target = SouthSitePolicy.canonicalThreadURL(url)
+    var request = URLRequest(url: SitePolicy.withoutFragment(target), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
     request.httpShouldHandleCookies = false
     request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
     request.setValue(userAgent, forHTTPHeaderField: "User-Agent")

@@ -366,6 +366,7 @@
 "Page actions" = "页面操作";
 "Expanded" = "已展开";
 "Collapsed" = "已收起";
+"The website repeatedly redirected this thread. Reload or try another page." = "网站反复重定向此帖，请重新加载或尝试其他页面。";
 "Single choice." = "单选。";
 "Choose up to %@." = "最多可选 %@ 项。";
 "The website has hidden the vote counts." = "网站已隐藏票数。";

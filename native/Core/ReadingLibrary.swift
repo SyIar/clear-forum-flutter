@@ -181,7 +181,12 @@ struct LibraryDocument: Codable {
   }
   mutating func toggle(_ page: SavedPage) {
     guard site.accepts(page.url) else { return }
-    if bookmarks.contains(where: { $0.url == page.url }) { bookmarks.removeAll { $0.url == page.url } }
+    if containsBookmark(page.url) {
+      bookmarks.removeAll { SouthSitePolicy.canonicalThreadURL($0.url) == SouthSitePolicy.canonicalThreadURL(page.url) }
+    }
     else { bookmarks.append(page) }
+  }
+  func containsBookmark(_ url: URL) -> Bool {
+    bookmarks.contains { SouthSitePolicy.canonicalThreadURL($0.url) == SouthSitePolicy.canonicalThreadURL(url) }
   }
 }

@@ -10,7 +10,8 @@ struct SouthForumParser {
   private func links(_ root: Element, _ selector: String = "a[href]") -> [Element] { (try? root.select(selector).array()) ?? [] }
   private func target(_ node: Element?, page: URL) -> URL? { SouthSitePolicy.resolve(attr(node, "href"), from: page, internalOnly: true) }
 
-  func parse(_ source: String, url: URL, status: Int = 200) throws -> ForumPage {
+  func parse(_ source: String, url sourceURL: URL, status: Int = 200) throws -> ForumPage {
+    let url = SouthSitePolicy.canonicalThreadURL(sourceURL)
     guard SouthSitePolicy.readable(url) else { throw ReaderFailure.unsupported }
     if status == 429 { throw ReaderFailure.rateLimit }
     if status == 401 { throw ReaderFailure.login }

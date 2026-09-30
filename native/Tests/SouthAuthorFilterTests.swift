@@ -21,7 +21,7 @@ final class SouthAuthorFilterTests: XCTestCase {
     XCTAssertEqual(SouthSitePolicy.authorID(legacy), "101")
     XCTAssertEqual(SitePolicy.pageCacheKey(legacy), SitePolicy.pageCacheKey(query))
     XCTAssertEqual(SitePolicy.pageURL(legacy, number: 5)?.query, "tid-20-uid-101-page-5.html")
-    XCTAssertEqual(SitePolicy.pageURL(query, number: 5)?.query, "fid=9&tid=20&uid=101&page=5")
+    XCTAssertEqual(SitePolicy.pageURL(query, number: 5)?.query, "tid-20-fid-9-uid-101-page-5.html")
     XCTAssertEqual(SitePolicy.pageURL(legacy, number: 1)?.query, "tid-20-uid-101.html")
     XCTAssertNil(SitePolicy.pageURL(legacy, number: 1)?.fragment)
     XCTAssertEqual(SouthSitePolicy.pageRoot(legacy), SouthSitePolicy.pageRoot(query))

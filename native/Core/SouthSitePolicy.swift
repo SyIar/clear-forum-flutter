@@ -69,6 +69,19 @@ enum SouthSitePolicy {
   static func readable(_ url: URL) -> Bool { route(url) != nil || SouthSearch.parameters(url) != nil }
   static func isLogin(_ url: URL) -> Bool { sameOrigin(url) && url.path == "/login.php" }
   static func isThread(_ url: URL) -> Bool { route(url)?.path == "/read.php" }
+  static func canonicalThreadURL(_ url: URL) -> URL {
+    guard let route = route(url), route.path == "/read.php",
+          var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+    // Full threads use query syntax; author-filtered threads keep PHPWind's
+    // legacy syntax. Both preserve page and fragment, excluding action URLs.
+    let keys = ["tid", "fid", "uid", "page"].filter { route.parameters[$0] != nil }
+    if route.parameters["uid"] != nil {
+      parts.percentEncodedQuery = keys.map { "\($0)-\(route.parameters[$0]!)" }.joined(separator: "-") + ".html"
+    } else {
+      parts.queryItems = keys.map { URLQueryItem(name: $0, value: route.parameters[$0]) }
+    }
+    return parts.url ?? url
+  }
   static func threadKey(_ url: URL) -> String? { isThread(url) ? route(url)?.parameters["tid"] : nil }
   static func authorID(_ url: URL) -> String? { isThread(url) ? route(url)?.parameters["uid"] : nil }
   static func topicAuthorID(_ url: URL) -> String? { route(url)?.path == "/u.php" ? route(url)?.parameters["uid"] : nil }
@@ -95,7 +108,7 @@ enum SouthSitePolicy {
     let keys = ["action", "fid", "tid", "uid", "type", "page"].filter { route.parameters[$0] != nil }
     if route.legacy { parts.percentEncodedQuery = keys.map { "\($0)-\(route.parameters[$0]!)" }.joined(separator: "-") + ".html" }
     else { parts.queryItems = keys.map { URLQueryItem(name: $0, value: route.parameters[$0]) } }
-    return parts.url
+    return parts.url.map(canonicalThreadURL)
   }
   static func pageCacheKey(_ url: URL) -> String {
     if let search = SouthSearch.pageURL(url, number: pageNumber(url)) { return search.absoluteString }
@@ -119,7 +132,7 @@ enum SouthSitePolicy {
     }
     guard candidate.scheme == "https", !(candidate.host ?? "").isEmpty, candidate.user == nil, candidate.password == nil,
           candidate.port == nil || candidate.port == 443, candidate.absoluteString.utf8.count <= 8192 else { return nil }
-    return internalOnly && !readable(candidate) ? nil : candidate
+    return internalOnly && !readable(candidate) ? nil : canonicalThreadURL(candidate)
   }
   static func withoutFragment(_ url: URL) -> URL {
     var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!

@@ -45,7 +45,7 @@ struct ReaderView: View {
   @State private var edgeRequestID = UUID()
   @State private var pendingPage: ForumPage?
   @StateObject private var posters = PosterStore()
-  private var current: URL { url ?? initialURL }
+  private var current: URL { SouthSitePolicy.canonicalThreadURL(url ?? initialURL) }
   private var displayPage: ForumPage? { page.map { readingPages.combined(active: $0) } }
   private var pinnedThreads: [ForumEntry] {
     guard session.site == .south, let page = displayPage, page.kind == .threads else { return [] }

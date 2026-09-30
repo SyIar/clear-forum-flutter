@@ -85,7 +85,7 @@ final class SouthPostStructureTests: XCTestCase {
   func testAuthorFilterStartsAtFirstPageWithoutFragment() throws {
     let html = post(1).replacingOccurrences(of: "read.php?tid-20-uid-101.html", with: "read.php?tid=20&amp;uid=101&amp;page=3#post_9001")
     let target = try XCTUnwrap(parse(html).posts.first?.authorFilterURL)
-    XCTAssertEqual(target.query, "tid=20&uid=101")
+    XCTAssertEqual(target.query, "tid-20-uid-101.html")
     XCTAssertNil(target.fragment)
   }
   func testEmojiAndMediaOnlyPostsAreNotConsideredEmpty() throws {

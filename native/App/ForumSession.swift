@@ -62,7 +62,7 @@ final class ForumSession: ObservableObject {
     guard !browserActive else { throw CancellationError() }
     let epoch = generation
     let userAgent = browserUserAgent
-    var current = url
+    var current = SouthSitePolicy.canonicalThreadURL(url)
     for _ in 0..<6 {
       try Task.checkCancellation()
       guard generation == epoch else { throw CancellationError() }

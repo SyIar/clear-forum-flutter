@@ -91,7 +91,7 @@ final class SouthPaginationTests: XCTestCase {
     XCTAssertTrue(SouthSitePolicy.readable(observed))
     XCTAssertEqual(SouthSitePolicy.pageCacheKey(observed), SouthSitePolicy.pageCacheKey(canonical))
     XCTAssertEqual(SouthSitePolicy.pageCacheKey(queryAlias), SouthSitePolicy.pageCacheKey(canonical))
-    XCTAssertEqual(SouthSitePolicy.pageURL(observed, number: 3)?.query, "tid-20-page-3.html")
+    XCTAssertEqual(SouthSitePolicy.pageURL(observed, number: 3)?.query, "tid=20&page=3")
     for query in ["tid-20-fpage-1-toread--page-2.html", "tid-20-fpage-0-toread-1-page-2.html",
                   "tid=20&fpage=0&fpage=0", "tid=20&toread=&toread=", "tid=20&fpage=0&action=delete"] {
       XCTAssertFalse(SouthSitePolicy.readable(URL(string: "https://south-plus.net/read.php?" + query)!))
@@ -111,7 +111,7 @@ final class SouthPaginationTests: XCTestCase {
     let value = try ForumParser().parse(body + pager, url: url)
     XCTAssertEqual(value.pageCount, 4)
     XCTAssertEqual(value.next.map(SouthSitePolicy.pageNumber), 2)
-    XCTAssertEqual(value.url(forPage: 4)?.query, "tid-20-page-4.html")
+    XCTAssertEqual(value.url(forPage: 4)?.query, "tid=20&page=4")
   }
 
 }
