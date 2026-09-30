@@ -1,5 +1,6 @@
 name: ForumLite
 options:
+  developmentLanguage: zh-Hans
   deploymentTarget:
     iOS: '26.0'
 packages:
@@ -38,6 +39,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Forum Lite
+        INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Save downloaded videos to your photo library.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

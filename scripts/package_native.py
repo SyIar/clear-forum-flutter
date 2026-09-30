@@ -30,7 +30,7 @@ for name in fonts:
     assert bundled.is_file(), f'Missing bundled font: {name}'
     assert hashlib.sha256(source.read_bytes()).digest() == hashlib.sha256(bundled.read_bytes()).digest(), f'Font changed during packaging: {name}'
 assert (app / 'SourceHanSerif-LICENSE.txt').is_file(), 'Missing bundled font license'
-assert info.get('CFBundleDevelopmentRegion') == 'zh-Hans', 'Unexpected default app language'
+assert info.get('CFBundleDevelopmentRegion') == 'zh-Hans', f'Unexpected default app language: {info.get("CFBundleDevelopmentRegion")}'
 for table in ['Localizable', 'InfoPlist']:
     localized = app / 'zh-Hans.lproj' / (table + '.strings')
     assert localized.is_file(), f'Missing Chinese resource: {table}'
