@@ -103,6 +103,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
           try plan?.expand(listing)
         } else if TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
           skipped.append(Skipped(name: current, reason: "Use Copy magnet in the file list.")); plan?.advance()
+          continue
         } else {
           let file = try await HostedTransfer.run(item.entry, client: client) { [weak self] value in self?.progress = value }
           defer { GofileFileTransfer.remove(file) }

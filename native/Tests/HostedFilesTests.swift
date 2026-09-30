@@ -37,6 +37,12 @@ final class HostedFilesTests: XCTestCase {
     XCTAssertThrowsError(try HostedFileParser.bunkrAlbum(albumHTML(object(1) + ", {slug: \"missing-id\"}"), url: album))
     XCTAssertThrowsError(try HostedFileParser.bunkrAlbum("<script>window.albumFiles.forEach(render)</script>", url: album))
   }
+  func testBunkrFilenameCannotBecomeAnotherRecordField() throws {
+    let object = #"{original: "Nature ], id: 999, }.mp4", id: 7, slug: "actual", size: 10}"#
+    let result = try HostedFileParser.bunkrAlbum(albumHTML(object), url: album)
+    XCTAssertEqual(result.entries.first?.remoteID, "7")
+    XCTAssertEqual(result.entries.first?.name, "Nature ], id: 999, }.mp4")
+  }
   func testBunkrFileUsesAlbumHeadingNotRelatedPreviewCards() throws {
     let page = URL(string: "https://bunkr.media/f/sample1")!
     let html = "<h1>Nature.mp4</h1><script data-file-id='101'></script><h2>More files in this <a href='../a/sampleAlbum'>album</a></h2><a href='../f/sample2'>Preview</a>"

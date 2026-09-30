@@ -127,7 +127,7 @@ enum HostedFileFailure: Error, LocalizedError {
     case .format: return "Could not read the complete file list. Open the website or try refreshing."
     case .access: return "This file needs website access, a password or an account, or has reached its download limit. Open the website to check."
     case .missing: return "This file or folder is no longer available."
-    case .limit: return "This collection exceeds the 10,000-item or 20-folder-level limit. Open a smaller folder."
+    case .limit: return "This file list is too large or has too many folder levels. Open a smaller folder."
     case .rateLimited: return "The server asked downloads to pause. Wait before continuing; saved files are kept."
     }
   }

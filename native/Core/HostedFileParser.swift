@@ -37,12 +37,13 @@ enum HostedFileParser {
     var seen = Set<String>()
     var entries: [HostedFileEntry] = []
     for object in objects {
-      guard let slug = stringField("slug", in: object), HostedFilePolicy.validID(slug),
-            let name = stringField("original", in: object),
-            let id = capture(#"\bid\s*:\s*([0-9]+)\s*[,}]"#, in: object),
+      let fields = try literalFields(object)
+      guard let slug = decodedString(fields["slug"]), HostedFilePolicy.validID(slug),
+            let name = decodedString(fields["original"]),
+            let id = fields["id"], id.range(of: #"^[0-9]{1,20}$"#, options: .regularExpression) != nil,
             let page = URL(string: "/f/" + slug, relativeTo: url)?.absoluteURL else { throw HostedFileFailure.format }
       if !seen.insert(slug).inserted { continue }
-      let size = capture(#"\bsize\s*:\s*([0-9]+)\s*[,}]"#, in: object).flatMap(Int64.init)
+      let size = fields["size"].flatMap(Int64.init)
       entries.append(HostedFileEntry(pageURL: page, name: name, size: size, mime: HostedFilePolicy.mime(name), remoteID: id))
     }
     let title = try document.select("h1").first()?.text() ?? "Bunkr"
@@ -128,20 +129,53 @@ enum HostedFileParser {
           let range = Range(match.range(at: 1), in: value) else { return nil }
     return String(value[range])
   }
-  private static func stringField(_ field: String, in value: String) -> String? {
-    guard let literal = capture("\\b" + NSRegularExpression.escapedPattern(for: field) + #"\s*:\s*("(?:\\.|[^"\\])*")"#, in: value),
-          let data = literal.replacingOccurrences(of: "\\'", with: "'").data(using: .utf8) else { return nil }
+  private static func decodedString(_ literal: String?) -> String? {
+    guard let literal, let data = literal.replacingOccurrences(of: "\\'", with: "'").data(using: .utf8) else { return nil }
     return (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? String
+  }
+  private static func literalFields(_ object: String) throws -> [String: String] {
+    var cursor = object.index(after: object.startIndex), fields: [String: String] = [:]
+    let end = object.index(before: object.endIndex)
+    while cursor < end {
+      while cursor < end, object[cursor].isWhitespace || object[cursor] == "," { cursor = object.index(after: cursor) }
+      if cursor == end { break }
+      let keyStart = cursor
+      while cursor < end, object[cursor] != ":" { cursor = object.index(after: cursor) }
+      guard cursor < end else { throw HostedFileFailure.format }
+      let key = object[keyStart..<cursor].trimmingCharacters(in: .whitespacesAndNewlines)
+      guard key.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil, fields[key] == nil else { throw HostedFileFailure.format }
+      cursor = object.index(after: cursor)
+      while cursor < end, object[cursor].isWhitespace { cursor = object.index(after: cursor) }
+      let start = cursor
+      guard cursor < end else { throw HostedFileFailure.format }
+      if object[cursor] == "\"" {
+        cursor = object.index(after: cursor)
+        var escaped = false, closed = false
+        while cursor < end {
+          let character = object[cursor]; cursor = object.index(after: cursor)
+          if escaped { escaped = false }
+          else if character == "\\" { escaped = true }
+          else if character == "\"" { closed = true; break }
+        }
+        guard closed else { throw HostedFileFailure.format }
+      } else {
+        while cursor < end, object[cursor] != "," { cursor = object.index(after: cursor) }
+      }
+      fields[key] = object[start..<cursor].trimmingCharacters(in: .whitespacesAndNewlines)
+      while cursor < end, object[cursor].isWhitespace { cursor = object.index(after: cursor) }
+      guard cursor == end || object[cursor] == "," else { throw HostedFileFailure.format }
+    }
+    return fields
   }
   private static func assignedArray(_ variable: String, in source: String) -> String? {
     guard let regex = try? NSRegularExpression(pattern: NSRegularExpression.escapedPattern(for: variable) + #"\s*=\s*(\[)"#),
           let match = regex.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
           let start = Range(match.range(at: 1), in: source)?.lowerBound else { return nil }
-    return balanced(String(source[start...]), opening: "[", closing: "]")
+    return balanced(source, from: start, opening: "[", closing: "]").map { String(source[$0]) }
   }
-  private static func balanced(_ source: String, opening: Character, closing: Character) -> String? {
+  private static func balanced(_ source: String, from start: String.Index, opening: Character, closing: Character) -> Range<String.Index>? {
     var depth = 0, quote: Character?, escaped = false
-    for index in source.indices {
+    for index in source[start...].indices {
       let c = source[index]
       if escaped { escaped = false; continue }
       if let active = quote {
@@ -150,18 +184,19 @@ enum HostedFileParser {
       }
       if c == "\"" || c == "'" { quote = c; continue }
       if c == opening { depth += 1 }
-      if c == closing { depth -= 1; if depth == 0 { return String(source[...index]) } }
+      if c == closing { depth -= 1; if depth == 0 { return start..<source.index(after: index) } }
     }
     return nil
   }
   private static func objectLiterals(_ array: String) throws -> [String] {
-    var remaining = array.dropFirst().dropLast()[...], objects: [String] = []
-    while let first = remaining.firstIndex(where: { !$0.isWhitespace && $0 != "," }) {
-      remaining = remaining[first...]
-      guard remaining.first == "{", let object = balanced(String(remaining), opening: "{", closing: "}") else { throw HostedFileFailure.format }
-      objects.append(object)
+    var cursor = array.index(after: array.startIndex), objects: [String] = []
+    let end = array.index(before: array.endIndex)
+    while cursor < end {
+      if array[cursor].isWhitespace || array[cursor] == "," { cursor = array.index(after: cursor); continue }
+      guard array[cursor] == "{", let object = balanced(array, from: cursor, opening: "{", closing: "}"), object.upperBound <= end else { throw HostedFileFailure.format }
+      objects.append(String(array[object]))
       guard objects.count <= 10000 else { throw HostedFileFailure.limit }
-      remaining = remaining.dropFirst(object.count)
+      cursor = object.upperBound
     }
     return objects
   }

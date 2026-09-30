@@ -7,7 +7,7 @@ final class HostedFileClient {
   private let loadMetadata: MetadataLoader?
   init(loadMetadata: MetadataLoader? = nil) { self.loadMetadata = loadMetadata }
   private static var cooldowns: [FileHost: Date] = [:]
-  static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1"
+  nonisolated static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1"
 
   func listing(_ url: URL, expandAlbum: Bool = true) async throws -> HostedFileListing {
     guard let provider = HostedFilePolicy.provider(url) else { throw HostedFileFailure.unsupported }
@@ -86,6 +86,15 @@ final class HostedFileClient {
     try Task.checkCancellation()
     if let date = Self.cooldowns[provider], date > Date() { throw HostedFileFailure.rateLimited(date) }
     if let loadMetadata { return try await loadMetadata(url, provider, body, referer) }
+    do { return try await Self.fetchMetadata(url, provider: provider, body: body, referer: referer) }
+    catch {
+      if let date = (error as? HostedFileFailure)?.retryDate { Self.cooldowns[provider] = date }
+      throw error
+    }
+  }
+
+  // Reading an album's byte stream must not run byte-by-byte on the UI actor.
+  nonisolated private static func fetchMetadata(_ url: URL, provider: FileHost, body: [String: String]?, referer: URL?) async throws -> Data {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpCookieStorage = nil; configuration.httpShouldSetCookies = false
     configuration.urlCredentialStorage = nil; configuration.urlCache = nil
@@ -112,7 +121,6 @@ final class HostedFileClient {
     case 404, 410: throw HostedFileFailure.missing
     case 429, 503:
       let date = HostedFilePolicy.retryDate(http.value(forHTTPHeaderField: "Retry-After"))
-      Self.cooldowns[provider] = date
       throw HostedFileFailure.rateLimited(date)
     default: throw HostedFileFailure.format
     }
