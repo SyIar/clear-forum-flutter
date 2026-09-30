@@ -26,9 +26,16 @@ struct TorrentCopyButton: View {
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
       }
     } label: {
-      if task != nil { ProgressView().frame(minWidth: 44, minHeight: 44) }
-      else { Label(copied ? "Copied" : "Copy magnet", systemImage: copied ? "checkmark" : "link").font(.caption.weight(.medium)).frame(minHeight: 44) }
+      ZStack {
+        if task != nil { ProgressView().controlSize(.small) }
+        else {
+          Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            .font(.body.weight(.medium)).contentTransition(.symbolEffect(.replace))
+        }
+      }.frame(width: 44, height: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless).disabled(task != nil || unavailable)
+      .accessibilityLabel(copied ? "Magnet copied" : "Copy magnet")
+      .accessibilityValue(task != nil ? "Preparing" : "")
       .onDisappear { task?.cancel(); task = nil }
       .alert("Could not copy magnet", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
         Button("Close", role: .cancel) { error = nil }

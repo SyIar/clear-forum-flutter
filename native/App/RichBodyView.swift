@@ -176,6 +176,7 @@ private struct BodyGroup: Identifiable {
   let blocks: [BodyBlock]
 }
 struct RichBodyView: View {
+  @EnvironmentObject private var session: ForumSession
   let blocks: [BodyBlock]
   let posters: PosterStore
   let navigate: (URL) -> Void
@@ -217,9 +218,12 @@ struct RichBodyView: View {
   @ViewBuilder private func blockView(_ block: BodyBlock) -> some View {
     switch block.kind {
     case .paragraph:
-      if block.runs.contains(where: { $0.emoticon != nil }) { EmoticonText(runs: block.runs) }
-      else if let url = standaloneLink(block.runs) { CompactLink(url: url, label: block.runs.map(\.text).joined(), navigate: navigate) }
-      else { Text(attributed(block.runs)).font(.body).lineSpacing(2).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+      VStack(alignment: .leading, spacing: 6) {
+        ForEach(ExternalLinkPresentation.segments(block.runs, site: session.site)) { segment in
+          if let url = segment.url { CompactLink(url: url, label: segment.label, navigate: navigate) }
+          else { paragraphText(segment.runs) }
+        }
+      }
     case .link:
       if let url = block.url { CompactLink(url: url, label: block.label, navigate: navigate) }
     case .media:
@@ -254,6 +258,11 @@ struct RichBodyView: View {
       }
     }
   }
+  @ViewBuilder private func paragraphText(_ runs: [TextRun]) -> some View {
+    if runs.contains(where: { $0.emoticon != nil }) { EmoticonText(runs: runs) }
+    else if let url = standaloneLink(runs) { CompactLink(url: url, label: runs.map(\.text).joined(), navigate: navigate) }
+    else { Text(attributed(runs)).font(.body).lineSpacing(2).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+  }
   private func standaloneLink(_ runs: [TextRun]) -> URL? {
     let visible = runs.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     guard let url = visible.first?.url, visible.allSatisfy({ $0.url == url }) else { return nil }
@@ -274,6 +283,7 @@ struct RichBodyView: View {
   }
 }
 struct CompactLink: View {
+  @EnvironmentObject private var session: ForumSession
   let url: URL
   let label: String
   let navigate: (URL) -> Void
@@ -281,7 +291,8 @@ struct CompactLink: View {
     Button { navigate(url) } label: {
       HStack(spacing: 5) {
         Image(systemName: "link").font(.system(size: 11))
-        Text(label.isEmpty ? url.host ?? "Link" : label).font(.caption).lineLimit(1).truncationMode(.middle)
+        Text(ExternalLinkPresentation.title(url: url, label: label, site: session.site))
+          .font(.caption).lineLimit(1).truncationMode(.middle)
         Image(systemName: "arrow.up.right").font(.system(size: 9))
       }.padding(.horizontal, 8).padding(.vertical, 5)
         .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 7))
