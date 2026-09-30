@@ -2,6 +2,15 @@ import Foundation
 import SwiftSoup
 
 enum HostedFileParser {
+  static func fileditchSize(_ data: Data) throws -> Int64? {
+    guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw HostedFileFailure.format }
+    if let status = json["status"] as? Bool {
+      guard status else { throw HostedFileFailure.missing }
+      guard let size = json["size"] as? NSNumber, size.int64Value >= 0 else { throw HostedFileFailure.format }
+      return size.int64Value
+    }
+    return nil
+  }
   static func pixeldrain(_ data: Data, url: URL) throws -> HostedFileListing {
     guard HostedFilePolicy.provider(url) == .pixeldrain,
           let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw HostedFileFailure.format }
@@ -20,7 +29,7 @@ enum HostedFileParser {
     for row in rows {
       guard let id = row["id"] as? String, HostedFilePolicy.validID(id), let name = row["name"] as? String else { throw HostedFileFailure.format }
       if !seen.insert(id).inserted { continue }
-      let page = URL(string: "https://pixeldrain.com/u/\(id)")!
+      let page = URL(string: "/u/\(id)", relativeTo: url)!.absoluteURL
       entries.append(HostedFileEntry(pageURL: page, name: name, size: (row["size"] as? NSNumber)?.int64Value,
                                     mime: (row["mime_type"] as? String) ?? HostedFilePolicy.mime(name)))
     }
@@ -72,7 +81,11 @@ enum HostedFileParser {
     let title = try document.select("h1").first()?.text() ?? "Filester"
     if !HostedFilePolicy.isFolder(url) {
       guard try document.select("#fileTitle").first() != nil else { throw HostedFileFailure.format }
-      return HostedFileListing(url: url, title: title, entries: [HostedFileEntry(pageURL: url, name: title, mime: HostedFilePolicy.mime(title))])
+      var entry = HostedFileEntry(pageURL: url, name: title, mime: HostedFilePolicy.mime(title))
+      for label in try document.select("#detailsContent span").array() where try label.text().lowercased() == "size" {
+        if let value = try label.nextElementSibling()?.text() { entry.reportedSize = sizeLabel(value) }
+      }
+      return HostedFileListing(url: url, title: title, entries: [entry])
     }
     guard try document.select("#filesGrid, #subfoldersGrid").first() != nil else { throw HostedFileFailure.format }
     var seen = Set<String>(), entries: [HostedFileEntry] = []
@@ -85,7 +98,8 @@ enum HostedFileParser {
       let name = try card.attr("data-name").isEmpty ? card.select(".file-name, .folder-name").text() : card.attr("data-name")
       let size = try Int64(card.attr("data-size"))
       entries.append(HostedFileEntry(pageURL: target, name: name.isEmpty ? target.lastPathComponent : name,
-                                    folder: HostedFilePolicy.isFolder(target), size: size, mime: HostedFilePolicy.mime(name)))
+                                    folder: HostedFilePolicy.isFolder(target), size: size, mime: HostedFilePolicy.mime(name),
+                                    reportedSize: sizeLabel(try card.select(".file-size").text())))
     }
     guard entries.count <= 10000 else { throw HostedFileFailure.limit }
     let pageCount = try document.select("#loadAllPagesBtn").first()?.attr("data-total")
@@ -99,7 +113,7 @@ enum HostedFileParser {
           let file = json["file"] as? String, HostedFilePolicy.validID(file),
           let token = json["token"] as? String, !token.isEmpty, token.utf8.count <= 8192,
           let base = URL(string: (json["server"] as? String) ?? "https://cn1.filester.me"),
-          HostedFilePolicy.publicHTTPS(base), base.host?.hasSuffix(".filester.me") == true else { throw HostedFileFailure.format }
+          HostedFilePolicy.filesterServer(base) else { throw HostedFileFailure.format }
     var url = URLComponents(url: base.appendingPathComponent("v2").appendingPathComponent(file), resolvingAgainstBaseURL: false)!
     let name = (json["name"] as? String) ?? entry.name
     url.queryItems = [URLQueryItem(name: "token", value: token)]
@@ -128,6 +142,10 @@ enum HostedFileParser {
     guard let regex = try? NSRegularExpression(pattern: pattern), let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
           let range = Range(match.range(at: 1), in: value) else { return nil }
     return String(value[range])
+  }
+  private static func sizeLabel(_ value: String) -> String? {
+    let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.range(of: #"^[0-9]+(?:[.,][0-9]+)*\s*(?:bytes?|[KMGTPE]?i?B)$"#, options: [.regularExpression, .caseInsensitive]) != nil ? text : nil
   }
   private static func decodedString(_ literal: String?) -> String? {
     guard let literal, let data = literal.replacingOccurrences(of: "\\'", with: "'").data(using: .utf8) else { return nil }

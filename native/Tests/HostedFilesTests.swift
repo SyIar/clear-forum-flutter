@@ -9,12 +9,12 @@ final class HostedFilesTests: XCTestCase {
   private func object(_ id: Int) -> String { "{id: \(id), original: \"Nature \(id).mp4\", slug: \"sample\(id)\", size: 12345, type: \"video\"}" }
 
   func testBunkrAliasesShareOneIdentityButImpersonatorsDoNotMatch() {
-    for host in ["bunkr.cr", "www.bunkr.media", "bunkr.fi", "bunkrr.su"] {
+    for host in ["bunkr.cr", "www.bunkr.media", "bunkr.fi", "bunkrr.su", "bunkr.cloud"] {
       let url = URL(string: "https://\(host)/a/sampleAlbum")!
       XCTAssertEqual(HostedFilePolicy.provider(url), .bunkr)
       XCTAssertEqual(HostedFilePolicy.key(url), HostedFilePolicy.key(album))
     }
-    for address in ["http://bunkr.cr/a/sample", "https://bunkr.cr.evil.com/a/sample", "https://bunkr.unknown/a/sample", "https://bunkr.cr:444/a/sample", "https://user:pass@bunkr.cr/a/sample", "https://bunkr.cr/a/a%2Fb"] {
+    for address in ["http://bunkr.cr/a/sample", "https://bunkr.cr.evil.com/a/sample", "https://bunkr.local/a/sample", "https://bunkr.cr:444/a/sample", "https://user:pass@bunkr.cr/a/sample", "https://bunkr.cr/a/a%2Fb"] {
       XCTAssertNil(HostedFilePolicy.provider(URL(string: address)!), address)
     }
   }
@@ -25,6 +25,32 @@ final class HostedFilesTests: XCTestCase {
     XCTAssertEqual(HostedFilePolicy.provider(URL(string: "https://fileditchfiles.st/folder/demo.mp4")!), .fileditch)
     XCTAssertNil(HostedFilePolicy.provider(URL(string: "https://pixeldrain.com/api/file/demo")!))
     XCTAssertNil(HostedFilePolicy.provider(URL(string: "https://filester.me.evil.com/d/demo")!))
+  }
+  func testSuffixAliasesDeduplicateWithoutMatchingEmbeddedBrandNames() {
+    for (domain, path, host) in [("filester", "d/demo", FileHost.filester), ("pixeldrain", "u/demo", .pixeldrain), ("fileditchfiles", "folder/demo.mp4", .fileditch)] {
+      let primary = URL(string: "https://\(domain).me/\(path)")!
+      for suffix in ["me", "si", "sh", "gg", "net", "tech"] {
+        let url = URL(string: "https://www.\(domain).\(suffix)/\(path)")!
+        XCTAssertEqual(HostedFilePolicy.provider(url), host)
+        XCTAssertEqual(HostedFilePolicy.key(url), HostedFilePolicy.key(primary))
+      }
+      for bad in ["\(domain).si.evil.com", "evil-\(domain).si", "evil.\(domain).si", "\(domain).local", "\(domain).123", "www.app.\(domain).si"] {
+        XCTAssertNil(HostedFilePolicy.provider(URL(string: "https://\(bad)/\(path)")!))
+      }
+    }
+    XCTAssertEqual(HostedFilePolicy.provider(URL(string: "https://pixeldra.in/l/demo")!), .pixeldrain)
+    XCTAssertNil(HostedFilePolicy.provider(URL(string: "https://fileditchfiles.me/api/folder/demo.mp4")!))
+  }
+  func testMirrorRedirectsStayWithinProviderAndFilePath() {
+    let original = URL(string: "https://filester.si/v2/api/public/view")!
+    XCTAssertTrue(HostedFilePolicy.acceptsMetadataRedirect(from: original, to: URL(string: "https://filester.gg/v2/api/public/view")!, provider: .filester))
+    for bad in ["https://filester.si.evil.com/v2/api/public/view", "https://pixeldrain.com/api/file/demo", "http://filester.me/v2/api/public/view"] {
+      XCTAssertFalse(HostedFilePolicy.acceptsMetadataRedirect(from: original, to: URL(string: bad)!, provider: .filester))
+    }
+    let request = HostedFileRequest(url: URL(string: "https://fileditchfiles.me/folder/demo.mp4")!, referer: original, name: "demo.mp4")
+    XCTAssertTrue(request.accepts(URL(string: "https://fileditchfiles.st/folder/demo.mp4")!))
+    XCTAssertFalse(request.accepts(URL(string: "https://fileditchfiles.st/folder/other.mp4")!))
+    XCTAssertFalse(request.accepts(URL(string: "https://fileditchfiles.st.evil.com/folder/demo.mp4")!))
   }
   func testBunkrReadsCompleteArrayBeyondVisibleCards() throws {
     let html = "<a href='/f/sample1'>One visible card</a>" + albumHTML((1...151).map(object).joined(separator: ",\n"))
@@ -83,6 +109,25 @@ final class HostedFilesTests: XCTestCase {
     XCTAssertEqual(query.first(where: { $0.name == "download" })?.value, "true")
     XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": "id", "token": "t", "server": "https://filester.me.evil.com"]), entry: entry))
     XCTAssertNoThrow(try HostedFileParser.filesterDownload(json(["file": "id", "token": "t"]), entry: entry))
+    XCTAssertNoThrow(try HostedFileParser.filesterDownload(json(["file": "id", "token": "t", "server": "https://cn1.filester.si"]), entry: entry))
+    XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": "id", "token": "t", "server": "https://cdn.notfilester.si"]), entry: entry))
+  }
+  func testFilesterRoundedSizeIsDisplayOnlyNotTransferValidation() throws {
+    let html = "<h1 id='fileTitle'>Nature.mp4</h1><div id='detailsContent'><div><span>Size</span><span>4.51 MB</span></div></div>"
+    let listing = try HostedFileParser.filester(html, url: URL(string: "https://filester.si/d/demo")!)
+    let entry = try XCTUnwrap(listing.entries.first)
+    XCTAssertEqual(entry.sizeDescription, "4.51 MB")
+    XCTAssertNil(entry.size)
+    let request = try HostedFileParser.filesterDownload(json(["file": "id", "token": "t"]), entry: entry)
+    XCTAssertNil(request.size)
+    let noSize = try HostedFileParser.filester("<h1 id='fileTitle'>demo.zip</h1>", url: listing.url)
+    XCTAssertEqual(noSize.entries.first?.sizeDescription, "Size unknown")
+  }
+  func testFileditchStatusDistinguishesExactSizeMissingAndUnknown() throws {
+    XCTAssertEqual(try HostedFileParser.fileditchSize(json(["status": true, "size": 50720388])), 50720388)
+    XCTAssertNil(try HostedFileParser.fileditchSize(json(["status": "unknown", "size": NSNull()])))
+    XCTAssertThrowsError(try HostedFileParser.fileditchSize(json(["status": false, "size": NSNull()])))
+    XCTAssertThrowsError(try HostedFileParser.fileditchSize(json(["status": true, "size": -1])))
   }
   func testBunkrCurrentPublicResponseDecodingAndMaintenanceRejection() throws {
     let entry = HostedFileEntry(pageURL: URL(string: "https://bunkr.cr/f/demo")!, name: "Nature.mp4", remoteID: "101")
@@ -134,14 +179,55 @@ final class HostedFilesTests: XCTestCase {
     XCTAssertEqual(paths, ["/f/sample1", "/a/sampleAlbum"])
   }
   @MainActor
+  func testMirrorMetadataAndResolutionKeepSelectedOrigin() async throws {
+    let client = HostedFileClient { url, host, body, referer in
+      if host == .filester {
+        XCTAssertEqual(url.absoluteString, "https://filester.si/v2/api/public/download")
+        XCTAssertEqual(referer?.host, "filester.si")
+        XCTAssertEqual(body?["file_slug"], "demo")
+        return try self.json(["file": "file-id", "token": "demo"])
+      }
+      XCTAssertEqual(url.absoluteString, "https://pixeldrain.net/api/list/demo")
+      return try self.json(["title": "Demos", "files": [["id": "one", "name": "demo.txt", "size": 100]]])
+    }
+    _ = try await client.resolve(HostedFileEntry(pageURL: URL(string: "https://filester.si/d/demo")!, name: "demo.txt"))
+    let list = try await client.listing(URL(string: "https://pixeldrain.net/l/demo")!)
+    let entry = try XCTUnwrap(list.entries.first)
+    XCTAssertEqual(entry.pageURL.absoluteString, "https://pixeldrain.net/u/one")
+    let request = try await client.resolve(entry)
+    XCTAssertEqual(request.url.absoluteString, "https://pixeldrain.net/api/file/one?download")
+  }
+  @MainActor
+  func testFileditchReadsSizeFromStatusWithoutFetchingFileBody() async throws {
+    var requests = 0
+    let client = HostedFileClient { url, host, body, _ in
+      requests += 1
+      XCTAssertEqual(host, .fileditch)
+      XCTAssertNil(body)
+      XCTAssertEqual(url.absoluteString, "https://fileditchfiles.me/api/folder/demo%20file+1.zip")
+      return try self.json(["status": true, "size": 123456])
+    }
+    let listing = try await client.listing(URL(string: "https://fileditchfiles.me/folder/demo%20file+1.zip#preview")!)
+    XCTAssertEqual(requests, 1)
+    XCTAssertEqual(listing.entries.first?.size, 123456)
+  }
+  @MainActor
+  func testUnavailableFileditchSizeDoesNotHideDownloadableEntry() async throws {
+    let client = HostedFileClient { _, _, _, _ in throw HostedFileFailure.format }
+    let listing = try await client.listing(URL(string: "https://fileditchfiles.st/folder/demo.zip")!)
+    XCTAssertEqual(listing.entries.count, 1)
+    XCTAssertEqual(listing.entries.first?.sizeDescription, "Size unknown")
+  }
+  @MainActor
   func testClientLoadsEveryFilesterPageBeforeReturning() async throws {
     var pages: [String] = []
     let client = HostedFileClient { url, _, _, _ in
+      XCTAssertEqual(url.host, "filester.si")
       let page = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value ?? "1"
       pages.append(page)
       return Data("<h1>Demos</h1><div id='filesGrid'><div class='file-item' data-name='Sample.mp4' onclick=\"window.location.href='/d/file\(page)'\"></div></div><button id='loadAllPagesBtn' data-total='2'></button>".utf8)
     }
-    let listing = try await client.listing(URL(string: "https://filester.me/f/demo?page=2")!)
+    let listing = try await client.listing(URL(string: "https://filester.si/f/demo?page=2")!)
     XCTAssertEqual(pages, ["1", "2"])
     XCTAssertEqual(listing.entries.count, 2)
   }

@@ -14,7 +14,13 @@ struct HostedFileEntry: Identifiable, Hashable {
   var size: Int64?
   var mime = ""
   var remoteID: String?
+  // Rounded page labels are presentation only, never expected transfer bytes.
+  var reportedSize: String?
   var id: String { HostedFilePolicy.key(pageURL) }
+  var sizeDescription: String {
+    if let size, size >= 0 { return ByteCountFormatter.string(fromByteCount: size, countStyle: .file) }
+    return reportedSize ?? "Size unknown"
+  }
   var symbol: String {
     folder ? "folder.fill" : mime.hasPrefix("video/") ? "play.rectangle.fill" : mime.hasPrefix("image/") ? "photo" : "doc.fill"
   }
@@ -35,8 +41,14 @@ struct HostedFileRequest {
   var size: Int64?
   var mime = ""
   func accepts(_ target: URL) -> Bool {
-    HostedFilePolicy.publicHTTPS(target) && target.host?.lowercased() == url.host?.lowercased() &&
-      !["maint.mp4", "maintenance-vid.mp4"].contains(target.lastPathComponent.lowercased())
+    guard HostedFilePolicy.publicHTTPS(target),
+          !["maint.mp4", "maintenance-vid.mp4"].contains(target.lastPathComponent.lowercased()) else { return false }
+    if target.host?.lowercased() == url.host?.lowercased() { return true }
+    // Direct mirrors may redirect the same resource across domain suffixes.
+    guard let host = HostedFilePolicy.hostProvider(url), [.pixeldrain, .fileditch].contains(host),
+          HostedFilePolicy.hostProvider(target) == host else { return false }
+    return URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ==
+      URLComponents(url: target, resolvingAgainstBaseURL: false)?.percentEncodedPath
   }
 }
 
@@ -47,8 +59,6 @@ enum HostedFilePolicy {
     return max(Date().addingTimeInterval(60), value.flatMap { format.date(from: $0) }
       ?? Date().addingTimeInterval(value.flatMap(Double.init) ?? 60))
   }
-  // Confirmed site aliases, not a wildcard that would trust unrelated domains.
-  static let bunkrDomains: Set<String> = Set(["ac", "ax", "black", "cat", "ci", "cr", "fi", "is", "la", "media", "org", "ph", "pk", "ps", "red", "ru", "si", "site", "sk", "su", "to", "ws"].map { "bunkr." + $0 } + ["bunkrr.ru", "bunkrr.su"])
   static func validID(_ value: String) -> Bool {
     value.range(of: #"^[A-Za-z0-9_-]{1,128}$"#, options: .regularExpression) != nil
   }
@@ -62,16 +72,41 @@ enum HostedFilePolicy {
   }
   static func siteHost(_ url: URL) -> String {
     var host = url.host?.lowercased() ?? ""
-    for prefix in ["www.", "app."] { if host.hasPrefix(prefix) { host.removeFirst(prefix.count) } }
+    if let prefix = ["www.", "app."].first(where: { host.hasPrefix($0) }) { host.removeFirst(prefix.count) }
     return host
   }
-  static func provider(_ url: URL) -> FileHost? {
+  // Match the complete brand label plus one suffix, not a hostname substring.
+  // This selects a parser; requests still carry no forum cookies or credentials.
+  static func hostProvider(_ url: URL) -> FileHost? {
     guard publicHTTPS(url) else { return nil }
-    let host = siteHost(url), parts = url.path.split(separator: "/").map(String.init)
-    if bunkrDomains.contains(host), parts.count == 2, ["a", "f", "v", "i", "d"].contains(parts[0]), validID(parts[1]) { return .bunkr }
-    if host == "pixeldrain.com", parts.count == 2, ["l", "u"].contains(parts[0]), validID(parts[1]) { return .pixeldrain }
-    if host == "filester.me", parts.count == 2, ["d", "f"].contains(parts[0]), validID(parts[1]) { return .filester }
-    if host == "fileditchfiles.st", parts.count >= 2, !url.pathExtension.isEmpty { return .fileditch }
+    let host = siteHost(url), labels = host.split(separator: ".")
+    if host == "pixeldra.in" { return .pixeldrain }
+    guard labels.count == 2, labels[1].range(of: #"^[a-z]{2,63}$"#, options: .regularExpression) != nil else { return nil }
+    switch labels[0] {
+    case "bunkr", "bunkrr": return .bunkr
+    case "pixeldrain": return .pixeldrain
+    case "filester": return .filester
+    case "fileditchfiles": return .fileditch
+    default: return nil
+    }
+  }
+  static func filesterServer(_ url: URL) -> Bool {
+    guard publicHTTPS(url), let host = url.host?.lowercased(),
+          host.range(of: #"^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+filester\.[a-z]{2,63}$"#, options: .regularExpression) != nil else { return false }
+    return true
+  }
+  static func acceptsMetadataRedirect(from original: URL, to target: URL, provider: FileHost) -> Bool {
+    guard publicHTTPS(target) else { return false }
+    if target.host?.lowercased() == original.host?.lowercased() { return true }
+    return hostProvider(original) == provider && hostProvider(target) == provider
+  }
+  static func provider(_ url: URL) -> FileHost? {
+    guard let host = hostProvider(url) else { return nil }
+    let parts = url.path.split(separator: "/").map(String.init)
+    if host == .bunkr, parts.count == 2, ["a", "f", "v", "i", "d"].contains(parts[0]), validID(parts[1]) { return .bunkr }
+    if host == .pixeldrain, parts.count == 2, ["l", "u"].contains(parts[0]), validID(parts[1]) { return .pixeldrain }
+    if host == .filester, parts.count == 2, ["d", "f"].contains(parts[0]), validID(parts[1]) { return .filester }
+    if host == .fileditch, parts.count >= 2, parts[0] != "api", !url.pathExtension.isEmpty { return .fileditch }
     return nil
   }
   static func key(_ url: URL) -> String {

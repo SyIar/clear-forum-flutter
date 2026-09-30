@@ -105,7 +105,7 @@ struct GofileBrowserView: View {
       GofileThumbnail(entry: entry, session: session)
       VStack(alignment: .leading, spacing: 4) {
         Text(entry.name).font(.subheadline).lineLimit(2).foregroundStyle(.primary)
-        Text(entry.folder ? "Folder" : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "File")
+        Text(entry.folder ? "Folder" : entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "Size unknown")
           .font(.caption).foregroundStyle(.secondary)
         if entry.unavailable { Text("Unavailable on Gofile").font(.caption2).foregroundStyle(.secondary) }
         if let error = session.downloads[entry.id]?.error { Text(error).font(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }

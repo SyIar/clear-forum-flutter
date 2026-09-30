@@ -45,13 +45,22 @@ struct HostedFilesView: View {
       if let listing = model.listing {
         Section {
           Text(listing.title).font(.headline).textSelection(.enabled)
-          Text("\(listing.entries.count) items").font(.caption).foregroundStyle(.secondary)
+          HStack {
+            Text(listing.entries.count == 1 ? "1 item" : "\(listing.entries.count) items")
+            if listing.entries.count == 1, let entry = listing.entries.first, !entry.folder {
+              Spacer()
+              Text(entry.sizeDescription)
+            }
+          }.font(.caption).foregroundStyle(.secondary)
           if listing.expandedAlbum {
             Label("Showing the complete album", systemImage: "rectangle.stack").font(.caption).foregroundStyle(.secondary)
           }
           if listing.entries.contains(where: { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }) {
-            Button("Download all", systemImage: "arrow.down.to.line") { enqueue(listing) }
-              .buttonStyle(.glassProminent).disabled(model.loading || model.error != nil)
+            Button { enqueue(listing) } label: {
+              Text("Download all").font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
+                .multilineTextAlignment(.center)
+            }.buttonStyle(.glassProminent).disabled(model.loading || model.error != nil)
           }
         }
       }
@@ -127,8 +136,7 @@ struct HostedFilesView: View {
         .frame(width: 44, height: 44).background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
       VStack(alignment: .leading, spacing: 4) {
         Text(entry.name).font(.subheadline).foregroundStyle(.primary).lineLimit(3)
-        if let size = entry.size { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)).font(.caption).foregroundStyle(.secondary) }
-        else if entry.folder { Text("Folder").font(.caption).foregroundStyle(.secondary) }
+        Text(entry.folder ? "Folder" : entry.sizeDescription).font(.caption).foregroundStyle(.secondary)
       }
     }.padding(.vertical, 4)
   }

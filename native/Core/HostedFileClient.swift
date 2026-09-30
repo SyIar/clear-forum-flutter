@@ -13,12 +13,22 @@ final class HostedFileClient {
     guard let provider = HostedFilePolicy.provider(url) else { throw HostedFileFailure.unsupported }
     switch provider {
     case .fileditch:
-      let entry = HostedFileEntry(pageURL: url, name: url.lastPathComponent, mime: HostedFilePolicy.mime(url.lastPathComponent))
+      var entry = HostedFileEntry(pageURL: url, name: url.lastPathComponent, mime: HostedFilePolicy.mime(url.lastPathComponent))
+      var parts = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+      parts.percentEncodedPath = "/api" + parts.percentEncodedPath; parts.query = nil; parts.fragment = nil
+      do {
+        let data = try await metadata(parts.url!, provider: provider)
+        entry.size = try HostedFileParser.fileditchSize(data)
+      } catch is CancellationError { throw CancellationError() }
+      catch let failure as HostedFileFailure {
+        switch failure { case .missing, .rateLimited: throw failure; default: break }
+      } catch { }
+      try Task.checkCancellation()
       return HostedFileListing(url: url, title: entry.name, entries: [entry])
     case .pixeldrain:
       let id = url.lastPathComponent
       let path = HostedFilePolicy.isFolder(url) ? "list/\(id)" : "file/\(id)/info"
-      let data = try await metadata(URL(string: "https://pixeldrain.com/api/" + path)!, provider: provider)
+      let data = try await metadata(URL(string: "/api/" + path, relativeTo: url)!.absoluteURL, provider: provider)
       return try HostedFileParser.pixeldrain(data, url: url)
     case .bunkr:
       if HostedFilePolicy.isFolder(url) {
@@ -63,10 +73,10 @@ final class HostedFileClient {
     case .fileditch:
       return HostedFileRequest(url: entry.pageURL, referer: entry.pageURL, name: entry.name, size: entry.size, mime: entry.mime)
     case .pixeldrain:
-      return HostedFileRequest(url: URL(string: "https://pixeldrain.com/api/file/\(entry.pageURL.lastPathComponent)" + (download ? "?download" : ""))!,
+      return HostedFileRequest(url: URL(string: "/api/file/\(entry.pageURL.lastPathComponent)" + (download ? "?download" : ""), relativeTo: entry.pageURL)!.absoluteURL,
                                referer: entry.pageURL, name: entry.name, size: entry.size, mime: entry.mime)
     case .filester:
-      let data = try await metadata(URL(string: "https://filester.me/v2/api/public/" + (download ? "download" : "view"))!, provider: provider,
+      let data = try await metadata(URL(string: "/v2/api/public/" + (download ? "download" : "view"), relativeTo: entry.pageURL)!.absoluteURL, provider: provider,
                                     body: ["file_slug": entry.pageURL.lastPathComponent], referer: entry.pageURL)
       return try HostedFileParser.filesterDownload(data, entry: entry, download: download)
     case .bunkr:
@@ -144,8 +154,8 @@ private final class HostedMetadataRedirect: NSObject, URLSessionTaskDelegate {
   func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                   newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
     count += 1
-    guard count <= 4, let url = request.url, HostedFilePolicy.publicHTTPS(url),
-          url.host == original.host || (provider == .bunkr && HostedFilePolicy.provider(url) == .bunkr) else {
+    guard count <= 4, let url = request.url,
+          HostedFilePolicy.acceptsMetadataRedirect(from: original, to: url, provider: provider) else {
       completionHandler(nil); return
     }
     var clean = request
