@@ -90,11 +90,16 @@ struct HostedFilesView: View {
                 } else {
                   if entry.mime.hasPrefix("video/") {
                     Button { play(entry) } label: {
-                      if opening == entry.id { ProgressView() } else { Image(systemName: "play.circle") }
+                      ZStack {
+                        if opening == entry.id { ProgressView().controlSize(.small) }
+                        else { Image(systemName: "play.circle") }
+                      }.font(.body.weight(.medium))
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
                     }.buttonStyle(.borderless).disabled(opening != nil).accessibilityLabel("Play \(entry.name)")
                   }
                   Button { enqueue(HostedFileListing(url: entry.pageURL, title: entry.name, entries: [entry])) } label: {
-                    Image(systemName: "arrow.down.circle")
+                    Image(systemName: "arrow.down.circle").font(.body.weight(.medium))
+                      .frame(width: 44, height: 44).contentShape(Rectangle())
                   }.buttonStyle(.borderless).accessibilityLabel("Download \(entry.name)")
                 }
               }.contextMenu { Button("Open website", systemImage: "safari") { website = entry.pageURL } }
