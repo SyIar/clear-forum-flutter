@@ -89,6 +89,8 @@ extension ForumPage {
 struct SouthPurchaseResult {
   var page: ForumPage
   var message: String?
+  // Unavailable confirmation stops a batch; a known per-offer warning need not.
+  var stopsAutomaticBatch = false
 }
 
 // Only the visible reader calls this service; background update checks stay read-only.
@@ -126,7 +128,11 @@ final class SouthPurchaseService {
         let next = try await perform(offer, page: result.page, excludingAuthors: blocked, load: load, submit: submit)
         result.page = next.page
         onUpdate(next.page)
-        if let message = next.message { result.message = message; break }
+        // A changed price or a persistently locked individual offer must not
+        // prevent other explicitly free offers from being checked. Keep the
+        // first warning, and never resubmit an attempted offer in this batch.
+        if let message = next.message, result.message == nil || next.stopsAutomaticBatch { result.message = message }
+        if next.stopsAutomaticBatch { result.stopsAutomaticBatch = true; break }
       } catch is CancellationError { throw CancellationError() }
       catch { try Task.checkCancellation(); result.message = error.localizedDescription; break }
     }
@@ -148,12 +154,14 @@ final class SouthPurchaseService {
       return SouthPurchaseResult(page: fresh, message: SouthPurchaseIssue.changedPrice.localizedDescription)
     }
     try Task.checkCancellation()
+    var submissionUncertain = false
     do { try await submit(offer, fresh.url) }
     catch {
       try Task.checkCancellation()
       // A lost response does not prove that the state-changing GET failed.
       // Reconcile by reading; never replay the purchase, including free ones.
       guard isTransient(error) else { throw error }
+      submissionUncertain = true
     }
     try Task.checkCancellation()
     let refreshed: ForumPage
@@ -161,15 +169,16 @@ final class SouthPurchaseService {
     catch {
       try Task.checkCancellation()
       if isTransient(error) {
-        return SouthPurchaseResult(page: fresh, message: SouthPurchaseIssue.confirmationUnavailable.localizedDescription)
+        return SouthPurchaseResult(page: fresh, message: SouthPurchaseIssue.confirmationUnavailable.localizedDescription, stopsAutomaticBatch: true)
       }
       throw error
     }
     guard refreshed.posts.contains(where: { $0.id == "post_" + offer.postID }) else {
-      return SouthPurchaseResult(page: fresh, message: SouthPurchaseIssue.confirmationUnavailable.localizedDescription)
+      return SouthPurchaseResult(page: fresh, message: SouthPurchaseIssue.confirmationUnavailable.localizedDescription, stopsAutomaticBatch: true)
     }
     let stillLocked = refreshed.purchaseOffers.contains { $0.id == offer.id }
-    return SouthPurchaseResult(page: refreshed, message: stillLocked ? SouthPurchaseIssue.unconfirmed.localizedDescription : nil)
+    return SouthPurchaseResult(page: refreshed, message: stillLocked ? SouthPurchaseIssue.unconfirmed.localizedDescription : nil,
+                               stopsAutomaticBatch: stillLocked && submissionUncertain)
   }
   private func read(_ url: URL, waitingFor offer: SouthPurchaseOffer? = nil, load: Load) async throws -> ForumPage {
     for attempt in 0..<3 {

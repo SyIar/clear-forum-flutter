@@ -115,14 +115,9 @@ final class ForumSession: ObservableObject {
     let body = try SimpSearch.formBody(form.source, url: form.url, status: form.status, query: query)
     try Task.checkCancellation()
     guard generation == epoch, !browserActive else { throw CancellationError() }
-    let result = try await searchHTML(SimpSearch.formURL, body: body)
-    guard SimpSitePolicy.searchResults(result.url) else {
-      // Submission errors are returned at the form URL, without a result ID.
-      _ = try SimpSearch.formBody(result.source, url: result.url, status: result.status, query: query)
-      throw ReaderFailure.unsupported
-    }
+    let result = try await searchHTML(SimpSearch.submitURL, body: body)
     let page = try await Task.detached(priority: .userInitiated) {
-      try ForumParser().parse(result.source, url: result.url, status: result.status)
+      try SimpSearch.parseResult(result.source, url: result.url, status: result.status)
     }.value
     try Task.checkCancellation()
     guard generation == epoch, !browserActive else { throw CancellationError() }

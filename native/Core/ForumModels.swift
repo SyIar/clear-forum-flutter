@@ -28,6 +28,9 @@ struct ForumEntry: Identifiable {
   var authorID: String?
   var authorName: String?
   var excerpt = ""
+  var postedAt: String?
+  // Includes the original post; absence means the page did not declare a count.
+  var totalPostCount: Int?
 }
 struct ForumTag: Identifiable, Codable, Equatable {
   var id: String { url.absoluteString + ":" + title }

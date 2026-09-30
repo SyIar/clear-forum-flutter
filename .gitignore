@@ -58,3 +58,4 @@ artifacts/
 screenshots/
 native/build/
 native/*.xcodeproj/
+native/validation-build/

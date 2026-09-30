@@ -109,6 +109,8 @@ struct LibraryDocument: Codable {
   mutating func capturePresentation(_ page: ForumPage) {
     guard site.accepts(page.url) else { return }
     captureFollowingNames(page)
+    if page.kind == .posts { synchronizeTitle(page.title, for: page.url) }
+    for entry in page.entries { synchronizeTitle(entry.title, for: entry.url) }
     if page.kind == .posts {
       let owner = site == .south ? page.posts.first(where: { $0.number == "#0" }) : nil
       mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags,
@@ -131,6 +133,19 @@ struct LibraryDocument: Codable {
       } : nil)
     guard safe.thumbnail != nil || !safe.tags.isEmpty || safe.authorID != nil || safe.authorName != nil else { return }
     presentations[key, default: ThreadPresentation()].merge(safe)
+  }
+  // Update the display title without moving saved page/floor destinations or
+  // changing read/unread state. Slug aliases identify the same thread.
+  mutating func synchronizeTitle(_ title: String, for url: URL) {
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard site.accepts(url), !trimmed.isEmpty else { return }
+    func matches(_ saved: SavedPage) -> Bool {
+      guard site.accepts(saved.url) else { return false }
+      if let key = SitePolicy.threadKey(url) { return SitePolicy.threadKey(saved.url) == key }
+      return SitePolicy.pageCacheKey(saved.url) == SitePolicy.pageCacheKey(url)
+    }
+    for index in bookmarks.indices where matches(bookmarks[index]) { bookmarks[index].title = trimmed }
+    for index in recent.indices where matches(recent[index]) { recent[index].title = trimmed }
   }
   mutating func remember(_ page: SavedPage) {
     guard site.accepts(page.url) else { return }

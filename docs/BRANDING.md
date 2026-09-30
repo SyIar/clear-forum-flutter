@@ -23,3 +23,7 @@ Master: `assets/branding/app-icon.png`. The 2026-09-28 edit uses the built-in im
 ## Final edit prompt
 
 Use case: text-localization. Asset type: replacement iPhone app icon for simp lite. Edit target: the existing square app-icon.png. Make exactly one change: replace the lower turquoise word CITY with the uppercase word LITE, spelled L-I-T-E. Preserve the upper white SIMP lettering, turquoise upper background, near-black lower background, horizontal split, square full-bleed shape, typography style, softened corners, letter heights, centered alignment, and comfortable safe margins. Lower LITE uses the same turquoise condensed heavy tall type as the old CITY and approximately the same total visual width. Keep the design simple, crisp, opaque, no rounded outer mask, no additional symbols, no mockup. Exact final two text rows: SIMP above, LITE below. Return the edited icon only.
+
+## September 2026 twelve-point star
+
+The current master is an opaque 1024×1024 cool cyan/blue faceted twelve-point star on navy, with square corners for the iOS icon mask. It replaces the FORUM / LITE wordmark. The generated asset was visually checked for twelve distinct radial points, then all app sizes were regenerated with `scripts/generate_icons.py`. The display name is now `Forum Lite`; bundle identity remains `dev.sylar.clearforum`.

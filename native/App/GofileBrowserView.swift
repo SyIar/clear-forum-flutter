@@ -156,7 +156,7 @@ private struct GofileQuickLook: UIViewControllerRepresentable {
   let file: URL
   func makeCoordinator() -> Coordinator { Coordinator(file: file) }
   func makeUIViewController(context: Context) -> QLPreviewController {
-    let controller = QLPreviewController(); controller.dataSource = context.coordinator; return controller
+    let controller = EdgeAwareQuickLookController(); controller.dataSource = context.coordinator; return controller
   }
   func updateUIViewController(_ controller: QLPreviewController, context: Context) {}
   final class Coordinator: NSObject, QLPreviewControllerDataSource {
@@ -189,5 +189,26 @@ struct GofileModalRoot: View {
         ToolbarItem(placement: .topBarLeading) { Button("Back", systemImage: "chevron.left", action: close) }
       }
     }
+  }
+}
+
+// Quick Look's image scroll view must yield a left-edge gesture to the enclosing
+// NavigationStack, even while the image is zoomed. Keep system delegates intact.
+private final class EdgeAwareQuickLookController: QLPreviewController {
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    configureEdgeReturn(in: view)
+  }
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    configureEdgeReturn(in: view)
+  }
+  private func configureEdgeReturn(in root: UIView) {
+    guard let edge = navigationController?.interactivePopGestureRecognizer else { return }
+    func visit(_ view: UIView) {
+      if let scroll = view as? UIScrollView { scroll.panGestureRecognizer.require(toFail: edge) }
+      for child in view.subviews { visit(child) }
+    }
+    visit(root)
   }
 }

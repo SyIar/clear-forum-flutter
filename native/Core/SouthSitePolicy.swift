@@ -45,6 +45,12 @@ enum SouthSitePolicy {
         guard let value = item.value, values.updateValue(value, forKey: item.name) == nil else { return nil }
       }
     }
+    // Observed PHPWind page links carry neutral navigation hints. Normalize
+    // only these exact values; unknown/non-neutral parameters remain rejected.
+    if path == "/read.php" {
+      if let fpage = values.removeValue(forKey: "fpage"), fpage != "0" { return nil }
+      if let toread = values.removeValue(forKey: "toread"), !toread.isEmpty { return nil }
+    }
     let permitted: Set<String> = path == "/read.php" ? ["tid", "fid", "uid", "page"] : path == "/thread.php" ? ["fid", "page", "type"] : path == "/u.php" ? ["action", "uid", "page"] : []
     for (key, value) in values {
       if key == "action" {

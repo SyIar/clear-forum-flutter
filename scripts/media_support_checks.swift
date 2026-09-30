@@ -43,6 +43,13 @@ func checkResolve(signStatus: Int = 200, mime: String = "application/json",
   return result!
 }
 
+for address in ["https://cyberdrop.cr/e/sample", "https://www.cyberdrop.cr/e/sample/?v=1"] {
+  precondition(MediaPolicy.cyberdropPage(URL(string: address)!))
+}
+for address in ["http://cyberdrop.cr/e/sample", "https://cyberdrop.cr.evil.example/e/sample", "https://cyberdrop.cr/login",
+                "https://user:secret@cyberdrop.cr/e/sample", "https://cyberdrop.cr:8443/e/sample", "https://cyberdrop.cr/e/sample/extra"] {
+  precondition(!MediaPolicy.cyberdropPage(URL(string: address)!))
+}
 for path in ["embed", "v", "d"] {
   precondition(MediaPolicy.turboID(URL(string: "https://turbo.cr/\(path)/sample_1-2/")!) == "sample_1-2")
 }

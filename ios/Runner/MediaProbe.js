@@ -1,5 +1,30 @@
 (() => {
   const seen = new Set();
+  const playAttempts = new WeakMap();
+  let autoStart = false;
+  try {
+    const page = new URL(window.location.href);
+    autoStart = page.protocol === 'https:' && !page.username && !page.password && (!page.port || page.port === '443') &&
+      ['cyberdrop.cr', 'www.cyberdrop.cr'].includes(page.hostname) && /^\/e\/[A-Za-z0-9_-]{1,128}\/?$/.test(page.pathname);
+  } catch (_) {}
+  const startPrimary = node => {
+    if (!autoStart || node.tagName !== 'VIDEO') return;
+    const source = node.currentSrc || node.src || '';
+    const prior = playAttempts.get(node);
+    if (!node.paused) {
+      // Successful playback retires the retry budget before a later manual pause.
+      playAttempts.set(node, {source, count: 2});
+      return;
+    }
+    // Start once on insertion and once if a delayed source becomes available.
+    // A refusal/manual pause is never fought by an endless autoplay loop.
+    if (prior && (prior.source === source || prior.count >= 2)) return;
+    playAttempts.set(node, { source, count: (prior?.count || 0) + 1 });
+    node.preload = 'auto';
+    try { const promise = node.play(); if (promise?.catch) promise.catch(() => {}); } catch (_) {}
+  };
+  const stopAutoplay = () => { autoStart = false; };
+  window.addEventListener('forumNativePlayback', stopAutoplay, {once: true});
   let stopped = false;
   let scheduled = false;
   const scan = () => {
@@ -9,6 +34,7 @@
       .filter(node => !node.closest('.advertisement,.ad-container,.adContainer,.adsbygoogle,[data-ad-slot]'));
     const primary = nodes.filter(node => node.id === 'main-video');
     if (primary.length) nodes = primary;
+    if (nodes.length) startPrimary(nodes[0]);
     for (const node of nodes) {
       const value = node.currentSrc || node.src;
       if (!value || seen.has(value) || seen.size >= 8) continue;

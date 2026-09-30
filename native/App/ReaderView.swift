@@ -14,11 +14,13 @@ struct ReaderView: View {
   @State private var completedRequestID: UUID?
   @State private var forceNextLoad = false
   @State private var visibleID: String?
+  @State private var pendingScrollAnchor: String?
   @State private var isVisible = false
   @State private var loadedGeneration = -1
   @State private var selectingPage = false
   @State private var presentation: ReaderPresentation?
   @State private var media: MediaViewerItem?
+  @State private var imageSheet: ImageViewerPresentation?
   @State private var clearSession = false
   @State private var destination: ReaderDestination?
   @State private var external: URL?
@@ -63,7 +65,7 @@ struct ReaderView: View {
   private var scrollingReader: some View {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 12) {
-          Color.clear.frame(height: 0).id("top")
+          Color.clear.frame(height: 1).id("top")
           if let error {
             ContentUnavailableView {
               Label("Could not load page", systemImage: "wifi.exclamationmark")
@@ -92,7 +94,7 @@ struct ReaderView: View {
                 SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
               }
               ForEach(visible.posts) { post in
-                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { media = .image(UUID(), $0) }, purchase: buy,
+                PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { imageSheet = ImageViewerPresentation(source: $0) }, purchase: buy,
                          purchasing: purchasing || loading,
                          authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false,
                          authorAction: authorAction(for: post)).id(post.id)
@@ -105,7 +107,15 @@ struct ReaderView: View {
           } else { ProgressView("Loading page...").frame(maxWidth: .infinity).padding(.top, 100) }
         }.scrollTargetLayout().padding(.horizontal, 12).padding(.bottom, 14)
       }
-      .scrollPosition(id: $visibleID, anchor: .top)
+      // Visibility is observation only. Binding the first visible row back to
+      // scrollPosition kept re-pinning tall image posts as their layout changed.
+      .defaultScrollAnchor(.top, for: .initialOffset)
+      .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.01) { ids in
+        guard !loading, let page = displayPage else { return }
+        let visible = library.document.visibleContent(in: page)
+        let ordered = ["top", "poll"] + visible.posts.map(\.id) + visible.entries.map(\.id)
+        if let first = ordered.first(where: { ids.contains($0) }) { visibleID = first }
+      }
       .scrollBounceBehavior(.always, axes: .vertical)
       .onScrollGeometryChange(for: ReaderEdgePull.self) { ReaderEdgePull($0) } action: { _, pull in
         edgePull = pull
@@ -138,7 +148,7 @@ struct ReaderView: View {
           Button("Previous page", systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
             Text("Page \(page?.pageNumber ?? 1)").font(.subheadline.weight(.semibold)).monospacedDigit()
-          }.disabled(page == nil || loading || purchasing || page?.pageCount == 1).accessibilityLabel("Choose page")
+          }.disabled(page == nil || loading || purchasing).accessibilityLabel("Choose page")
           Button("Next page", systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
@@ -173,19 +183,36 @@ struct ReaderView: View {
         let expected = requestID
         let force = forceNextLoad
         let previousID = visibleID
-        let restoredID = await load(force: force)
+        _ = await load(force: force)
         guard !Task.isCancelled, expected == requestID else { return }
         forceNextLoad = false
         completedRequestID = requestID
         guard error == nil else { return }
-        let anchor = force ? previousID ?? "top" : current.fragment ?? restoredID ?? "top"
+        // A fresh entry starts at its title. Only an explicit fragment or a
+        // refresh has a requested anchor; cached visibility must not skip it.
+        let anchor = force ? previousID ?? "top" : current.fragment ?? "top"
         let visible = page.map { library.document.visibleContent(in: $0) }
         if let first = pinnedThreads.first, anchor == "south-pinned-more" || pinnedThreads.contains(where: { $0.id == anchor }) {
-          visibleID = first.id
+          visibleID = first.id; proxy.scrollTo(first.id, anchor: .top)
         }
-        else if anchor != "top", visible?.posts.contains(where: { $0.id == anchor }) == true || visible?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && visible?.poll != nil) { visibleID = anchor }
-        else if let entry = visible?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id }
+        else if anchor != "top", visible?.posts.contains(where: { $0.id == anchor }) == true || visible?.entries.contains(where: { $0.id == anchor }) == true || (anchor == "poll" && visible?.poll != nil) { visibleID = anchor; proxy.scrollTo(anchor, anchor: .top) }
+        else if let entry = visible?.entries.first(where: { $0.sectionAnchor == anchor }) { visibleID = entry.id; proxy.scrollTo(entry.id, anchor: .top) }
         else { visibleID = "top"; proxy.scrollTo("top", anchor: .top) }
+      }
+      .onChange(of: pendingScrollAnchor) { _, anchor in
+        guard let anchor else { return }
+        proxy.scrollTo(anchor, anchor: .top)
+        pendingScrollAnchor = nil
+      }
+      .overlay(alignment: .bottomTrailing) {
+        if page != nil, error == nil {
+          VStack(spacing: 8) {
+            Button("Top of page", systemImage: "arrow.up.to.line") { jumpToBoundary(bottom: false, proxy: proxy) }
+            Button("Bottom of page", systemImage: "arrow.down.to.line") { jumpToBoundary(bottom: true, proxy: proxy) }
+          }.labelStyle(.iconOnly).font(.body.weight(.semibold))
+            .buttonStyle(.glass).buttonBorderShape(.circle).controlSize(.large)
+            .disabled(loading).padding(.trailing, 14).padding(.bottom, 12)
+        }
       }
       .onAppear {
         isVisible = true
@@ -209,7 +236,7 @@ struct ReaderView: View {
       }
       .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
         // Keep the immediate return destination while its media viewer is open.
-        if !isVisible && media == nil { page = nil; readingPages.reset(); cancelAdjacent(); completedRequestID = nil; posters.cancel() }
+        if !isVisible && media == nil && imageSheet == nil { page = nil; readingPages.reset(); cancelAdjacent(); completedRequestID = nil; posters.cancel() }
       }
   }
   private func routedReader(proxy: ScrollViewProxy) -> some View {
@@ -236,6 +263,9 @@ struct ReaderView: View {
           if let id = selection.post.authorID { library.change { $0.blockAuthor(id: id, name: selection.post.author) } }
         }.disabled(purchasing || (selection.post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true))
         Button("Cancel", role: .cancel) {}
+      }
+      .sheet(item: $imageSheet) { item in
+        ImageViewerSheet(source: item.source).environmentObject(session)
       }
       .navigationDestination(item: $media) { item in MediaViewerDestination(item: item) }
       .navigationDestination(item: $gofile) { item in GofileBrowserView(url: item.url) }
@@ -304,7 +334,7 @@ struct ReaderView: View {
   private func openAvatar(_ selection: SouthAuthorSelection) {
     guard let url = selection.post.avatarOriginal ?? selection.post.avatar else { return }
     let preview = selection.preview ?? UIImage(systemName: "person.crop.circle")?.withTintColor(.systemGray, renderingMode: .alwaysOriginal) ?? UIImage()
-    media = .image(UUID(), ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
+    imageSheet = ImageViewerPresentation(source: ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
   }
   private func authorAction(for post: ForumPost) -> ((UIImage?) -> Void)? {
     guard session.site == .south else { return nil }
@@ -445,8 +475,11 @@ struct ReaderView: View {
     // New pages reuse existing post/block identities instead of rebuilding them.
     let visible = library.document.visibleContent(in: readingPages.combined(active: page))
     let fallback = visible.posts.first?.id ?? visible.entries.first?.id
-    let anchor = visibleID.flatMap { $0 == "top" ? fallback : $0 } ?? fallback
+    // The global title sentinel changes meaning when an older page is
+    // prepended. Preserve the old page's content instead of the new global top.
+    let anchor = edge == .previous && (visibleID == nil || visibleID == "top") ? fallback ?? "top" : visibleID ?? "top"
     let protected = readingPages.page(containing: anchor)?.url ?? (fallback == nil ? incoming.url : page.url)
+    let priorFirst = readingPages.pages.first?.url
     var updated = readingPages
     guard updated.insert(incoming, at: edge, keeping: protected) else {
       pendingPage = nil; edgeLoading = nil
@@ -459,14 +492,29 @@ struct ReaderView: View {
     var transaction = Transaction()
     transaction.disablesAnimations = true
     withTransaction(transaction) {
-      visibleID = anchor
       readingPages = updated
       self.page = active; url = active.url
       pendingPage = nil
       edgeLoading = nil
+      // Appending to an existing page must not snap to its first post. Only
+      // preserve a content anchor when inserting/removing content above it.
+      if edge == .previous || updated.pages.first?.url != priorFirst {
+        pendingScrollAnchor = anchor
+      }
     }
     if changedPage { library.remember(active, session: session, checkMaximum: false) }
     if readingPages.page(for: incoming.url) != nil { startPurchase(in: incoming) }
+  }
+  private func jumpToBoundary(bottom: Bool, proxy: ScrollViewProxy) {
+    guard let page else { return }
+    let visible = library.document.visibleContent(in: page)
+    let candidates = page.kind == .posts ? visible.posts.map(\.id) : visible.entries.map(\.id)
+    let ids = candidates.filter { id in
+      readingPages.page(containing: id).map { SitePolicy.pageCacheKey($0.url) == SitePolicy.pageCacheKey(page.url) } ?? true
+    }
+    let atFirstLoadedPage = readingPages.pages.first.map { SitePolicy.pageCacheKey($0.url) == SitePolicy.pageCacheKey(page.url) } ?? true
+    let target = bottom ? ids.last ?? "top" : atFirstLoadedPage ? "top" : ids.first ?? "top"
+    proxy.scrollTo(target, anchor: bottom ? .bottom : .top)
   }
   private func cancelAdjacent() {
     edgeRequestID = UUID()

@@ -71,9 +71,8 @@ struct DownloadsView: View {
             Button("Continue all", systemImage: "play") { manager.resumeAll(); gofile.resumeAll() }
               .disabled(!manager.items.contains(where: \.canResume) && gofile.resumable.isEmpty)
             InfoButton(title: "Downloads", message: DownloadHelp.overview)
-            Menu("More", systemImage: "ellipsis") {
-              Button("Clear finished", systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished() }
-            }
+            Button("Clear", systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished() }
+              .accessibilityLabel("Clear finished downloads")
           }
         }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)

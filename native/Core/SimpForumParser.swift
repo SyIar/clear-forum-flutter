@@ -179,7 +179,7 @@ struct SimpForumParser {
       if node.hasClass("bbCodeBlock--unfurl") {
         flush()
         let anchor = try node.select(".js-unfurl-title a").first()
-        if let url = SimpSitePolicy.resolve(try anchor?.attr("href"), from: page) {
+        if let url = SimpSitePolicy.linkDestination(try anchor?.attr("href"), from: page) {
           blocks.append(BodyBlock(kind: .link, label: text(anchor).isEmpty ? url.host ?? "Link" : text(anchor), url: url))
         }
         return
@@ -224,7 +224,7 @@ struct SimpForumParser {
       let boundary = ["p", "div", "li", "ul", "ol", "h1", "h2", "h3", "h4", "table", "tr"].contains(tag)
       if boundary { flush() }
       if tag == "li" { runs.append(TextRun(text: "\u{2022} ")) }
-      let link = tag == "a" ? SimpSitePolicy.resolve(try node.attr("href"), from: page) : href
+      let link = tag == "a" ? SimpSitePolicy.linkDestination(try node.attr("href"), from: page) : href
       for child in node.getChildNodes() {
         try walk(child, bold: bold || ["b", "strong", "h1", "h2", "h3", "h4"].contains(tag), italic: italic || ["i", "em"].contains(tag), href: link)
       }

@@ -120,7 +120,7 @@ struct GofileBatchView: View {
     let location: String
     if Bundle.main.object(forInfoDictionaryKey: "UIFileSharingEnabled") as? Bool == true,
        Bundle.main.object(forInfoDictionaryKey: "LSSupportsOpeningDocumentsInPlace") as? Bool == true {
-      location = "Files → On My iPhone → forum lite → Gofile Downloads"
+      location = "Files → On My iPhone → Forum Lite → Gofile Downloads"
     } else {
       location = "Saved in this app. Use Export folder to save a copy in Files."
     }

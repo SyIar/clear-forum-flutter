@@ -179,4 +179,36 @@ final class SouthPurchaseTests: XCTestCase {
     XCTAssertNil(cache.value(for: second.url))
     XCTAssertNotNil(cache.value(for: other.url))
   }
+  @MainActor func testSuppliedTwoFreeGateLayoutUnlocksBothDistinctPosts() async throws {
+    // Reproduce the supplied 31-post table/body/footer structure with entirely
+    // synthetic IDs, content and verification values. No live request is made.
+    let source = (0...30).map { index in
+      let pid = index == 0 ? "tpc" : String(9000 + index)
+      let gate = index == 0 || index == 12 ? """
+        <h6 class="quote jumbotron"><span class="s3">\(priceLabel) 0 \(currency), 10 buyers</span>
+          <input type="button" onclick="location.href='job.php?action=buytopic&amp;tid=20&amp;pid=\(pid)&amp;verify=synthetic_token'"></h6>
+        """ : "Reply content"
+      return """
+        <table class="js-post"><tr class="tr1"><th class="r_two" rowspan="2">
+          <a href="u.php?action-show-uid-101.html"><strong>Author</strong></a></th><th class="r_one" id="td_\(pid)">
+          <div class="tpc_content"><div id="p_\(pid)" class="c"></div><div class="f14" id="read_\(pid)">\(gate)</div></div>
+        </th></tr><tr class="tr1 r_one"><th><div class="tpc_content"><div id="w_\(pid)" class="c"></div></div></th></tr></table>
+        """
+    }.joined()
+    var current = try parse(source)
+    XCTAssertEqual(current.posts.count, 31)
+    XCTAssertEqual(current.purchaseOffers.map(\.postID), ["tpc", "9012"])
+    XCTAssertTrue(current.purchaseOffers.allSatisfy(\.isFree))
+    var submitted: [String] = []
+    let result = try await SouthPurchaseService(pause: { _ in }).unlockFree(in: current, load: { _ in current }, submit: { selected, _ in
+      submitted.append(selected.postID)
+      let index = try XCTUnwrap(current.posts.firstIndex { $0.id == "post_" + selected.postID })
+      current.posts[index].blocks = [BodyBlock(kind: .paragraph, runs: [TextRun(text: "Unlocked content")])]
+    })
+    XCTAssertEqual(submitted, ["tpc", "9012"])
+    XCTAssertTrue(result.page.purchaseOffers.isEmpty)
+    XCTAssertEqual(result.page.posts.count, 31)
+    XCTAssertNil(result.message)
+  }
+
 }

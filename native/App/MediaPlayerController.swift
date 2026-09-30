@@ -66,7 +66,9 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = store
     configuration.allowsInlineMediaPlayback = true
-    configuration.mediaTypesRequiringUserActionForPlayback = .all
+    // Opening this destination already follows an explicit Play tap. Cyberdrop
+    // needs its primary media element started to reveal/load its stream.
+    configuration.mediaTypesRequiringUserActionForPlayback = MediaPolicy.cyberdropPage(initialURL) ? [] : .all
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
     if !direct {
       configuration.userContentController.add(self, contentWorld: .defaultClient, name: "mediaCandidate")
@@ -379,6 +381,9 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
             self.webView.callAsyncJavaScript("document.querySelectorAll('video,audio').forEach(element => element.pause());", arguments: [:], in: frame, in: .defaultClient, completionHandler: nil)
           }
           self.webView.isHidden = true
+          // Stop the provider element after native playback is ready, preventing
+          // double audio. Do not click controls or mutate provider navigation.
+          self.webView.evaluateJavaScript("window.dispatchEvent(new Event('forumNativePlayback')); document.querySelectorAll('video,audio').forEach(node => node.pause())", in: self.candidateFrame, in: .defaultClient) { _ in }
           self.playerController.view.isHidden = false
           try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
           try? AVAudioSession.sharedInstance().setActive(true)

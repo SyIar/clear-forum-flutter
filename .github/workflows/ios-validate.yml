@@ -1,0 +1,28 @@
+name: Validate native Swift app (no package)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-validation-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - run: xcodebuild -version
+      - run: python3 scripts/check_repository.py
+      - run: swift test --package-path native
+      - run: node scripts/check_media_probe.mjs
+      - run: node scripts/gofile_bridge.test.mjs
+      - run: python3 scripts/check_media_support.py
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec native/project.yml
+      - name: Compile simulator app without packaging
+        run: xcodebuild -project native/ForumLite.xcodeproj -scheme ForumLite -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath native/validation-build CODE_SIGNING_ALLOWED=NO build

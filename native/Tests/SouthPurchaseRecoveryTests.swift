@@ -148,4 +148,84 @@ final class SouthPurchaseRecoveryTests: XCTestCase {
     XCTAssertEqual(published, [1, 0])
     XCTAssertNil(result.message)
   }
+  @MainActor func testIndividualPersistentLockDoesNotBlockOtherFreeOffers() async throws {
+    var current = page([offer(), offer(0, pid: "123")])
+    var submitted: [String] = []
+    var reads = 0
+    let result = try await SouthPurchaseService(pause: { _ in }).unlockFree(in: current, load: { _ in
+      reads += 1; return current
+    }, submit: { selected, _ in
+      submitted.append(selected.postID)
+      if selected.postID == "123" { current = self.page([self.offer()]) }
+    })
+    XCTAssertEqual(submitted, ["tpc", "123"])
+    XCTAssertEqual(reads, 6)
+    XCTAssertEqual(result.page.purchaseOffers.map(\.postID), ["tpc"])
+    XCTAssertEqual(result.message, SouthPurchaseIssue.unconfirmed.localizedDescription)
+  }
+  @MainActor func testFreeToPaidChangeSkipsOnlyThatOfferAndNeverSubmitsPaidContent() async throws {
+    let original = page([offer(), offer(0, pid: "123")])
+    var current = page([offer(5), offer(0, pid: "123")])
+    var submitted: [SouthPurchaseOffer] = []
+    let result = try await SouthPurchaseService(pause: { _ in }).unlockFree(in: original, load: { _ in current }, submit: { selected, _ in
+      submitted.append(selected)
+      current = self.page([self.offer(5)])
+    })
+    XCTAssertEqual(submitted.map(\.postID), ["123"])
+    XCTAssertTrue(submitted.allSatisfy(\.isFree))
+    XCTAssertEqual(result.page.purchaseOffers.map(\.price), [5])
+    XCTAssertEqual(result.message, SouthPurchaseIssue.changedPrice.localizedDescription)
+  }
+  @MainActor func testAmbiguousSubmissionWithPersistentLockStopsOtherTransactions() async throws {
+    let locked = page([offer(), offer(0, pid: "123")])
+    var submitted: [String] = []
+    let result = try await SouthPurchaseService(pause: { _ in }).unlockFree(in: locked, load: { _ in locked }, submit: { selected, _ in
+      submitted.append(selected.postID)
+      throw ReaderFailure.network
+    })
+    XCTAssertEqual(submitted, ["tpc"])
+    XCTAssertEqual(result.page.purchaseOffers.count, 2)
+    XCTAssertEqual(result.message, SouthPurchaseIssue.unconfirmed.localizedDescription)
+  }
+  @MainActor func testReadOnlyReconciliationCanResolveLostResponseAndContinueOtherOffers() async throws {
+    var current = page([offer(), offer(0, pid: "123")])
+    var submitted: [String] = []
+    let result = try await SouthPurchaseService(pause: { _ in }).unlockFree(in: current, load: { _ in current }, submit: { selected, _ in
+      submitted.append(selected.postID)
+      current = self.page(current.purchaseOffers.filter { $0.id != selected.id })
+      if selected.postID == "tpc" { throw ReaderFailure.network }
+    })
+    XCTAssertEqual(submitted, ["tpc", "123"])
+    XCTAssertTrue(result.page.purchaseOffers.isEmpty)
+    XCTAssertNil(result.message)
+  }
+  @MainActor func testUnavailableConfirmationStopsBeforeTheNextFreeOffer() async throws {
+    let locked = page([offer(), offer(0, pid: "123")])
+    var submitted: [String] = []
+    let result = try await SouthPurchaseService(pause: { _ in }).unlockFree(in: locked, load: { _ in
+      if !submitted.isEmpty { throw ReaderFailure.network }
+      return locked
+    }, submit: { selected, _ in submitted.append(selected.postID) })
+    XCTAssertEqual(submitted, ["tpc"])
+    XCTAssertEqual(result.page.purchaseOffers.count, 2)
+    XCTAssertEqual(result.message, SouthPurchaseIssue.confirmationUnavailable.localizedDescription)
+  }
+
+  @MainActor func testSessionAndRateLimitSubmissionFailuresStopAllLaterOffers() async throws {
+    for failure in [ReaderFailure.login, .verification, .forbidden, .rateLimit] {
+      let locked = page([offer(), offer(0, pid: "123")])
+      var reads = 0
+      var submitted: [String] = []
+      let result = try await SouthPurchaseService(pause: { _ in XCTFail("Must not retry") }).unlockFree(in: locked, load: { _ in
+        reads += 1; return locked
+      }, submit: { selected, _ in
+        submitted.append(selected.postID)
+        throw failure
+      })
+      XCTAssertEqual(reads, 1)
+      XCTAssertEqual(submitted, ["tpc"])
+      XCTAssertEqual(result.message, failure.localizedDescription)
+    }
+  }
+
 }

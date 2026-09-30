@@ -9,7 +9,7 @@ from pathlib import Path
 app = Path('native/build/Build/Products/Release-iphoneos/ForumLite.app')
 info = plistlib.loads((app / 'Info.plist').read_bytes())
 assert info['CFBundleIdentifier'] == 'dev.sylar.clearforum'
-assert info['CFBundleDisplayName'] == 'forum lite'
+assert info['CFBundleDisplayName'] == 'Forum Lite'
 assert info['DTPlatformName'] == 'iphoneos'
 assert info.get('NSPhotoLibraryAddUsageDescription'), 'Missing add-only Photos usage description'
 assert info.get('UIFileSharingEnabled') is True, 'Missing Documents file sharing'

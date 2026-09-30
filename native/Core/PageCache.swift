@@ -77,7 +77,7 @@ extension ForumPage {
       for option in poll.options { cost += 128 + string(option.title) }
     }
     for entry in entries + breadcrumbs {
-      cost += 256 + string(entry.title) + string(entry.subtitle) + string(entry.excerpt) + link(entry.url) + link(entry.thumbnail) + tags(entry.tags) + string(entry.authorID ?? "")
+      cost += 256 + string(entry.title) + string(entry.subtitle) + string(entry.excerpt) + string(entry.postedAt ?? "") + link(entry.url) + link(entry.thumbnail) + tags(entry.tags) + string(entry.authorID ?? "")
     }
     for post in posts {
       cost += 256 + string(post.id) + string(post.author) + string(post.date) + string(post.authorID ?? "") + link(post.avatar) + link(post.avatarOriginal) + link(post.authorFilterURL)

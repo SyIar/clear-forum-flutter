@@ -1,6 +1,10 @@
 import Foundation
 
 enum MediaPolicy {
+  static func cyberdropPage(_ url: URL) -> Bool {
+    allowed(url) && ["cyberdrop.cr", "www.cyberdrop.cr"].contains(url.host?.lowercased() ?? "") &&
+      url.path.range(of: #"^/e/[A-Za-z0-9_-]{1,128}/?$"#, options: .regularExpression) != nil
+  }
   static func posterPage(_ url: URL) -> Bool {
     guard allowed(url), url.query == nil, url.fragment == nil else { return false }
     if turboID(url) != nil { return true }

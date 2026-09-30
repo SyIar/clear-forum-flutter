@@ -119,6 +119,13 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
+    if site == .simp, navigationAction.navigationType == .linkActivated,
+       let direct = SimpSitePolicy.linkDestination(url.absoluteString, from: webView.url ?? site.base), direct != url {
+      decisionHandler(.cancel)
+      if !site.sameOrigin(direct) { openExternal(direct) }
+      else if site.accepts(direct) { webView.load(URLRequest(url: direct)) }
+      return
+    }
     if navigationAction.targetFrame?.isMainFrame == true && !site.sameOrigin(url) {
       decisionHandler(.cancel)
       if navigationAction.navigationType == .linkActivated { openExternal(url) }
@@ -127,8 +134,9 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     decisionHandler(url.scheme == "https" || url.scheme == "about" ? .allow : .cancel)
   }
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-    if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
-      if site.sameOrigin(url) { webView.load(navigationAction.request) }
+    if navigationAction.navigationType == .linkActivated, let requested = navigationAction.request.url {
+      let url = site == .simp ? SimpSitePolicy.linkDestination(requested.absoluteString, from: webView.url ?? site.base) ?? requested : requested
+      if site.sameOrigin(url) { webView.load(url == requested ? navigationAction.request : URLRequest(url: url)) }
       else { openExternal(url) }
     }
     return nil

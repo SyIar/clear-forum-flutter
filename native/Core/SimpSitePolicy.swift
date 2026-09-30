@@ -119,6 +119,58 @@ extension SimpSitePolicy {
     }
     return internalOnly && !readable(resolved) ? nil : resolved
   }
+  // Only user-tapped text/unfurl links use this. Authenticated requests and
+  // automatic image/media loads must keep using resolve/readable instead.
+  static func linkDestination(_ value: String?, from page: URL) -> URL? {
+    func navigationURL(_ value: String?) -> URL? {
+      guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty, raw.utf8.count <= 8192,
+            !raw.contains("\\"), raw.range(of: #"%(?![0-9A-Fa-f]{2})"#, options: .regularExpression) == nil,
+            let candidate = URL(string: raw, relativeTo: page)?.absoluteURL,
+            let scheme = candidate.scheme?.lowercased(), ["http", "https"].contains(scheme),
+            let targetHost = candidate.host, !targetHost.isEmpty,
+            targetHost.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+            candidate.user == nil, candidate.password == nil,
+            candidate.port.map({ (1...65535).contains($0) }) ?? true,
+            var parts = URLComponents(url: candidate, resolvingAgainstBaseURL: false) else { return nil }
+      parts.scheme = scheme
+      guard let url = parts.url else { return nil }
+      if scheme == "https" { return resolve(url.absoluteString, from: page) }
+      // Preserve external HTTP for explicit Safari navigation. Never downgrade
+      // the forum origin, authenticated requests, or automatic resource loads.
+      return targetHost.lowercased() == host ? nil : url
+    }
+    guard var target = navigationURL(value) else { return nil }
+    func isWrapper(_ url: URL) -> Bool {
+      sameOrigin(url) && ["/redirect", "/redirect/"].contains(url.path)
+    }
+    var seen = Set<String>()
+    for _ in 0..<4 {
+      guard isWrapper(target) else { return target }
+      guard target.fragment == nil, seen.insert(target.absoluteString).inserted,
+            let components = URLComponents(url: target, resolvingAgainstBaseURL: false) else { return nil }
+      var fields: [String: String] = [:]
+      for item in components.queryItems ?? [] {
+        guard let value = item.value, fields.updateValue(value, forKey: item.name) == nil else { return nil }
+      }
+      // This is the observed Simp redirect contract, not a general URL decoder.
+      guard Set(fields.keys) == Set(["to", "e", "m"]), fields["e"] == "1", fields["m"] == "b64",
+            let encoded = fields["to"], !encoded.isEmpty, encoded.utf8.count <= 8192,
+            encoded.range(of: #"^[A-Za-z0-9+/]+={0,2}$"#, options: .regularExpression) != nil else { return nil }
+      let unpadded = encoded.replacingOccurrences(of: "=", with: "")
+      guard unpadded.count % 4 != 1 else { return nil }
+      let padded = unpadded + String(repeating: "=", count: (4 - unpadded.count % 4) % 4)
+      guard !encoded.contains("=") || encoded == padded,
+            let data = Data(base64Encoded: padded), data.base64EncodedString() == padded,
+            let address = String(data: data, encoding: .utf8), !address.isEmpty,
+            address.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+            !address.contains("\\"),
+            ["http", "https"].contains(URLComponents(string: address)?.scheme?.lowercased() ?? ""),
+            let decoded = navigationURL(address), decoded.absoluteString.utf8.count <= 8192,
+            !sameOrigin(decoded) || readable(decoded) || isWrapper(decoded) else { return nil }
+      target = decoded
+    }
+    return isWrapper(target) ? nil : target
+  }
   static func withoutFragment(_ url: URL) -> URL {
     var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
     components.fragment = nil

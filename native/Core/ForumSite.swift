@@ -8,7 +8,7 @@ enum ForumSite: String, Codable, CaseIterable, Identifiable {
   var base: URL { self == .simp ? SimpSitePolicy.base : SouthSitePolicy.base }
   var start: URL { self == .simp ? base : SouthSitePolicy.start }
   var login: URL { self == .simp ? base.appendingPathComponent("login/") : SouthSitePolicy.login }
-  var search: URL { base.appendingPathComponent(self == .simp ? "search/search" : "search.php") }
+  var search: URL { base.appendingPathComponent(self == .simp ? "search/" : "search.php") }
   init?(url: URL) {
     guard let match = Self.allCases.first(where: { $0.sameOrigin(url) }) else { return nil }
     self = match

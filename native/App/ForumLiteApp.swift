@@ -269,6 +269,19 @@ final class LibraryStore: ObservableObject {
   }
   func toggle(_ url: URL, title: String) { change { $0.toggle(SavedPage(url: url, title: title)) } }
   func contains(_ url: URL) -> Bool { document.bookmarks.contains { $0.url == url } }
+  func resolveBookmarkTitle(_ url: URL, session: ForumSession) {
+    guard session.site == site, site.accepts(url) else { return }
+    Task { [weak self] in
+      do {
+        let page = try await session.load(url)
+        guard let self, !Task.isCancelled, self.contains(url) else { return }
+        self.change { $0.capturePresentation(page); $0.synchronizeTitle(page.title, for: page.url) }
+      } catch {
+        guard let self, self.contains(url) else { return }
+        self.refreshMessage = "Bookmark saved. Its title will update after the page can be loaded."
+      }
+    }
+  }
 }
 
 struct ReaderDestination: Hashable {
@@ -432,6 +445,7 @@ struct HomeView: View {
 
 struct BookmarkEditor: View {
   @EnvironmentObject private var library: LibraryStore
+  @EnvironmentObject private var session: ForumSession
   @Environment(\.dismiss) private var dismiss
   @State private var address = ""
   @State private var title = ""
@@ -449,7 +463,10 @@ struct BookmarkEditor: View {
             guard let url = SitePolicy.resolve(address, from: library.site.base, internalOnly: true), library.site.accepts(url) else { error = "Enter a supported \(library.site.host) forum or thread URL."; return }
             guard !library.contains(url) else { error = "This URL is already bookmarked."; return }
             library.toggle(url, title: title.isEmpty ? url.path : title)
-            if library.error == nil { dismiss() }
+            if library.error == nil {
+              library.resolveBookmarkTitle(url, session: session)
+              dismiss()
+            }
           }.disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
         }
     }.presentationDetents([.medium, .large])

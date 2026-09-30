@@ -34,6 +34,12 @@ struct ForumEntryCard: View {
             Text(entry.title).font(entry.pinned ? .subheadline : .body).lineLimit(entry.pinned ? 1 : 3).foregroundStyle(.primary)
             if !entry.excerpt.isEmpty { Text(entry.excerpt).font(.subheadline).foregroundStyle(.secondary).lineLimit(3) }
             if !entry.pinned && !entry.subtitle.isEmpty { Text(entry.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+            if entry.postedAt != nil || entry.totalPostCount != nil {
+              HStack(spacing: 8) {
+                if let date = entry.postedAt, !entry.subtitle.contains(date) { Text(date) }
+                if let count = entry.totalPostCount { Text("\(count) posts").monospacedDigit() }
+              }.font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
           }
           Spacer(minLength: 0)
           Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
@@ -108,11 +114,28 @@ struct PostCard: View {
         if !post.number.isEmpty { Text(post.number).font(.caption.weight(.semibold)).foregroundStyle(.blue) }
       }
       Divider()
-      RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: openImage, purchase: purchase, purchasing: purchasing)
+      RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: { source in
+        var source = source
+        source.gallery = imageGallery(in: post.blocks)
+        openImage(source)
+      }, purchase: purchase, purchasing: purchasing)
     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
       .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.05)))
   }
+}
+
+private func imageGallery(in blocks: [BodyBlock]) -> [ImageGalleryEntry] {
+  var seen = Set<URL>()
+  func collect(_ blocks: [BodyBlock]) -> [ImageGalleryEntry] {
+    blocks.flatMap { block in
+      if block.kind == .image, let preview = block.url, let url = block.original ?? block.url, seen.insert(url).inserted {
+        return [ImageGalleryEntry(url: url, previewURL: preview)]
+      }
+      return collect(block.children)
+    }
+  }
+  return collect(blocks)
 }
 
 struct PostAvatar: View {
@@ -123,11 +146,11 @@ struct PostAvatar: View {
   @State private var image: UIImage?
   @State private var imageURL: URL?
   private var avatar: some View {
-    ZStack {
-      Color.blue.opacity(0.12)
-      if let image { Image(uiImage: image).resizable().scaledToFill() }
-      else { Text(String(author.prefix(1)).uppercased()).font(.headline).foregroundStyle(.blue) }
-    }.frame(width: 36, height: 36).clipShape(Circle())
+    Color.blue.opacity(0.12).frame(width: 36, height: 36)
+      .overlay {
+        if let image { Image(uiImage: image).resizable().scaledToFill().frame(width: 36, height: 36) }
+        else { Text(String(author.prefix(1)).uppercased()).font(.headline).foregroundStyle(.blue) }
+      }.clipShape(Circle())
   }
   var body: some View {
     Group {
@@ -135,7 +158,7 @@ struct PostAvatar: View {
         Button { action(image) } label: { avatar.frame(width: 44, height: 44).contentShape(Rectangle()) }
           .buttonStyle(.plain).accessibilityLabel("Actions for \(author)")
       } else { avatar.accessibilityHidden(true) }
-    }
+    }.frame(width: 44, height: 44)
       .task(id: url) {
         guard image == nil || imageURL != url else { return }
         imageURL = url
@@ -363,22 +386,24 @@ struct RemoteImageView: View {
   @State private var loading = true
   @State private var attempt = 0
   @State private var imageURL: URL?
-  private var displayRatio: CGFloat { max(0.75, min(2.5, ratio ?? image.map { $0.size.width / max(1, $0.size.height) } ?? 1.5)) }
+  // Reserve a stable preview box before decoding. Loading must not change a
+  // tall post's height and fight the reader's in-flight scroll momentum.
+  private var displayRatio: CGFloat { CGFloat(max(0.75, min(2.5, ratio ?? 1.5))) }
   var body: some View {
-    Group {
-      if let image {
-        Image(uiImage: image).resizable().scaledToFit().frame(maxWidth: .infinity, maxHeight: maximumHeight)
-          .contentShape(Rectangle()).onTapGesture {
-            if let source = originalURL ?? url { openImage?(ImageViewerSource(preview: image, url: source)) }
-          }
-      } else {
-        ZStack {
-          Color(uiColor: .tertiarySystemFill)
-          if loading { ProgressView() }
-          else { Button("Retry image", systemImage: "arrow.clockwise") { attempt += 1 }.font(.caption) }
-        }.aspectRatio(displayRatio, contentMode: .fit).frame(maxHeight: maximumHeight)
+    Color(uiColor: .tertiarySystemFill)
+      .aspectRatio(displayRatio, contentMode: .fit).frame(maxHeight: maximumHeight)
+      .overlay {
+        if let image {
+          Image(uiImage: image).resizable().scaledToFit()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if loading { ProgressView() }
+        else { Button("Retry image", systemImage: "arrow.clockwise") { attempt += 1 }.font(.caption) }
       }
-    }.clipShape(RoundedRectangle(cornerRadius: 10))
+      .clipShape(RoundedRectangle(cornerRadius: 10))
+      .contentShape(Rectangle())
+      .onTapGesture {
+        if let image, let source = originalURL ?? url { openImage?(ImageViewerSource(preview: image, url: source)) }
+      }
       .task(id: "\(url?.absoluteString ?? ""):\(attempt)") {
         // SwiftUI can restart this task after a full-screen viewer is dismissed.
         guard image == nil || imageURL != url else { return }

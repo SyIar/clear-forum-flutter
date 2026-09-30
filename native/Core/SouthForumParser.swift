@@ -83,7 +83,9 @@ struct SouthForumParser {
         let pinned = row.hasClass("sticky") || row.hasClass("pinned") || first(row, "img[src*=headtopic],img[src*=top1],img[src*=top2],img[src*=top3],[data-sticky=true]") != nil
         entries.append(ForumEntry(title: text(anchor), url: link, subtitle: subtitle, pinned: pinned,
                                   thumbnail: thumbnail(first(row, ".thread-thumbnail,.thumbnail,[data-cover]"), page: url),
-                                  tags: tags(row, page: url), authorID: authorID, authorName: author.isEmpty ? nil : author))
+                                  tags: tags(row, page: url), authorID: authorID, authorName: author.isEmpty ? nil : author,
+                                  postedAt: entryDate(row, author: authorLink, authorTopics: topicAuthorID != nil),
+                                  totalPostCount: entryPostCount(row)))
       }
       if entries.isEmpty, SouthSitePolicy.route(url)?.path == "/index.php" {
         for anchor in links(root, "h2 a[href],h3 a[href],.forum-name a[href],a.forum-name[href]") {
@@ -96,13 +98,13 @@ struct SouthForumParser {
       if entries.isEmpty, topicAuthorID == nil, first(doc, "[data-empty-forum=true],.thread-list-empty") == nil { throw ReaderFailure.unsupported }
     }
 
-    let navigation = links(doc, ".pages a[href],.pagination a[href],.page-nav a[href],a[rel=next],a[rel=prev],a[rel=last],link[rel=next],link[rel=prev],link[rel=last]")
+    let navigation = links(doc, ".pages a[href],.pagination a[href],.page-nav a[href],a[rel=next],a[rel=prev],a[rel=last],link[rel=next],link[rel=prev],link[rel=last]").filter(isPageNavigation)
     let pageLinks = navigation.compactMap { target($0, page: url) }.filter { SouthSitePolicy.pageRoot($0) == SouthSitePolicy.pageRoot(url) }
     let number = SouthSitePolicy.pageNumber(url)
-    let declaredTotals = links(doc, ".pages [data-total-pages],.pagination [data-total-pages],.pages input[name=page],.pages input[name=jump_page]")
-      .compactMap { Int(attr($0, "data-total-pages")) ?? Int(attr($0, "max")) }.filter { (1...99_999).contains($0) }
+    let declaredTotals = paginationTotals(doc, currentPage: number)
     let knownCount = (pageLinks.map(SouthSitePolicy.pageNumber) + declaredTotals + [number]).max() ?? number
-    let last = pageLinks.max { SouthSitePolicy.pageNumber($0) < SouthSitePolicy.pageNumber($1) }
+    let last = pageLinks.first { SouthSitePolicy.pageNumber($0) == knownCount } ??
+      (knownCount > number || declaredTotals.contains(knownCount) ? SouthSitePolicy.pageURL(url, number: knownCount) : nil)
     let next = pageLinks.first { SouthSitePolicy.pageNumber($0) == number + 1 } ?? (knownCount > number ? SouthSitePolicy.pageURL(url, number: number + 1) : nil)
     let previous = pageLinks.first { SouthSitePolicy.pageNumber($0) == number - 1 } ?? (number > 1 ? SouthSitePolicy.pageURL(url, number: number - 1) : nil)
     // A missing pager is not proof that this is the last page.
@@ -122,6 +124,68 @@ struct SouthForumParser {
                      previous: previous, next: next, pageNumber: number, loggedIn: loggedIn,
                      lastPage: last, maximumPostNumber: maximum, breadcrumbs: breadcrumbs,
                      tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url))
+  }
+
+  // Do not borrow a last-reply timestamp for the thread's creation time.
+  private func entryDate(_ row: Element, author: Element?, authorTopics: Bool) -> String? {
+    let authorCell = author?.parents().first { $0.tagName() == "td" || $0.tagName() == "th" }
+    let candidates = authorTopics ? links(row, "span.f9,time") :
+      links(row, "[data-posted-at],.posted-at,.creation-date") +
+      (authorCell.map { links($0, "time,.f10,.post-date,.post-time") } ?? [])
+    for node in candidates {
+      for value in [attr(node, "data-posted-at"), attr(node, "datetime"), text(node), attr(node, "title")] {
+        if let date = match(value, #"(?:^|\s)([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?(?:Z|[+-][0-9]{2}:[0-9]{2})?)?)(?:$|\s)"#) { return date }
+      }
+    }
+    return nil
+  }
+  private func entryPostCount(_ row: Element) -> Int? {
+    func number(_ value: String) -> Int? {
+      guard match(value, #"^([0-9]{1,9})$"#) != nil else { return nil }
+      return Int(value)
+    }
+    for node in [row] + links(row, "[data-post-count],.post-count") {
+      if let count = number(attr(node, "data-post-count")), count > 0 { return count }
+      if node.hasClass("post-count"), let count = number(text(node)), count > 0 { return count }
+    }
+    for node in [row] + links(row, "[data-reply-count],.reply-count") {
+      if let count = number(attr(node, "data-reply-count")) { return count + 1 }
+      if node.hasClass("reply-count"), let count = number(text(node)) { return count + 1 }
+    }
+    for cell in row.children().array() where cell.tagName() == "td" || cell.tagName() == "th" {
+      guard first(cell, "h3,.subject,.thread-title,a[href*=read.php],a[href*=u.php]") == nil else { continue }
+      // Compatibility for a compact replies/views cell. A bare number, page link or view
+      // count alone cannot establish the number of posts.
+      if cell.hasClass("f10"), first(cell, "span.s3,span.s8") != nil,
+         let value = match(text(cell), #"^\s*([0-9]{1,9})\s*/\s*[0-9]{1,12}\s*$"#), let replies = number(value) { return replies + 1 }
+      if let value = match(text(cell), #"(?i)^\s*([0-9]{1,9})\s*(?:replies|\u56de\u590d)(?:\s|$)"#), let replies = number(value) { return replies + 1 }
+    }
+    return nil
+  }
+  private func isPageNavigation(_ node: Element) -> Bool {
+    !node.parents().contains {
+      $0.hasClass("js-post") || $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") ||
+      $0.tagName() == "blockquote" || $0.hasClass("blockquote")
+    }
+  }
+  private func paginationTotals(_ root: Element, currentPage: Int) -> [Int] {
+    let pager = ".pages,.pagination,.page-nav"
+    let roots = links(root, pager).filter(isPageNavigation)
+    let declared = roots + roots.flatMap { links($0, "[data-total-pages],input[name=page],input[name=jump_page]") }
+    var totals = declared.compactMap { Int(attr($0, "data-total-pages")) ?? Int(attr($0, "max")) }
+      .filter { (currentPage...99_999).contains($0) }
+    // The same PHPWind pagesone label is already used by South search pages.
+    // Read only its explicit current/total pair, never an arbitrary page body
+    // number or an event handler. Invalid/stale current-page labels are ignored.
+    for node in links(root, ".pagesone").filter(isPageNavigation) {
+      let label = text(node)
+      guard let declaredCurrent = match(label, #"(?i)^\s*Pages:\s*([0-9]{1,5})/[0-9]{1,5}(?:\s+Go)?\s*$"#).flatMap(Int.init),
+            declaredCurrent == currentPage,
+            let total = match(label, #"(?i)^\s*Pages:\s*[0-9]{1,5}/([0-9]{1,5})(?:\s+Go)?\s*$"#).flatMap(Int.init),
+            (currentPage...99_999).contains(total) else { continue }
+      totals.append(total)
+    }
+    return totals
   }
 
   private func match(_ value: String, _ pattern: String) -> String? {
