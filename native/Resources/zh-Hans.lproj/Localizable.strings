@@ -356,6 +356,16 @@
 "Could not open the source image." = "无法打开原图。";
 "Could not join this page. Try again." = "无法拼接此页，请重试。";
 "Tap an author's avatar and choose Follow author. Refresh to load their latest topics." = "点击用户头像并选择“关注用户”，刷新后即可查看其最新主题。";
+"Open the post menu and choose Follow author. Refresh to load their latest topics." = "点击楼层右上角的“…”并选择“关注用户”，刷新后即可查看其最新主题。";
+"Select text" = "选择文本";
+"Text selection" = "文本选择";
+"Copy all" = "全部拷贝";
+"Copied" = "已复制";
+"No text to copy" = "没有可复制的文本";
+"Only this author" = "只看此人";
+"Page actions" = "页面操作";
+"Expanded" = "已展开";
+"Collapsed" = "已收起";
 "Single choice." = "单选。";
 "Choose up to %@." = "最多可选 %@ 项。";
 "The website has hidden the vote counts." = "网站已隐藏票数。";

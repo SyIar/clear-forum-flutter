@@ -63,6 +63,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     navigationItem.rightBarButtonItem = UIBarButtonItem(title: AppText.text("Read page"), style: .done, target: self, action: #selector(readPage))
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = dataStore
+    if site == .south { configuration.defaultWebpagePreferences.preferredContentMode = .desktop }
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
     webView = WKWebView(frame: .zero, configuration: configuration)
     webView.customUserAgent = session.browserUserAgent

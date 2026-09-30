@@ -56,7 +56,7 @@ struct SouthFollowingSection: View {
       HStack {
         Text(AppText.text("Following"))
         Spacer()
-        InfoButton(title: AppText.text("Following"), message: AppText.text("Tap an author's avatar and choose Follow author. Refresh to load their latest topics."))
+        InfoButton(title: AppText.text("Following"), message: AppText.text("Open the post menu and choose Follow author. Refresh to load their latest topics."))
       }
     }
   }

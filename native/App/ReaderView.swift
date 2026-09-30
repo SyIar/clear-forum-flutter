@@ -29,8 +29,9 @@ struct ReaderView: View {
   @State private var purchasing = false
   @State private var purchaseMessage: String?
   @State private var purchaseTask: Task<Void, Never>?
-  @State private var authorSelection: SouthAuthorSelection?
-  @State private var showingAuthorActions = false
+  @State private var textSelection: PostTextSelection?
+  @State private var quickActionsExpanded = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showingBlockedAuthors = false
   @State private var showingPinnedThreads = false
   @State private var selectedPinnedThread: URL?
@@ -98,7 +99,8 @@ struct ReaderView: View {
                 PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { imageSheet = ImageViewerPresentation(source: $0) }, purchase: buy,
                          purchasing: purchasing || loading,
                          authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false,
-                         authorAction: authorAction(for: post)).id(post.id)
+                         openAvatar: session.site == .south ? { openAvatar(post) } : nil,
+                         selectText: session.site == .south ? { textSelection = PostTextSelection(text: PostTextExport.text(in: post.blocks)) } : nil).id(post.id)
               }
               if visible.posts.isEmpty { ContentUnavailableView(AppText.text("No visible replies"), systemImage: "person.slash") }
             } else {
@@ -125,6 +127,7 @@ struct ReaderView: View {
       .onScrollPhaseChange { old, phase in
         scrollPhase = phase
         if phase == .tracking || (phase == .interacting && old != .tracking) { edgeTrigger.beginDrag() }
+        if phase == .tracking { setQuickActions(false) }
         if phase == .interacting { checkEdgeDrag() }
         if phase == .idle { applyAdjacentPage() }
       }
@@ -154,7 +157,12 @@ struct ReaderView: View {
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
-          Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { reload() }.disabled(loading || purchasing)
+          Button { setQuickActions(!quickActionsExpanded) } label: {
+            Image(systemName: quickActionsExpanded ? "xmark" : "ellipsis")
+              .contentTransition(.symbolEffect(.replace))
+          }.disabled(purchasing)
+            .accessibilityLabel(AppText.text("Page actions"))
+            .accessibilityValue(quickActionsExpanded ? AppText.text("Expanded") : AppText.text("Collapsed"))
         }
   }
   private func activeReader(proxy: ScrollViewProxy) -> some View {
@@ -206,20 +214,21 @@ struct ReaderView: View {
         pendingScrollAnchor = nil
       }
       .overlay(alignment: .bottomTrailing) {
-        if page != nil, error == nil {
-          VStack(spacing: 8) {
-            Button(AppText.text("Top of page"), systemImage: "arrow.up.to.line") { jumpToBoundary(bottom: false, proxy: proxy) }
-            Button(AppText.text("Bottom of page"), systemImage: "arrow.down.to.line") { jumpToBoundary(bottom: true, proxy: proxy) }
-          }.labelStyle(.iconOnly).font(.body.weight(.semibold))
-            .buttonStyle(.glass).buttonBorderShape(.circle).controlSize(.large)
-            .disabled(loading).padding(.trailing, 14).padding(.bottom, 12)
+        if quickActionsExpanded {
+          ReaderQuickActions(canJump: page != nil && error == nil, busy: loading || purchasing,
+            top: { setQuickActions(false); jumpToBoundary(bottom: false, proxy: proxy) },
+            bottom: { setQuickActions(false); jumpToBoundary(bottom: true, proxy: proxy) },
+            refresh: { setQuickActions(false); reload() })
+            .padding(.trailing, 14).padding(.bottom, 12)
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         }
       }
       .onAppear {
         isVisible = true
         if page == nil { completedRequestID = nil; requestID = UUID() }
       }
-      .onDisappear { purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
+      .onDisappear { quickActionsExpanded = false; purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
+      .onChange(of: purchasing) { _, value in if value { setQuickActions(false) } }
       .onChange(of: visibleID) { old, value in
         guard !loading else { return }
         if let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
@@ -248,23 +257,7 @@ struct ReaderView: View {
         ReaderView(initialURL: item.url, library: library, session: session, home: home)
       }
       .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
-      .confirmationDialog(authorSelection?.post.author ?? AppText.text("Author"), isPresented: $showingAuthorActions, titleVisibility: .visible, presenting: authorSelection) { selection in
-        Button(AppText.text("View full-size avatar")) { openAvatar(selection) }.disabled(selection.post.avatarOriginal == nil && selection.post.avatar == nil)
-        Button(AppText.text("View author threads")) {
-          if let id = selection.post.authorID, let target = SouthSitePolicy.authorTopics(id) { navigate(target) }
-        }.disabled(selection.post.authorID.flatMap(SouthSitePolicy.authorTopics) == nil)
-        if let id = selection.post.authorID, SouthSitePolicy.validAuthorID(id) {
-          if library.document.followsAuthor(id) {
-            Button(AppText.text("Unfollow author")) { library.unfollow(id) }
-          } else {
-            Button(AppText.text("Follow author")) { library.follow(selection.post, session: session) }
-          }
-        }
-        Button(AppText.text("Block author"), role: .destructive) {
-          if let id = selection.post.authorID { library.change { $0.blockAuthor(id: id, name: selection.post.author) } }
-        }.disabled(purchasing || (selection.post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true))
-        Button(AppText.text("Cancel"), role: .cancel) {}
-      }
+      .sheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
       .sheet(item: $imageSheet) { item in
         ImageViewerSheet(source: item.source).environmentObject(session)
       }
@@ -333,26 +326,23 @@ struct ReaderView: View {
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
   }
-  private func openAvatar(_ selection: SouthAuthorSelection) {
-    guard let url = selection.post.avatarOriginal ?? selection.post.avatar else { return }
-    let preview = selection.preview ?? UIImage(systemName: "person.crop.circle")?.withTintColor(.systemGray, renderingMode: .alwaysOriginal) ?? UIImage()
+  private func openAvatar(_ post: ForumPost) {
+    guard let url = post.avatarOriginal ?? post.avatar else { return }
+    let preview = UIImage(systemName: "person.crop.circle")?.withTintColor(.systemGray, renderingMode: .alwaysOriginal) ?? UIImage()
     imageSheet = ImageViewerPresentation(source: ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
   }
-  private func authorAction(for post: ForumPost) -> ((UIImage?) -> Void)? {
-    guard session.site == .south else { return nil }
-    return { preview in
-      authorSelection = SouthAuthorSelection(post: post, preview: preview)
-      showingAuthorActions = true
-    }
+  private func setQuickActions(_ expanded: Bool) {
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { quickActionsExpanded = expanded }
   }
   private func openBrowser(_ target: URL) {
     guard !purchasing, session.site.sameOrigin(target) else { return }
     session.beginBrowsing()
     presentation = .browser(target)
   }
-  private func reload() { guard !purchasing else { return }; savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
+  private func reload() { guard !purchasing else { return }; setQuickActions(false); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL) {
     guard !purchasing, session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+    setQuickActions(false)
     savePosition()
     cancelAdjacent()
     forceNextLoad = false
@@ -525,11 +515,6 @@ struct ReaderView: View {
     edgeTask?.cancel(); edgeTask = nil
     pendingPage = nil; edgeLoading = nil; edgeFailure = nil
   }
-}
-
-private struct SouthAuthorSelection {
-  let post: ForumPost
-  let preview: UIImage?
 }
 
 enum ReaderPresentation: Identifiable {

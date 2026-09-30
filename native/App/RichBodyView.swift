@@ -87,11 +87,12 @@ struct PostCard: View {
   let purchase: (SouthPurchaseOffer) -> Void
   let purchasing: Bool
   var authorFilterActive = false
-  var authorAction: ((UIImage?) -> Void)?
+  var openAvatar: (() -> Void)?
+  var selectText: (() -> Void)?
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 10) {
-        PostAvatar(url: post.avatar, author: post.author, action: authorAction).disabled(purchasing)
+        PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
           Text(post.author).forumFont(.subheadline, weight: .bold)
           if post.authorID != nil || !post.date.isEmpty {
@@ -103,15 +104,11 @@ struct PostCard: View {
           }
         }
         Spacer(minLength: 8)
-        if let target = post.authorFilterURL {
-          Button { navigate(target) } label: {
-            Image(systemName: "scope").font(.system(size: 17, weight: .medium)).frame(width: 30, height: 30)
-          }.buttonStyle(.glass).buttonBorderShape(.circle)
-            .disabled(purchasing || authorFilterActive)
-            .accessibilityLabel(AppText.format("Only posts by %@", String(describing: post.author)))
-            .accessibilityValue(authorFilterActive ? AppText.text("Active") : "")
-        }
         if !post.number.isEmpty { Text(post.number).forumFont(.caption, weight: .semibold).foregroundStyle(.blue) }
+        if let openAvatar, let selectText {
+          SouthPostMenu(post: post, busy: purchasing, authorFilterActive: authorFilterActive,
+                        navigate: navigate, openAvatar: openAvatar, selectText: selectText)
+        }
       }
       Divider()
       RichBodyView(blocks: post.blocks, posters: posters, navigate: navigate, play: play, openImage: { source in

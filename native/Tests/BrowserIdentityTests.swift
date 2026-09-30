@@ -13,7 +13,8 @@ final class BrowserIdentityTests: XCTestCase {
     defer { defaults.removePersistentDomain(forName: name) }
     let identity = BrowserIdentity.userAgent(for: .south, defaults: defaults, systemVersion: "27.2", isPad: false)
     let request = try ForumRequest.page(site: .south, url: SouthSitePolicy.start, userAgent: identity, cookies: [])
-    XCTAssertTrue(identity.contains("iPhone OS 27_2"))
+    XCTAssertTrue(identity.contains("Macintosh"))
+    XCTAssertFalse(identity.contains("Mobile"))
     XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), identity)
     XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
   }
@@ -26,12 +27,15 @@ final class BrowserIdentityTests: XCTestCase {
     XCTAssertEqual(BrowserIdentity.userAgent(for: .south, defaults: reopened, systemVersion: "28.0", isPad: false), first)
   }
 
-  func testUpgradeKeepsAnExistingBrowserIdentityExactly() throws {
+  func testUpgradeReplacesSouthMobileIdentityWithoutTouchingSimp() throws {
     let (name, defaults) = try isolatedDefaults()
     defer { defaults.removePersistentDomain(forName: name) }
-    let prior = "Mozilla/5.0 FixtureWebKit/1.0 ExistingIdentity"
+    let prior = "Mozilla/5.0 (iPhone; CPU iPhone OS 27_2 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"
     defaults.set(prior, forKey: "forum_south_browser_user_agent")
-    XCTAssertEqual(BrowserIdentity.userAgent(for: .south, defaults: defaults, systemVersion: "27.2", isPad: false), prior)
+    defaults.set(prior, forKey: "forum_simp_browser_user_agent")
+    XCTAssertEqual(BrowserIdentity.userAgent(for: .south, defaults: defaults, systemVersion: "27.2", isPad: false), BrowserIdentity.southDesktop)
+    XCTAssertEqual(defaults.string(forKey: "forum_south_browser_user_agent"), BrowserIdentity.southDesktop)
+    XCTAssertEqual(BrowserIdentity.userAgent(for: .simp, defaults: defaults, systemVersion: "27.2", isPad: false), prior)
   }
 
   func testForumsDoNotOverwriteEachOthersIdentity() throws {
@@ -60,9 +64,11 @@ final class BrowserIdentityTests: XCTestCase {
     let (name, defaults) = try isolatedDefaults()
     defer { defaults.removePersistentDomain(forName: name) }
     let identity = BrowserIdentity.userAgent(for: .south, defaults: defaults, systemVersion: "unexpected\r\nvalue", isPad: true)
-    XCTAssertTrue(identity.contains("iPad; CPU OS"))
+    XCTAssertEqual(identity, BrowserIdentity.southDesktop)
     XCTAssertFalse(identity.contains("\r"))
     XCTAssertFalse(identity.contains("\n"))
+    let simp = BrowserIdentity.userAgent(for: .simp, defaults: defaults, systemVersion: "unexpected\r\nvalue", isPad: true)
+    XCTAssertTrue(simp.contains("iPad; CPU OS 18_0"))
   }
 }
 
@@ -100,6 +106,7 @@ extension BrowserIdentityTests {
     let identity = BrowserIdentity.userAgent(for: .south, defaults: defaults, systemVersion: "27.2", isPad: false)
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = .nonPersistent()
+    configuration.defaultWebpagePreferences.preferredContentMode = .desktop
     let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 480), configuration: configuration)
     webView.customUserAgent = identity
     let loaded = expectation(description: "WebKit loads a local fixture")
