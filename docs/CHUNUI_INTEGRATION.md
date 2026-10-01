@@ -1,5 +1,15 @@
 # ChunUI integration
 
+## Delivered build
+
+- Version: `0.3.0 (1057)`.
+- Source: `b02bb34ee81d80042aac55fb9a6f2ce86bf1779c`.
+- [Successful device build](https://github.com/SyIar/clear-forum-flutter/actions/runs/36806015845): 323 Forum Core tests and 20 Tieba Core tests passed; media/bridge/resource checks passed; unsigned arm64 Release IPA packaged.
+- Local IPA: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1057-unsigned.ipa` (55,957,705 bytes).
+- SHA-256: `e15bd81671ec167206ad25c20e63492a7cac09625a26fe040fabde4c9652c957`.
+- Downloaded archive CRC, build/source metadata, arm64 executable/framework, Pika mapping/assets, ChunUI Metal library/assets, fonts, Chinese tables and licenses verified. Windows/CI text resources were compared with newline normalization where appropriate.
+- Physical-device visual and gesture acceptance remains with the user; no simulator was run.
+
 ## Scope
 
 - ChunUI is pinned to `b240cbbdb9c6d7afc9f02d9ce4ddff5a25ce73bb`; Pow is pinned to `1.0.6`.
