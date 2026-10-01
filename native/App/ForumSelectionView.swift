@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ForumSelectionView: View {
   let openTieba: () -> Void
+  let openDownloader: () -> Void
   @EnvironmentObject private var wallpaper: DailyWallpaperStore
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -19,10 +20,24 @@ struct ForumSelectionView: View {
               }.buttonStyle(.plain)
                 .accessibilityLabel(AppText.format("Open %@ home", site.host))
             }
-            Button(action: openTieba) {
-              moduleCard(logo: "TiebaLogo")
-            }.buttonStyle(.plain)
-              .accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
+            HStack(spacing: ForumDesignSystem.spacing.base) {
+              Button(action: openTieba) {
+                moduleCard(logo: "TiebaLogo")
+              }.buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
+              Button(action: openDownloader) {
+                Image(forumSymbol: "square.and.arrow.down", size: 46)
+                  .foregroundStyle(.white).accessibilityHidden(true)
+                  .frame(maxWidth: .infinity).frame(height: 82)
+                  .padding(.horizontal, ForumDesignSystem.spacing.xl)
+                  .padding(.vertical, ForumDesignSystem.spacing.md)
+                  .contentShape(RoundedRectangle(cornerRadius: 28))
+                  .forumModuleGlass()
+              }.buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel(AppText.text("Downloader"))
+            }
           }
         }
         if let photo = wallpaper.wallpaper {

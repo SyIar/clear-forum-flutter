@@ -18,6 +18,7 @@ struct ForumLiteApp: App {
   @StateObject private var bookhouseSession = ForumSession(site: .bookhouse)
   @StateObject private var tieba = TiebaModuleSession()
   @State private var showingTieba = false
+  @State private var showingDownloader = false
   @State private var path: [ForumDestination] = []
   var body: some Scene {
     WindowGroup {
@@ -40,7 +41,8 @@ struct ForumLiteApp: App {
   }
   private var forumNavigation: some View {
       NavigationStack(path: $path) {
-        ForumSelectionView { showingTieba = true }
+        ForumSelectionView(openTieba: { showingTieba = true }, openDownloader: { showingDownloader = true })
+          .navigationDestination(isPresented: $showingDownloader) { DownloaderView() }
           .navigationDestination(for: ForumDestination.self) { destination in
             let site = destination.site
             Group {

@@ -434,3 +434,9 @@
 "The next chapter is missing. Choose a chapter from the catalog." = "\U4e0b\U4e00\U7ae0\U7f3a\U5931\Uff0c\U8bf7\U4ece\U76ee\U5f55\U9009\U62e9\U7ae0\U8282\U3002";
 "You have reached the latest chapter." = "\U5df2\U8bfb\U5230\U6700\U65b0\U7ae0\U8282\U3002";
 "This post has no recognizable heading for the requested chapter. Showing the publication from its beginning." = "\U672a\U8bc6\U522b\U5230\U76ee\U6807\U7ae0\U8282\U6807\U9898\Uff0c\U5df2\U5b9a\U4f4d\U5230\U672c\U5e16\U5f00\U5934\Uff0c\U8bf7\U624b\U52a8\U786e\U8ba4\U3002";
+
+"Downloader" = "\U4e0b\U8f7d\U5668";
+"Paste an HTTP or HTTPS link" = "\U7c98\U8d34 HTTP \U6216 HTTPS \U94fe\U63a5";
+"Download link" = "\U4e0b\U8f7d\U94fe\U63a5";
+"Enter a complete HTTP or HTTPS link." = "\U8bf7\U8f93\U5165\U5b8c\U6574\U7684 HTTP \U6216 HTTPS \U94fe\U63a5\U3002";
+"This link is not supported by the downloader. Use a Gofile, Bunkr, Pixeldrain, Fileditch, or Filester file or folder link." = "\U6682\U4e0d\U652f\U6301\U6b64\U94fe\U63a5\U3002\U8bf7\U8f93\U5165 Gofile\U3001Bunkr\U3001Pixeldrain\U3001Fileditch \U6216 Filester \U7684\U6587\U4ef6\U6216\U6587\U4ef6\U5939\U94fe\U63a5\U3002";
