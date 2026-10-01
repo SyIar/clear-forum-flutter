@@ -158,7 +158,8 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
       video = GofileVideoSource(entry: entry, url: link, cookies: cookies.filter { MediaPolicy.cookieMatches($0, link) })
     } else { download(entry, previewWhenReady: true) }
   }
-  func download(_ entry: GofileEntry, previewWhenReady: Bool = false) {
+  // Temporary preview files stay local; explicit downloads belong to the global manager.
+  private func download(_ entry: GofileEntry, previewWhenReady: Bool = false) {
     guard !entry.folder else { return }
     if let file = downloads[entry.id]?.file {
       if previewWhenReady { preview = GofileLocalFile(url: file) } else { export = GofileLocalFile(url: file) }

@@ -21,21 +21,22 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
   @Published private(set) var issue: String?
   @Published private(set) var gate: GofileFailure?
   @Published private(set) var directory: URL?
+  @Published private(set) var savedFiles: [String: URL] = [:]
   private var plan: GofileBatchPlan?
   @Published private var worker: Task<Void, Never>?
   private var unlocked: GofileListing?
   var pending: Int { plan?.pending.count ?? 0 }
   var running: Bool { phase == .running }
   var canResume: Bool { phase == .paused && worker == nil && plan != nil && directory != nil && gate?.retryDate.map { $0 > Date() } != true }
-  init(url: URL, listing: GofileListing) {
+  init(url: URL, selection: GofileDownloadSelection) {
     self.url = url
-    sourceKey = "\(listing.id):\(listing.page)"
-    title = listing.title
+    sourceKey = selection.key
+    title = selection.listing.title
   }
 
   func start(_ listing: GofileListing) {
     guard worker == nil, phase == .idle || phase == .finished || phase == .cancelled else { return }
-    plan = nil; directory = nil; unlocked = nil
+    plan = nil; directory = nil; unlocked = nil; savedFiles = [:]
     do {
       plan = try GofileBatchPlan(listing: listing)
       let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -114,6 +115,7 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
           try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
           // moveItem refuses to overwrite an existing file. Only fully validated transfers reach here.
           try FileManager.default.moveItem(at: file, to: destination)
+          savedFiles[item.entry.id] = destination
           completed += 1; plan?.advance()
         }
         // Pace metadata and file requests, including empty/small items. No automatic retry loop.

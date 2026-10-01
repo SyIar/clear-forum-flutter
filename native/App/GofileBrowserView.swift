@@ -8,6 +8,7 @@ struct GofileDestination: Hashable { let url: URL }
 
 struct GofileBrowserView: View {
   @StateObject private var session: GofileSession
+  @ObservedObject private var downloads = GofileDownloadManager.shared
   @State private var batch: GofileBatchDownload?
   @State private var search = ""
   @State private var showingBatch = false
@@ -43,7 +44,11 @@ struct GofileBrowserView: View {
                   try await session.transfer(entry, limit: Int64(TorrentMetadata.limit), progress: { _ in })
                 }, unavailable: entry.unavailable)
               } else {
-                Button { session.open(entry) } label: { entryLabel(entry) }.buttonStyle(.plain)
+                Button {
+                  if let file = downloads.download(for: entry)?.savedFiles[entry.id] {
+                    session.preview = GofileLocalFile(url: file)
+                  } else { session.open(entry) }
+                } label: { entryLabel(entry) }.buttonStyle(.plain)
                 downloadButton(entry)
               }
             }.padding(.vertical, 3)
@@ -110,26 +115,30 @@ struct GofileBrowserView: View {
           .appFont(.caption).foregroundStyle(.secondary)
         if entry.unavailable { Text(AppText.text("Unavailable on Gofile")).appFont(.caption2).foregroundStyle(.secondary) }
         if let error = session.downloads[entry.id]?.error { Text(error).appFont(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+        if let error = downloads.download(for: entry)?.issue { Text(error).appFont(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
       }.frame(maxWidth: .infinity, alignment: .leading)
     }.contentShape(Rectangle())
   }
   private func downloadButton(_ entry: GofileEntry) -> some View {
-    let state = session.downloads[entry.id]
+    let task = downloads.download(for: entry)
+    let file = task?.savedFiles[entry.id]
     return Button {
-      if state?.busy == true { session.cancel(entry.id) } else { session.download(entry) }
+      if let file { session.export = GofileLocalFile(url: file) }
+      else if let task { batch = task; showingBatch = true }
+      else { _ = downloads.download(url: session.requestedURL, entry: entry) }
     } label: {
       ZStack {
-        if state?.busy == true {
-          if let fraction = state?.progress {
+        if task?.running == true {
+          if let fraction = task?.progress {
             Circle().stroke(.blue.opacity(0.15), lineWidth: 2.5)
             Circle().trim(from: 0, to: fraction).stroke(.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).rotationEffect(.degrees(-90))
             Text("\(Int(fraction * 100))").font(.system(size: 10, weight: .semibold)).monospacedDigit()
           } else { ProgressView() }
-        } else { Image(forumSymbol: state?.file == nil ? "arrow.down" : "square.and.arrow.up", size: 17).font(.body.weight(.medium)) }
+        } else { Image(forumSymbol: file != nil ? "square.and.arrow.up" : task == nil ? "arrow.down" : "info.circle", size: 17).font(.body.weight(.medium)) }
       }.frame(width: 28, height: 28).padding(6)
     }.buttonStyle(.glass).buttonBorderShape(.circle)
-      .accessibilityLabel(state?.busy == true ? AppText.text("Cancel download") : state?.file == nil ? AppText.text("Download file") : AppText.text("Save to Files"))
-      .disabled(entry.unavailable)
+      .accessibilityLabel(file != nil ? AppText.text("Save to Files") : task == nil ? AppText.text("Download file") : AppText.text("Downloads"))
+      .disabled(entry.unavailable && task == nil)
   }
 }
 

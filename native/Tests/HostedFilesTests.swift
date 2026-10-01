@@ -148,10 +148,31 @@ final class HostedFilesTests: XCTestCase {
     for file in ["../example.zip", "example/other.zip", "example.zip?token=other", "example.zip\n", "%2e%2e.zip"] {
       XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": file, "token": "synthetic"]), entry: entry))
     }
-    for server in ["https://fsc2.cdn.cr.evil.com", "https://other.cdn.cr", "http://fsc2.cdn.cr", "https://fsc2.cdn.cr/other", "https://cn1.filester.me/?override=1"] {
+    for server in ["https://fsc2.cdn.cr.evil.com", "https://other.cdn.cr", "https://fsc3.cdn.cr.evil.com", "https://fsc3.other.cr", "https://fsc.cdn.cr", "https://fsc3-cdn.cr", "http://fsc3.cdn.cr", "https://fsc3.cdn.cr/other", "https://fsc3.cdn.cr/?override=1", "https://cn1.filester.me/?override=1"] {
       XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["file": "example.zip", "token": "synthetic", "server": server]), entry: entry))
     }
     XCTAssertThrowsError(try HostedFileParser.filesterDownload(json(["success": false, "file": "example.zip", "token": "synthetic"]), entry: entry))
+  }
+  @MainActor func testFilesterResolvesNumberedCDNNodesThroughPublicDownloadAPI() async throws {
+    for node in ["fsc2", "fsc3", "fsc12"] {
+      let response = try json(["success": true, "file": "stored-file.zip", "token": "synthetic&token",
+                               "server": "https://\(node).cdn.cr", "name": "Example.zip"])
+      let entry = HostedFileEntry(pageURL: URL(string: "https://filester.me/d/example")!, name: "Example.zip")
+      let client = HostedFileClient { url, provider, body, referer in
+        XCTAssertEqual(url.absoluteString, "https://filester.me/v2/api/public/download")
+        XCTAssertEqual(provider, .filester)
+        XCTAssertEqual(body, ["file_slug": "example"])
+        XCTAssertEqual(referer, entry.pageURL)
+        return response
+      }
+      let request = try await client.resolve(entry)
+      XCTAssertEqual(request.url.host, "\(node).cdn.cr")
+      XCTAssertEqual(request.url.path, "/v2/stored-file.zip")
+      XCTAssertEqual(request.referer, entry.pageURL)
+      XCTAssertTrue(request.accepts(request.url))
+      XCTAssertEqual(URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems?
+        .first(where: { $0.name == "token" })?.value, "synthetic&token")
+    }
   }
   @MainActor func testFilesterResolutionErrorsAreNotReportedAsListingFailures() async throws {
     let client = HostedFileClient { _, _, _, _ in Data("<html>Unavailable</html>".utf8) }

@@ -1,5 +1,25 @@
 import Foundation
 
+// Keep an individual file distinct from the surrounding folder's batch.
+enum GofileDownloadSelection {
+  case listing(GofileListing)
+  case file(GofileEntry)
+
+  var key: String {
+    switch self {
+    case .listing(let listing): return "listing:\(listing.id):\(listing.page)"
+    case .file(let entry): return "file:\(entry.id)"
+    }
+  }
+  var listing: GofileListing {
+    switch self {
+    case .listing(let listing): return listing
+    case .file(let entry):
+      return GofileListing(id: entry.id, title: entry.name, entries: [entry], page: 1, pages: 1)
+    }
+  }
+}
+
 // A depth-first work list. A failed item remains at the head until retried or skipped.
 struct GofileBatchPlan {
   struct Item: Identifiable {

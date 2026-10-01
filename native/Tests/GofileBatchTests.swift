@@ -47,6 +47,27 @@ final class GofileBatchTests: XCTestCase {
     XCTAssertEqual(plan.pending.count, 1)
     XCTAssertEqual(plan.next?.entry.id, "a")
   }
+  func testSingleFileSelectionKeepsOnlyTheChosenVideoAndSurvivesFolderNavigation() throws {
+    let video = GofileEntry(id: "video", name: "Sample.mp4", folder: false, size: 4096, mime: "video/mp4",
+      link: URL(string: "https://store5.gofile.io/download/web/video/Sample.mp4"), thumbnail: nil, unavailable: false)
+    let firstPage = listing("root", [video, entry("other"), entry("folder", folder: true)], pages: 3)
+    let selected = GofileDownloadSelection.file(firstPage.entries[0])
+    var plan = try GofileBatchPlan(listing: selected.listing)
+    XCTAssertEqual(plan.pending.count, 1)
+    XCTAssertEqual(plan.next?.entry, video)
+    XCTAssertEqual(plan.next?.path, ["Sample.mp4"])
+    XCTAssertEqual(selected.listing.title, video.name)
+    XCTAssertNotEqual(selected.key, GofileDownloadSelection.listing(firstPage).key)
+    let laterPage = listing("root", [entry("last"), video], page: 2, pages: 3)
+    XCTAssertEqual(selected.key, GofileDownloadSelection.file(laterPage.entries[1]).key)
+    plan.advance()
+    XCTAssertNil(plan.next)
+  }
+  func testSingleFileAndWholeListingDoNotCollideEvenWithTheSameContentID() {
+    let file = entry("same-id")
+    XCTAssertNotEqual(GofileDownloadSelection.file(file).key,
+                      GofileDownloadSelection.listing(listing("same-id", [file])).key)
+  }
   func testDepthLimitDoesNotDiscardPendingWork() throws {
     var plan = try GofileBatchPlan(listing: listing("root", [entry("d1", folder: true)]))
     for depth in 1...32 {

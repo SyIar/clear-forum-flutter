@@ -13,14 +13,25 @@ final class GofileDownloadManager: ObservableObject {
   var resumable: [GofileBatchDownload] { items.filter { $0.canResume && $0.gate?.needsPassword != true } }
 
   func batch(url: URL, listing: GofileListing) -> GofileBatchDownload {
-    let key = "\(listing.id):\(listing.page)"
-    if let existing = items.first(where: { $0.sourceKey == key }) { return existing }
-    let batch = GofileBatchDownload(url: url, listing: listing)
+    enqueue(url: url, selection: .listing(listing))
+  }
+
+  func download(url: URL, entry: GofileEntry) -> GofileBatchDownload {
+    enqueue(url: url, selection: .file(entry))
+  }
+
+  func download(for entry: GofileEntry) -> GofileBatchDownload? {
+    items.first { $0.sourceKey == GofileDownloadSelection.file(entry).key && $0.phase != .cancelled }
+  }
+
+  private func enqueue(url: URL, selection: GofileDownloadSelection) -> GofileBatchDownload {
+    if let existing = items.first(where: { $0.sourceKey == selection.key && $0.phase != .cancelled }) { return existing }
+    let batch = GofileBatchDownload(url: url, selection: selection)
     observations[batch.id] = batch.objectWillChange
       .throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
       .sink { [weak self] _ in self?.objectWillChange.send() }
     items.append(batch)
-    batch.start(listing)
+    batch.start(selection.listing)
     return batch
   }
 

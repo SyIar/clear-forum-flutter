@@ -93,8 +93,8 @@ enum HostedFilePolicy {
   static func filesterServer(_ url: URL) -> Bool {
     guard publicHTTPS(url), let host = url.host?.lowercased(),
           ["", "/"].contains(url.path), url.query == nil, url.fragment == nil else { return false }
-    // The public download API also returns this dedicated CDN for stored files.
-    return host == "fsc2.cdn.cr" ||
+    // Filester assigns files to numbered nodes on its dedicated CDN.
+    return host.range(of: #"\Afsc[1-9][0-9]*\.cdn\.cr\z"#, options: .regularExpression) != nil ||
       host.range(of: #"^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+filester\.[a-z]{2,63}$"#, options: .regularExpression) != nil
   }
   static func filesterFile(_ value: String) -> Bool {
