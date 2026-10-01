@@ -57,7 +57,7 @@ struct ForumLiteApp: App {
               case .reader(let url):
                 if site == .bookhouse {
                   BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) }, home: { path = [.home(site)] },
-                                      search: { path.append(.search(site)) })
+                    search: { path.append(.search(site)) }, followedBookID: bookhouseLibrary.document.followedBook(at: url)?.id)
                 } else {
                   ReaderView(initialURL: url, library: library(for: site), session: session(for: site), home: { path = [.home(site)] })
                 }

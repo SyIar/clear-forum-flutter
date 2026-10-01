@@ -151,4 +151,8 @@ struct BookhouseChapterAnchors {
 extension LibraryDocument {
   var readingBooks: [BookhouseFollowedBook] { followedBooks.values.sorted { $0.followedAt > $1.followedAt } }
   func followedBook(for entry: ForumEntry) -> BookhouseFollowedBook? { readingBooks.first { $0.matches(entry) } }
+  func followedBook(at url: URL) -> BookhouseFollowedBook? {
+    guard let key = BookhouseSitePolicy.threadKey(url) else { return nil }
+    return readingBooks.first { book in book.chapters.contains { BookhouseSitePolicy.threadKey($0.url) == key } }
+  }
 }
