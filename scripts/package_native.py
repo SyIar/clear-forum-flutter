@@ -20,6 +20,14 @@ assert struct.unpack('<II', binary[:8]) == (0xFEEDFACF, 0x0100000C), 'Expected a
 assert not any(p.name in {'Flutter.framework', 'App.framework', 'flutter_assets'} for p in app.rglob('*')), 'Unexpected Flutter runtime'
 assert (app / 'MediaProbe.js').is_file(), 'Missing media compatibility script'
 assert (app / 'Assets.car').is_file(), 'Missing app assets'
+ui = app / 'Frameworks/ForumUI.framework'
+assert (ui / 'ForumUI').is_file(), 'Missing shared design system binary'
+assert struct.unpack('<II', (ui / 'ForumUI').read_bytes()[:8]) == (0xFEEDFACF, 0x0100000C)
+assert (ui / 'Assets.car').is_file(), 'Missing Pika assets'
+assert (ui / 'PikaSymbolMap.json').read_bytes() == Path('native/DesignSystem/PikaSymbolMap.json').read_bytes()
+assert list(app.rglob('ChunUI_ChunUI.bundle')), 'Missing ChunUI shader and icon resources'
+for name in ['ChunUI-LICENSE.md', 'Pow-LICENSE.md']:
+    assert (app / name).read_bytes() == (Path('native/Resources') / name).read_bytes(), f'Missing license: {name}'
 tieba = app / 'Frameworks/TiebaFeature.framework'
 assert (tieba / 'TiebaFeature').is_file(), 'Missing native Tieba feature binary'
 assert struct.unpack('<II', (tieba / 'TiebaFeature').read_bytes()[:8]) == (0xFEEDFACF, 0x0100000C), 'Expected arm64 Tieba framework'

@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct ForumSelectionView: View {
@@ -9,9 +10,9 @@ struct ForumSelectionView: View {
 
   var body: some View {
     ScrollView {
-      VStack(spacing: 22) {
-        GlassEffectContainer(spacing: 12) {
-          VStack(spacing: 16) {
+      VStack(spacing: ForumDesignSystem.spacing.xl) {
+        GlassEffectContainer(spacing: ForumDesignSystem.spacing.md) {
+          VStack(spacing: ForumDesignSystem.spacing.base) {
             ForEach(ForumSite.allCases) { site in
               NavigationLink(value: ForumDestination.home(site)) {
                 moduleCard(logo: site == .bookhouse ? "BookhouseLogo" : site == .simp ? "ForumLogo" : "SouthLogo")
@@ -34,9 +35,11 @@ struct ForumSelectionView: View {
               .padding(.horizontal, 12).padding(.vertical, 8)
           }.buttonStyle(.plain).accessibilityLabel(AppText.text("Wallpaper source"))
         }
-      }.frame(maxWidth: 520).padding(.horizontal, 22).padding(.top, 28).padding(.bottom, 24)
+      }.frame(maxWidth: 520).padding(.horizontal, ForumDesignSystem.spacing.xl).padding(.top, 28).padding(.bottom, ForumDesignSystem.spacing.xl)
         .frame(maxWidth: .infinity)
     }.scrollIndicators(.hidden)
+      .overlay(alignment: .top) { ForumEdgeBlur().frame(height: 65).ignoresSafeArea(edges: .top) }
+      .overlay(alignment: .bottom) { ForumEdgeBlur(bottom: true).frame(height: 75).ignoresSafeArea(edges: .bottom) }
       .background { backdrop.ignoresSafeArea() }
       .environment(\.colorScheme, .dark)
       .toolbar(.hidden, for: .navigationBar)
@@ -50,9 +53,9 @@ struct ForumSelectionView: View {
   private func moduleCard(logo: String) -> some View {
     Image(logo).resizable().scaledToFit().frame(height: 82)
       .clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityHidden(true)
-      .padding(.horizontal, 24).padding(.vertical, 12).frame(maxWidth: .infinity)
+      .padding(.horizontal, ForumDesignSystem.spacing.xl).padding(.vertical, ForumDesignSystem.spacing.md).frame(maxWidth: .infinity)
       .contentShape(RoundedRectangle(cornerRadius: 28))
-      .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 28))
+      .forumModuleGlass()
   }
 
   private var backdrop: some View {

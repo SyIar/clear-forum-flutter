@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import WebKit
 
@@ -23,7 +24,7 @@ final class BaiduBrowserController: UIViewController, WKNavigationDelegate {
     let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent()
     web = WKWebView(frame: .zero, configuration: config); web.navigationDelegate = self; web.allowsBackForwardNavigationGestures = true
     view = web; title = tr(initial == nil ? "loginTitle" : "openOriginal")
-    navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "chevron.left"), style: .plain, target: self, action: #selector(close))
+    navigationItem.leftBarButtonItem = UIBarButtonItem(image: ForumIcons.image( "chevron.left"), style: .plain, target: self, action: #selector(close))
     navigationItem.rightBarButtonItem = UIBarButtonItem(title: tr("done"), style: .done, target: self, action: #selector(finish))
     let login = URL(string: "https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine")!
     let target = initial ?? login
@@ -48,8 +49,7 @@ final class BaiduBrowserController: UIViewController, WKNavigationDelegate {
       let cookies = await web.configuration.websiteDataStore.httpCookieStore.allCookies()
       let valid = cookies.filter { ($0.domain == "baidu.com" || $0.domain.hasSuffix(".baidu.com")) && $0.name.range(of: "^[A-Za-z0-9_]+$", options: .regularExpression) != nil && $0.value.rangeOfCharacter(from: CharacterSet(charactersIn: ";\r\n")) == nil }
       guard let bduss = valid.first(where: { $0.name == "BDUSS" })?.value, let stoken = valid.first(where: { $0.name == "STOKEN" })?.value, !bduss.isEmpty, !stoken.isEmpty else {
-        let alert = UIAlertController(title: tr("loginNeeded"), message: tr("accountCookiesMissing"), preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: tr("done"), style: .default)); present(alert, animated: true); return
+        ForumDialogs.notice(title: tr("loginNeeded"), message: tr("accountCookiesMissing"), close: tr("done")); return
       }
       guard !finishing else { return }; finishing = true
       completion(.success(["bduss": bduss, "stoken": stoken, "cookie": valid.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")]))

@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import WebKit
 
@@ -79,11 +80,11 @@ struct ReaderView: View {
           Color.clear.frame(height: 1).id("top")
           if let error {
             ContentUnavailableView {
-              Label(AppText.text("Could not load page"), systemImage: "wifi.exclamationmark")
+              Label(AppText.text("Could not load page"), forumSymbol: "wifi.exclamationmark")
             } description: { Text(error) } actions: {
               Button(AppText.text("Retry")) { reload() }.buttonStyle(.borderedProminent)
               Button(AppText.text("Site browser")) { openBrowser(current) }.buttonStyle(.bordered)
-              Button(AppText.text("Page diagnostics"), systemImage: "ladybug") { showingDiagnostics = true }
+              Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
             }
           } else if let page = displayPage {
             let visible = library.document.visibleContent(in: page)
@@ -91,7 +92,7 @@ struct ReaderView: View {
               ScrollView(.horizontal) {
                 HStack(spacing: 6) {
                   ForEach(Array(page.breadcrumbs.enumerated()), id: \.offset) { index, entry in
-                    if index > 0 { Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
+                    if index > 0 { Image(forumSymbol: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
                     Button(entry.title) { navigate(entry.url) }
                       .forumFont(.caption, weight: .medium).buttonStyle(.plain).foregroundStyle(.blue)
                       .padding(.horizontal, 6).frame(minHeight: 36)
@@ -112,10 +113,10 @@ struct ReaderView: View {
                          openAvatar: session.site == .south ? { openAvatar(post) } : nil,
                          selectText: session.site == .south ? { textSelection = PostTextSelection(text: PostTextExport.text(in: post.blocks)) } : nil).id(post.id)
               }
-              if visible.posts.isEmpty { ContentUnavailableView(AppText.text("No visible replies"), systemImage: "person.slash") }
+              if visible.posts.isEmpty { ForumUnavailableView(AppText.text("No visible replies"), forumSymbol: "person.slash") }
             } else {
               directoryEntries(in: visible)
-              if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? AppText.text("No threads yet") : AppText.text("No visible threads"), systemImage: "tray") }
+              if visible.entries.isEmpty { ForumUnavailableView(page.entries.isEmpty ? AppText.text("No threads yet") : AppText.text("No visible threads"), forumSymbol: "tray") }
             }
           } else { ProgressView(AppText.text("Loading page...")).frame(maxWidth: .infinity).padding(.top, 100) }
           if error == nil, page != nil, readingPages.target(.next) != nil {
@@ -168,31 +169,31 @@ struct ReaderView: View {
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          Button(AppText.text("Home"), systemImage: "house", action: home)
-          Button(AppText.text("Bookmark"), systemImage: library.contains(current) ? "bookmark.fill" : "bookmark") {
+          Button(AppText.text("Home"), forumSymbol: "house", action: home)
+          Button(AppText.text("Bookmark"), forumSymbol: library.contains(current) ? "bookmark.fill" : "bookmark") {
             library.toggle(current, title: page?.title ?? current.path)
           }.disabled(page == nil || loading)
           Menu {
-            ShareLink(item: current) { Label(AppText.text("Share link"), systemImage: "square.and.arrow.up") }
-            Button(AppText.text("Site browser"), systemImage: "globe") { openBrowser(current) }
-            Button(AppText.text("Page diagnostics"), systemImage: "ladybug") { showingDiagnostics = true }
-            Button(AppText.text("Sign in"), systemImage: "person.crop.circle") { openBrowser(session.site.login) }
-            if session.site == .south { Button(AppText.text("Blocked authors"), systemImage: "person.slash") { showingBlockedAuthors = true } }
-            Button(AppText.text("Clear session"), systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
-          } label: { Image(systemName: "ellipsis") }.disabled(purchasing)
+            ShareLink(item: current) { Label(AppText.text("Share link"), forumSymbol: "square.and.arrow.up") }
+            Button(AppText.text("Site browser"), forumSymbol: "globe") { openBrowser(current) }
+            Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
+            Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
+            if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
+            Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
+          } label: { Image(forumSymbol: "ellipsis") }.disabled(purchasing)
         }
         ToolbarItemGroup(placement: .bottomBar) {
-          Button(AppText.text("Previous page"), systemImage: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
+          Button(AppText.text("Previous page"), forumSymbol: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
           Button { selectingPage = true } label: {
             Text(AppText.format("Page %@", String(error == nil ? page?.pageNumber ?? SitePolicy.pageNumber(current) : SitePolicy.pageNumber(current)))).appFont(.subheadline, weight: .semibold).monospacedDigit()
           }.disabled(page == nil || loading || purchasing).accessibilityLabel(AppText.text("Choose page"))
-          Button(AppText.text("Next page"), systemImage: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
+          Button(AppText.text("Next page"), forumSymbol: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
           Button { setQuickActions(!quickActionsExpanded) } label: {
-            Image(systemName: quickActionsExpanded ? "xmark" : "slider.horizontal.3")
-              .contentTransition(.symbolEffect(.replace))
+            Image(forumSymbol: quickActionsExpanded ? "xmark" : "slider.horizontal.3")
+              .contentTransition(.opacity)
           }.disabled(purchasing)
             .accessibilityLabel(AppText.text("Page actions"))
             .accessibilityValue(quickActionsExpanded ? AppText.text("Expanded") : AppText.text("Collapsed"))
@@ -200,10 +201,10 @@ struct ReaderView: View {
   }
   private func activeReader(proxy: ScrollViewProxy) -> some View {
     scrollingReader.toolbar { readerToolbar }
-      .sheet(isPresented: $selectingPage) {
+      .forumSheet(isPresented: $selectingPage) {
         if let page = displayPage { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
       }
-      .sheet(isPresented: $showingPinnedThreads, onDismiss: {
+      .forumSheet(isPresented: $showingPinnedThreads, onDismiss: {
         guard let target = selectedPinnedThread else { return }
         selectedPinnedThread = nil
         navigate(target)
@@ -287,9 +288,9 @@ struct ReaderView: View {
         // destination's environment scope. Carry the same site objects explicitly.
         ReaderView(initialURL: item.url, library: library, session: session, home: home)
       }
-      .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
-      .sheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
-      .sheet(isPresented: $showingDiagnostics) {
+      .forumSheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
+      .forumSheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
+      .forumSheet(isPresented: $showingDiagnostics) {
         ReaderDiagnosticsView(url: diagnosticURL, context: diagnosticContext, session: session)
       }
       .sheet(item: $imageSheet) { item in
@@ -325,15 +326,15 @@ struct ReaderView: View {
           } else { page = nil; readingPages.reset(); reload() }
         }.ignoresSafeArea()
       }
-      .confirmationDialog(AppText.text("Clear forum session?"), isPresented: $clearSession, titleVisibility: .visible) {
-        Button(AppText.text("Clear session"), role: .destructive) { Task { await session.clear(); reload() } }
-      }
-      .alert(AppText.text("Purchase"), isPresented: Binding(get: { purchaseMessage != nil }, set: { if !$0 { purchaseMessage = nil } })) {
-        Button(AppText.text("OK"), role: .cancel) { purchaseMessage = nil }
-      } message: { Text(purchaseMessage ?? "") }
-      .alert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
-        Button(AppText.text("OK"), role: .cancel) { library.error = nil }
-      } message: { Text(library.error ?? "") }
+      .forumConfirmation(AppText.text("Clear forum session?"), isPresented: $clearSession, actions: { [
+          ForumDialogAction(AppText.text("Clear session"), role: .destructive) { Task { await session.clear(); reload() } }
+        ] })
+      .forumAlert(AppText.text("Purchase"), isPresented: Binding(get: { purchaseMessage != nil }, set: { if !$0 { purchaseMessage = nil } }), actions: { [
+          ForumDialogAction(AppText.text("OK"), role: .cancel) { purchaseMessage = nil }
+        ] }, message: { purchaseMessage ?? "" })
+      .forumAlert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } }), actions: { [
+          ForumDialogAction(AppText.text("OK"), role: .cancel) { library.error = nil }
+        ] }, message: { library.error ?? "" })
       .background(ExternalBrowserPresenter(url: $external).frame(width: 0, height: 0))
   }
   @ViewBuilder private func directoryEntries(in page: ForumPage) -> some View {
@@ -366,7 +367,7 @@ struct ReaderView: View {
   }
   private func openAvatar(_ post: ForumPost) {
     guard let url = post.avatarOriginal ?? post.avatar else { return }
-    let preview = UIImage(systemName: "person.crop.circle")?.withTintColor(.systemGray, renderingMode: .alwaysOriginal) ?? UIImage()
+    let preview = ForumIcons.image("person.crop.circle").withTintColor(.systemGray, renderingMode: .alwaysOriginal)
     imageSheet = ImageViewerPresentation(source: ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
   }
   private func setQuickActions(_ expanded: Bool) {

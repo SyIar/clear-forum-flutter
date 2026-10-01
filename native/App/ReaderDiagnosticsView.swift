@@ -1,10 +1,13 @@
+import ForumUI
 import SwiftUI
 
 struct ReaderDiagnosticsView: View {
   let url: URL
   let context: String
   @ObservedObject var session: ForumSession
-  @Environment(\.dismiss) private var dismiss
+  @Environment(\.dismiss) private var nativeDismiss
+  @Environment(\.forumDismiss) private var forumDismiss
+  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
   @State private var snapshot: ReaderDiagnosticSnapshot?
   @State private var copied = false
   @State private var capturing = false
@@ -18,12 +21,12 @@ struct ReaderDiagnosticsView: View {
     NavigationStack {
       List {
         Section {
-          Button(AppText.text("Copy loading diagnostics"), systemImage: "doc.on.doc") { copy(report) }
-          Button(AppText.text("Copy page HTML"), systemImage: "chevron.left.forwardslash.chevron.right") {
+          Button(AppText.text("Copy loading diagnostics"), forumSymbol: "doc.on.doc") { copy(report) }
+          Button(AppText.text("Copy page HTML"), forumSymbol: "chevron.left.forwardslash.chevron.right") {
             copy(report + "\n\n" + ReaderDiagnostics.htmlExport(snapshot?.html ?? ""))
           }.disabled(snapshot?.html.isEmpty ?? true)
           if snapshot == nil {
-            Button(AppText.text("Capture page diagnostics"), systemImage: "arrow.clockwise") {
+            Button(AppText.text("Capture page diagnostics"), forumSymbol: "arrow.clockwise") {
               capturing = true
               Task {
                 _ = try? await session.load(url)
@@ -33,7 +36,7 @@ struct ReaderDiagnosticsView: View {
             }.disabled(capturing)
             if capturing { ProgressView() }
           }
-          if copied { Label(AppText.text("Copied"), systemImage: "checkmark").foregroundStyle(.secondary) }
+          if copied { Label(AppText.text("Copied"), forumSymbol: "checkmark").foregroundStyle(.secondary) }
         } footer: {
           Text(AppText.text("Exports include page content and image addresses. Cookies, form values and scripts are removed. Nothing is uploaded automatically."))
         }

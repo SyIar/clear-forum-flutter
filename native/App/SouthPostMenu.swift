@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct SouthPostMenu: View {
@@ -11,32 +12,32 @@ struct SouthPostMenu: View {
   @EnvironmentObject private var session: ForumSession
   var body: some View {
     Menu {
-      Button(AppText.text("Select text"), systemImage: "text.cursor") { selectText() }
+      Button(AppText.text("Select text"), forumSymbol: "text.cursor") { selectText() }
       if let target = post.authorFilterURL {
-        Button(AppText.text("Only this author"), systemImage: authorFilterActive ? "checkmark" : "person") { navigate(target) }
+        Button(AppText.text("Only this author"), forumSymbol: authorFilterActive ? "checkmark" : "person") { navigate(target) }
           .disabled(authorFilterActive)
       }
       Section {
-        Button(AppText.text("View full-size avatar"), systemImage: "person.crop.square") { openAvatar() }
+        Button(AppText.text("View full-size avatar"), forumSymbol: "person.crop.square") { openAvatar() }
           .disabled(post.avatarOriginal == nil && post.avatar == nil)
-        Button(AppText.text("View author threads"), systemImage: "text.bubble") {
+        Button(AppText.text("View author threads"), forumSymbol: "text.bubble") {
           if let id = post.authorID, let target = SouthSitePolicy.authorTopics(id) { navigate(target) }
         }.disabled(post.authorID.flatMap(SouthSitePolicy.authorTopics) == nil)
         if let id = post.authorID, SouthSitePolicy.validAuthorID(id) {
           if library.document.followsAuthor(id) {
-            Button(AppText.text("Unfollow author"), systemImage: "person.badge.minus") { library.unfollow(id) }
+            Button(AppText.text("Unfollow author"), forumSymbol: "person.badge.minus") { library.unfollow(id) }
           } else {
-            Button(AppText.text("Follow author"), systemImage: "person.badge.plus") { library.follow(post, session: session) }
+            Button(AppText.text("Follow author"), forumSymbol: "person.badge.plus") { library.follow(post, session: session) }
           }
         }
       }
       Section {
-        Button(AppText.text("Block author"), systemImage: "person.slash", role: .destructive) {
+        Button(AppText.text("Block author"), forumSymbol: "person.slash", role: .destructive) {
           if let id = post.authorID { library.change { $0.blockAuthor(id: id, name: post.author) } }
         }.disabled(post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true)
       }
     } label: {
-      Image(systemName: "ellipsis").font(.system(size: 10, weight: .semibold))
+      Image(forumSymbol: "ellipsis").font(.system(size: 10, weight: .semibold))
         .frame(width: 24, height: 12)
     }.buttonStyle(.glass).buttonBorderShape(.capsule)
       .controlSize(.small).foregroundStyle(.blue).disabled(busy)

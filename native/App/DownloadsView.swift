@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct FloatingDownloads: View {
@@ -20,7 +21,7 @@ struct FloatingDownloads: View {
               .contentTransition(.numericText())
           } else if activeCount > 0 { ProgressView().controlSize(.small) }
           else {
-            Image(systemName: unfinishedCount == 0 ? "checkmark" : "arrow.down.to.line")
+            Image(forumSymbol: unfinishedCount == 0 ? "checkmark" : "arrow.down.to.line")
               .font(.system(size: 18, weight: .semibold))
           }
         }.frame(width: 35, height: 35).padding(10)
@@ -49,15 +50,17 @@ struct DownloadsView: View {
   @ObservedObject var manager: VideoDownloadManager
   @ObservedObject var gofile: GofileDownloadManager
   @ObservedObject var hosted: HostedDownloadManager
-  @Environment(\.dismiss) private var dismiss
+  @Environment(\.dismiss) private var nativeDismiss
+  @Environment(\.forumDismiss) private var forumDismiss
+  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
   var body: some View {
     NavigationStack {
       List {
         if let message = manager.storageError {
-          Section { Label(message, systemImage: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary) }
+          Section { Label(message, forumSymbol: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary) }
         }
         if manager.items.isEmpty && gofile.items.isEmpty && hosted.items.isEmpty {
-          ContentUnavailableView(AppText.text("No downloads"), systemImage: "arrow.down.to.line")
+          ForumUnavailableView(AppText.text("No downloads"), forumSymbol: "arrow.down.to.line")
         }
         if !manager.items.isEmpty {
           Section(AppText.text("Videos")) {
@@ -74,14 +77,14 @@ struct DownloadsView: View {
         }
       }.navigationTitle(AppText.text("Downloads")).navigationBarTitleDisplayMode(.inline)
         .toolbar {
-          ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Close"), systemImage: "xmark") { dismiss() } }
+          ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Close"), forumSymbol: "xmark") { dismiss() } }
           ToolbarItemGroup(placement: .topBarTrailing) {
-            Button(AppText.text("Pause all"), systemImage: "pause") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
+            Button(AppText.text("Pause all"), forumSymbol: "pause") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
               .disabled(!manager.items.contains(where: \.canPause) && gofile.active.isEmpty && hosted.active.isEmpty)
-            Button(AppText.text("Continue all"), systemImage: "play") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
+            Button(AppText.text("Continue all"), forumSymbol: "play") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
               .disabled(!manager.items.contains(where: \.canResume) && gofile.resumable.isEmpty && hosted.resumable.isEmpty)
             InfoButton(title: AppText.text("Downloads"), message: DownloadHelp.overview)
-            Button(AppText.text("Clear"), systemImage: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
+            Button(AppText.text("Clear"), forumSymbol: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
               .accessibilityLabel(AppText.text("Clear finished downloads"))
           }
         }
@@ -97,7 +100,7 @@ private struct VideoDownloadRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack {
-        Image(systemName: download.phase == .saved ? "checkmark.circle.fill" : "video").foregroundStyle(.blue)
+        Image(forumSymbol: download.phase == .saved ? "checkmark.circle.fill" : "video").foregroundStyle(.blue)
         Text(AppText.text("Video")).appFont(.headline)
         Spacer()
         Text(download.created, format: .dateTime.month().day().hour().minute().second()).appFont(.caption).foregroundStyle(.secondary)
@@ -124,16 +127,16 @@ private struct VideoDownloadRow: View {
           }.appFont(.caption).foregroundStyle(.secondary)
         } else if download.busy { ProgressView() }
         HStack(spacing: 12) {
-          if download.canPause { Button(AppText.text("Pause"), systemImage: "pause") { download.pause() } }
-          if download.canResume { Button(download.phase == .failed ? AppText.text("Retry") : AppText.text("Continue"), systemImage: "play") { download.resume() } }
-          if download.canCancel { Button(AppText.text("Cancel"), systemImage: "xmark", role: .destructive) { download.cancel() } }
+          if download.canPause { Button(AppText.text("Pause"), forumSymbol: "pause") { download.pause() } }
+          if download.canResume { Button(download.phase == .failed ? AppText.text("Retry") : AppText.text("Continue"), forumSymbol: "play") { download.resume() } }
+          if download.canCancel { Button(AppText.text("Cancel"), forumSymbol: "xmark", role: .destructive) { download.cancel() } }
         }.buttonStyle(.glass).labelStyle(.iconOnly)
       }
       if let file = download.exportFile {
-        Button(AppText.text("Save to Files"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: file) }.appFont(.subheadline)
+        Button(AppText.text("Save to Files"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: file) }.appFont(.subheadline)
       }
       if download.phase == .failed, let context = download.context {
-        Button(AppText.text("Reopen video"), systemImage: "play.rectangle") { reopen = .video(download.source, context.direct, context.referer) }.appFont(.subheadline)
+        Button(AppText.text("Reopen video"), forumSymbol: "play.rectangle") { reopen = .video(download.source, context.direct, context.referer) }.appFont(.subheadline)
       }
     }.padding(.vertical, 6)
       .swipeActions { if !download.busy { Button(AppText.text("Remove"), role: .destructive) { manager.remove(download) } } }

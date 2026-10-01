@@ -1,3 +1,4 @@
+import ForumUI
 import UIKit
 import WebKit
 final class PageRequest: NSObject, URLSessionDataDelegate {
@@ -62,7 +63,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     title = site.host
     view.backgroundColor = .systemBackground
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: AppText.text("Done"), style: .plain, target: self, action: #selector(close))
-    let copy = UIBarButtonItem(image: UIImage(systemName: "ladybug"), style: .plain, target: self, action: #selector(copyPageHTML))
+    let copy = UIBarButtonItem(image: ForumIcons.image( "ladybug"), style: .plain, target: self, action: #selector(copyPageHTML))
     copy.accessibilityLabel = AppText.text("Copy page HTML")
     navigationItem.rightBarButtonItems = [UIBarButtonItem(title: AppText.text("Read page"), style: .done, target: self, action: #selector(readPage)), copy]
     let configuration = WKWebViewConfiguration()
@@ -130,9 +131,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   private func notice(_ text: String) {
     guard presentedViewController == nil, !finished else { return }
-    let alert = UIAlertController(title: AppText.text("Site browser"), message: text, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: AppText.text("OK"), style: .default))
-    present(alert, animated: true)
+    ForumDialogs.notice(title: AppText.text("Site browser"), message: text, close: AppText.text("OK"))
   }
   private func openExternal(_ url: URL) {
     guard !finished, presentedViewController == nil, let browser = ExternalBrowser.make(url) else { return }

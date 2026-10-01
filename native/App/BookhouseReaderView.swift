@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct BookhouseReaderView: View {
@@ -95,18 +96,18 @@ struct BookhouseReaderView: View {
 
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button(AppText.text("Home"), systemImage: "house", action: home)
-        Button(AppText.text("Bookmark"), systemImage: library.contains(current) ? "bookmark.fill" : "bookmark") {
+        Button(AppText.text("Home"), forumSymbol: "house", action: home)
+        Button(AppText.text("Bookmark"), forumSymbol: library.contains(current) ? "bookmark.fill" : "bookmark") {
           library.toggle(current, title: page?.title ?? current.path)
         }.disabled(page == nil)
-        Button(AppText.text("Site browser"), systemImage: "safari") { external = current }
+        Button(AppText.text("Site browser"), forumSymbol: "safari") { external = current }
       }
       if BookhouseSitePolicy.route(current)?.kind == .search {
         ToolbarItemGroup(placement: .bottomBar) {
-          Button(AppText.text("Previous page"), systemImage: "chevron.left") { if let target = page?.previous { startLoad(target) } }
+          Button(AppText.text("Previous page"), forumSymbol: "chevron.left") { if let target = page?.previous { startLoad(target) } }
             .disabled(loading || page?.previous == nil)
           Text(AppText.format("Page %@", String(page?.pageNumber ?? 1))).appFont(.subheadline).monospacedDigit()
-          Button(AppText.text("Next page"), systemImage: "chevron.right") { if let target = page?.next { startLoad(target) } }
+          Button(AppText.text("Next page"), forumSymbol: "chevron.right") { if let target = page?.next { startLoad(target) } }
             .disabled(loading || page?.next == nil)
         }
       }
@@ -114,7 +115,7 @@ struct BookhouseReaderView: View {
       ToolbarItem(placement: .bottomBar) {
         Button {
           withAnimation(reduceMotion ? nil : .spring(response: 0.3)) { quickActions.toggle() }
-        } label: { Image(systemName: quickActions ? "xmark" : "slider.horizontal.3") }
+        } label: { Image(forumSymbol: quickActions ? "xmark" : "slider.horizontal.3") }
           .accessibilityLabel(AppText.text("Page actions"))
       }
   }
@@ -134,7 +135,7 @@ struct BookhouseReaderView: View {
     if page.entries.isEmpty { Text(AppText.text("No results")).foregroundStyle(.secondary) }
     if BookhouseSitePolicy.route(page.url)?.kind != .search, let next = page.next {
       Button { startLoad(next, append: true) } label: {
-        HStack { Spacer(); Label(AppText.text("Load more novels"), systemImage: "chevron.down"); Spacer() }
+        HStack { Spacer(); Label(AppText.text("Load more novels"), forumSymbol: "chevron.down"); Spacer() }
       }.buttonStyle(.glass).disabled(loading).padding(.vertical, 8)
     }
   }
@@ -142,7 +143,7 @@ struct BookhouseReaderView: View {
   @ViewBuilder private func novel(_ page: ForumPage) -> some View {
     if let post = page.posts.first {
       HStack(spacing: 12) {
-        if !post.author.isEmpty { Label(post.author, systemImage: "person").forumFont(.caption) }
+        if !post.author.isEmpty { Label(post.author, forumSymbol: "person").forumFont(.caption) }
         Text(post.date)
       }.appFont(.caption).foregroundStyle(.secondary)
       Divider().padding(.bottom, 6)

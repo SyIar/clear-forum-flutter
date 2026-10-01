@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 // Inline Text images participate in the paragraph's line breaking, not the photo grid.
@@ -31,7 +32,7 @@ struct EmoticonText: View {
         part = Text(Image(uiImage: inlineImage(image))).baselineOffset(-3)
       } else if run.emoticon != nil {
         // A small text fallback never reserves a full photo-sized loading area.
-        part = Text(Image(systemName: "face.smiling")).foregroundColor(.secondary)
+        part = Text(Image(forumSymbol: "face.smiling")).foregroundColor(.secondary)
       } else {
         part = Text(AppTypography.richText(run, size: textSize))
       }

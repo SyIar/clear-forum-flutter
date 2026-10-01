@@ -1,8 +1,10 @@
+import ForumUI
 import SwiftUI
 import TiebaFeature
 
 @main
 struct ForumLiteApp: App {
+  init() { ForumDesignSystem.configure(localize: AppText.text) }
   @StateObject private var wallpaper = DailyWallpaperStore()
   @StateObject private var downloads = VideoDownloadManager.shared
   @StateObject private var gofileDownloads = GofileDownloadManager.shared
@@ -23,12 +25,13 @@ struct ForumLiteApp: App {
         root: forumNavigation.environment(\.locale, AppText.locale),
         module: TiebaModuleView(session: tieba) { showingTieba = false }.environment(\.locale, AppText.locale))
         .ignoresSafeArea()
+        .background { ForumPresentationHost().frame(width: 0, height: 0) }
         .environment(\.locale, AppText.locale)
         .background { GofileDownloadSurfaces(manager: gofileDownloads) }
         .overlay(alignment: .trailing) {
           FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)
         }
-        .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
+        .forumSheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
         .onChange(of: scenePhase) { _, value in
           if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
           else if value == .active { downloads.foregrounded() }
@@ -316,7 +319,7 @@ struct HomeView: View {
               session.beginBrowsing()
               browserPresentation = .browser(session.site.start)
             } label: {
-              Image(systemName: "safari").font(.title3).frame(width: 44, height: 44)
+              Image(forumSymbol: "safari").font(.title3).frame(width: 44, height: 44)
             }.buttonStyle(.glass).buttonBorderShape(.circle)
               .accessibilityLabel(AppText.text("Open original forum website"))
           }.padding(.vertical, 6)
@@ -324,7 +327,7 @@ struct HomeView: View {
         Section {
           if visibleBookmarks.isEmpty { Text(AppText.text("No bookmarks")).foregroundStyle(.secondary) }
           ForEach(visibleBookmarks) { entry in
-            savedRow(entry)
+            savedRow(entry, bookmark: true)
               .swipeActions { Button(AppText.text("Remove"), role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         } header: {
@@ -355,13 +358,13 @@ struct HomeView: View {
         ToolbarItemGroup(placement: .topBarTrailing) {
           Button {
             path.append(.search(session.site))
-          } label: { Image(systemName: "magnifyingglass") }
+          } label: { Image(forumSymbol: "magnifyingglass") }
             .accessibilityLabel(AppText.text("Search forum"))
           if session.site == .south {
-            Button { showingBlockedAuthors = true } label: { Image(systemName: "person.slash") }
+            Button { showingBlockedAuthors = true } label: { Image(forumSymbol: "person.slash") }
               .accessibilityLabel(AppText.text("Blocked authors"))
           }
-          Button { adding = true } label: { Image(systemName: "bookmark") }
+          Button { adding = true } label: { Image(forumSymbol: "bookmark") }
             .accessibilityLabel(AppText.text("Add bookmark"))
         }
       }
@@ -370,7 +373,7 @@ struct HomeView: View {
         Button { Task { await library.refresh(session: session) } } label: {
           Group {
             if library.refreshing { ProgressView() }
-            else { Image(systemName: "arrow.clockwise").font(.title3.weight(.semibold)) }
+            else { Image(forumSymbol: "arrow.clockwise").font(.title3.weight(.semibold)) }
           }.frame(width: 52, height: 52)
         }.buttonStyle(.glass).buttonBorderShape(.circle)
           .disabled(library.refreshing || !library.document.hasRefreshTargets)
@@ -384,8 +387,8 @@ struct HomeView: View {
         checkedUpdatesOnLaunch = true
         await library.refresh(session: session)
       }
-      .sheet(isPresented: $adding) { BookmarkEditor() }
-      .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
+      .forumSheet(isPresented: $adding) { BookmarkEditor().environmentObject(library).environmentObject(session) }
+      .forumSheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
       .fullScreenCover(item: $browserPresentation) { item in
         ReaderController(presentation: item, session: session) { captured in
           browserPresentation = nil
@@ -402,15 +405,15 @@ struct HomeView: View {
           path.append(.reader(target))
         }.ignoresSafeArea()
       }
-      .confirmationDialog(AppText.text("Clear recent reading?"), isPresented: $clearHistory, titleVisibility: .visible) {
-        Button(AppText.text("Clear recent reading"), role: .destructive) { library.change { $0.recent = [] } }
-      }
-      .alert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
-        Button(AppText.text("Retry")) { library.reload() }
-        Button(AppText.text("OK"), role: .cancel) { library.error = nil }
-      } message: { Text(library.error ?? "") }
+      .forumConfirmation(AppText.text("Clear recent reading?"), isPresented: $clearHistory, actions: { [
+          ForumDialogAction(AppText.text("Clear recent reading"), role: .destructive) { library.change { $0.recent = [] } }
+        ] })
+      .forumAlert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } }), actions: { [
+          ForumDialogAction(AppText.text("Retry")) { library.reload() },
+          ForumDialogAction(AppText.text("OK"), role: .cancel) { library.error = nil }
+        ] }, message: { library.error ?? "" })
   }
-  private func savedRow(_ entry: SavedPage) -> some View {
+  private func savedRow(_ entry: SavedPage, bookmark: Bool = false) -> some View {
     let key = SitePolicy.threadKey(entry.url)
     let presentation = key.flatMap { library.document.presentations[$0] }
     let state = library.site.supportsThreadUpdates ? key.flatMap { library.document.threads[$0] } : nil
@@ -421,7 +424,7 @@ struct HomeView: View {
       Button { path.append(.reader(entry.url)) } label: {
         HStack(spacing: 10) {
           if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
-          else { Image(systemName: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }
+          else { Image(forumSymbol: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 8) {
               Text(entry.title).forumFont(.body).lineLimit(2).foregroundStyle(.primary)
@@ -443,11 +446,12 @@ struct HomeView: View {
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
-          Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+          Image(forumSymbol: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
     }.padding(.vertical, 3)
+      .modifier(ForumBookmarkUpdate(maximum: state?.latestMaximum, enabled: bookmark && library.site == .simp && state?.updated == true))
   }
 }
 
@@ -466,7 +470,9 @@ private struct LibraryUpdateRefresh: ViewModifier {
 struct BookmarkEditor: View {
   @EnvironmentObject private var library: LibraryStore
   @EnvironmentObject private var session: ForumSession
-  @Environment(\.dismiss) private var dismiss
+  @Environment(\.dismiss) private var nativeDismiss
+  @Environment(\.forumDismiss) private var forumDismiss
+  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
   @State private var address = ""
   @State private var title = ""
   @State private var error = ""

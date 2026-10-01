@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct GofileAccessView: View {
@@ -9,7 +10,7 @@ struct GofileAccessView: View {
   @State private var password = ""
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label(failure.title, systemImage: failure.symbol).appFont(.headline)
+      Label(failure.title, forumSymbol: failure.symbol).appFont(.headline)
       Text(failure.localizedDescription).appFont(.subheadline).foregroundStyle(.secondary)
       if failure.needsPassword {
         SecureField(AppText.text("Password"), text: $password).textContentType(.password)
@@ -25,12 +26,12 @@ struct GofileAccessView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
           if context.date < date {
             Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).appFont(.caption).monospacedDigit()
-          } else { Button(AppText.text("Try again"), systemImage: "arrow.clockwise", action: retry).disabled(busy) }
+          } else { Button(AppText.text("Try again"), forumSymbol: "arrow.clockwise", action: retry).disabled(busy) }
         }
       } else {
-        Button(AppText.text("Try again"), systemImage: "arrow.clockwise", action: retry).disabled(busy)
+        Button(AppText.text("Try again"), forumSymbol: "arrow.clockwise", action: retry).disabled(busy)
       }
-      Button(AppText.text("Open website"), systemImage: "globe", action: website).appFont(.subheadline).disabled(busy)
+      Button(AppText.text("Open website"), forumSymbol: "globe", action: website).appFont(.subheadline).disabled(busy)
     }.padding(.vertical, 8)
   }
 }
@@ -43,7 +44,7 @@ struct GofileBatchView: View {
   var body: some View {
     List {
       Section {
-        Label(title, systemImage: batch.phase == .finished ? "checkmark.circle" : "arrow.down.doc")
+        Label(title, forumSymbol: batch.phase == .finished ? "checkmark.circle" : "arrow.down.doc")
           .appFont(.headline)
         Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.pending)))
           .appFont(.subheadline).foregroundStyle(.secondary)
@@ -53,10 +54,10 @@ struct GofileBatchView: View {
             ProgressView(value: progress)
             Text("\(Int(progress * 100))%").appFont(.caption).monospacedDigit()
           } else { ProgressView() }
-          Button(AppText.text("Pause"), systemImage: "pause", action: batch.pause)
+          Button(AppText.text("Pause"), forumSymbol: "pause", action: batch.pause)
         } else if batch.phase == .paused && batch.gate == nil {
           if let issue = batch.issue { Text(issue).appFont(.subheadline).foregroundStyle(.secondary) }
-          Button(AppText.text("Continue"), systemImage: "play", action: batch.resume).disabled(!batch.canResume)
+          Button(AppText.text("Continue"), forumSymbol: "play", action: batch.resume).disabled(!batch.canResume)
         } else if batch.phase == .cancelled, let issue = batch.issue {
           Text(issue).appFont(.subheadline).foregroundStyle(.secondary)
         }
@@ -68,16 +69,16 @@ struct GofileBatchView: View {
         }
       }
       if batch.phase == .paused, batch.pending > 0 {
-        Section { Button(AppText.text("Skip this item"), systemImage: "forward.end", action: batch.skip) }
+        Section { Button(AppText.text("Skip this item"), forumSymbol: "forward.end", action: batch.skip) }
       }
       if let directory = batch.directory {
         Section {
           HStack {
-            Label(AppText.text("Gofile Downloads"), systemImage: "folder")
+            Label(AppText.text("Gofile Downloads"), forumSymbol: "folder")
             Spacer()
             InfoButton(title: AppText.text("Saved files"), message: savedFilesInfo)
           }
-          Button(AppText.text("Export folder"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }
+          Button(AppText.text("Export folder"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }
             .disabled(batch.running)
         }
       }
@@ -92,7 +93,7 @@ struct GofileBatchView: View {
         }
       }
       if batch.phase == .running || batch.phase == .paused {
-        Section { Button(AppText.text("Stop batch"), systemImage: "stop", role: .destructive, action: batch.cancel) }
+        Section { Button(AppText.text("Stop batch"), forumSymbol: "stop", role: .destructive, action: batch.cancel) }
       }
     }.navigationTitle(AppText.text("Gofile Helper")).navigationBarTitleDisplayMode(.inline)
       .toolbarRole(.editor)

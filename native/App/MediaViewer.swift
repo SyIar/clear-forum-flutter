@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import UIKit
 
@@ -71,10 +72,10 @@ struct MediaViewerDestination: View {
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           if isImage {
-            Button(AppText.text("Share image"), systemImage: "square.and.arrow.up") { state.image?.shareImage() }
+            Button(AppText.text("Share image"), forumSymbol: "square.and.arrow.up") { state.image?.shareImage() }
           } else if let download = state.download {
             VideoDownloadButton(state: state, download: download)
-            Button(AppText.text("Refresh video"), systemImage: "arrow.clockwise") { state.player?.reload() }
+            Button(AppText.text("Refresh video"), forumSymbol: "arrow.clockwise") { state.player?.reload() }
           }
         }
       }
@@ -152,10 +153,10 @@ struct ImageViewerSheet: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          Button(AppText.text("Close"), systemImage: "xmark") { dismiss() }
+          Button(AppText.text("Close"), forumSymbol: "xmark") { dismiss() }
         }
         ToolbarItem(placement: .topBarTrailing) {
-          Button(AppText.text("Share image"), systemImage: "square.and.arrow.up") { state.image?.shareImage() }
+          Button(AppText.text("Share image"), forumSymbol: "square.and.arrow.up") { state.image?.shareImage() }
             .disabled(loadedSource?.url != selected.url)
         }
       }
@@ -173,7 +174,7 @@ struct ImageViewerSheet: View {
     .presentationContentInteraction(.resizes)
   }
   private func galleryButton(_ title: String, symbol: String, disabled: Bool, action: @escaping () -> Void) -> some View {
-    Button(action: action) { Image(systemName: symbol).font(.title3.weight(.semibold)).frame(width: 44, height: 44) }
+    Button(action: action) { Image(forumSymbol: symbol).font(.title3.weight(.semibold)).frame(width: 44, height: 44) }
       .buttonStyle(.glass).buttonBorderShape(.circle).disabled(disabled).accessibilityLabel(title)
   }
 }

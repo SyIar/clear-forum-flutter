@@ -23,6 +23,7 @@ jobs:
       - run: python3 scripts/check_native_fonts.py
       - run: xcrun swiftc -frontend -parse native/Tieba/App/*.swift native/Tieba/Core/*.swift
       - run: python3 scripts/check_tieba_module.py
+      - run: python3 scripts/check_design_system.py
       - run: brew install protobuf xcodegen
       - run: python3 native/Tieba/scripts/generate_native_protos.py
       - run: swift test --package-path native/Tieba

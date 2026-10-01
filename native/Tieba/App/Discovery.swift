@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct ExploreView: View {
@@ -19,7 +20,7 @@ struct ExploreView: View {
       }
       Section { ForEach(result.items) { ThreadCard(thread: $0) }; LoadState(loading: loading, error: error, empty: result.items.isEmpty) { request = UUID() } }
     }.navigationTitle(tr("explore"))
-      .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink(value: Route.search("")) { Image(systemName: "magnifyingglass") } }; Pagination(page: page, more: result.hasMore, loading: loading, previous: { page -= 1; request = UUID() }, refresh: { request = UUID() }, next: { page += 1; request = UUID() }) }
+      .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink(value: Route.search("")) { Image(forumSymbol: "magnifyingglass") } }; Pagination(page: page, more: result.hasMore, loading: loading, previous: { page -= 1; request = UUID() }, refresh: { request = UUID() }, next: { page += 1; request = UUID() }) }
       .onChange(of: kind) { _, _ in page = 1; result = PageResult(); request = UUID() }
       .onChange(of: hotCode) { _, _ in page = 1; request = UUID() }
       .task(id: request) { await load() }.refreshable { page = 1; await load() }
@@ -75,7 +76,7 @@ struct SearchView: View {
       .onChange(of: kind) { _, _ in if !submitted.isEmpty { page = 1; request = UUID() } }
       .onChange(of: sort) { _, _ in page = 1; request = UUID() }
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) { if kind == "threads" { Menu { Picker(tr("sort"), selection: $sort) { Text(tr("relevance")).tag(0); Text(tr("latestPost")).tag(1) } } label: { Image(systemName: "line.3.horizontal.decrease") } } }
+        ToolbarItem(placement: .topBarTrailing) { if kind == "threads" { Menu { Picker(tr("sort"), selection: $sort) { Text(tr("relevance")).tag(0); Text(tr("latestPost")).tag(1) } } label: { Image(forumSymbol: "line.3.horizontal.decrease") } } }
         Pagination(page: page, more: threads.hasMore && kind == "threads", loading: loading, previous: { page -= 1; request = UUID() }, refresh: { request = UUID() }, next: { page += 1; request = UUID() })
       }
   }

@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import AVKit
 import Photos
@@ -84,8 +85,8 @@ struct RemotePicture: View {
         ZStack {
           Color(uiColor: .tertiarySystemFill)
           if loading { ProgressView() }
-          else if preview { Image(systemName: "photo").foregroundStyle(Color(uiColor: .secondaryLabel)) }
-          else { Button(tr(manual || automatic ? "retry" : "tapToLoad"), systemImage: "photo") { manual = true; attempt += 1 }.appFont(.caption) }
+          else if preview { Image(forumSymbol: "photo").foregroundStyle(Color(uiColor: .secondaryLabel)) }
+          else { Button(tr(manual || automatic ? "retry" : "tapToLoad"), forumSymbol: "photo") { manual = true; attempt += 1 }.appFont(.caption) }
         }.frame(height: preview ? 88 : 160)
       }
     }.clipShape(RoundedRectangle(cornerRadius: 10))
@@ -116,16 +117,18 @@ struct ImageGallery: View {
         }
       }.tabViewStyle(.page(indexDisplayMode: urls.count > 1 ? .automatic : .never)).background(.black).ignoresSafeArea(edges: .bottom)
         .toolbar {
-          ToolbarItem(placement: .topBarLeading) { Button(tr("back"), systemImage: "chevron.left") { dismiss() } }
+          ToolbarItem(placement: .topBarLeading) { Button(tr("back"), forumSymbol: "chevron.left") { dismiss() } }
           ToolbarItemGroup(placement: .topBarTrailing) {
             if urls.indices.contains(selection), let image = images[urls[selection]] {
-              Button(tr("saveImage"), systemImage: "square.and.arrow.down") { Task { await save(urls[selection]) } }
+              Button(tr("saveImage"), forumSymbol: "square.and.arrow.down") { Task { await save(urls[selection]) } }
               ShareLink(item: Image(uiImage: image), preview: SharePreview(tr("media"), image: Image(uiImage: image)))
             }
           }
         }
     }.background(MediaEdgeBack { dismiss() })
-      .preferredColorScheme(.dark).onAppear { selection = initialIndex }.alert(tr("saveImage"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button(tr("done")) {} } message: { Text(error ?? "") }
+      .preferredColorScheme(.dark).onAppear { selection = initialIndex }.forumAlert(tr("saveImage"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } }), actions: { [
+          ForumDialogAction(tr("done")) {}
+        ] }, message: { error ?? "" })
   }
   private func save(_ url: URL) async {
     let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
@@ -161,7 +164,7 @@ struct NativePlayer: View {
   var body: some View {
     NavigationStack {
       VideoPlayer(player: player).ignoresSafeArea(edges: .bottom).background(.black)
-        .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("back"), systemImage: "chevron.left") { dismiss() } }; ToolbarItem(placement: .topBarTrailing) { Button(tr("refresh"), systemImage: "arrow.clockwise") { load() } } }
+        .toolbar { ToolbarItem(placement: .topBarLeading) { Button(tr("back"), forumSymbol: "chevron.left") { dismiss() } }; ToolbarItem(placement: .topBarTrailing) { Button(tr("refresh"), forumSymbol: "arrow.clockwise") { load() } } }
     }.background(MediaEdgeBack { player?.pause(); dismiss() })
       .onAppear(perform: load).onDisappear { player?.pause(); player = nil }.preferredColorScheme(.dark)
   }
@@ -210,7 +213,7 @@ struct RichContent: View {
           if [0, 1, 2, 4, 9, 27].contains(part.type) { inline(group).textSelection(.enabled).lineSpacing(2).fixedSize(horizontal: false, vertical: true) }
           else if [3, 20].contains(part.type), !settings.flag("hideMedia"), let url = part.url { RemotePicture(url: url, thumbnail: part.thumbnail, open: { gallery = url }) }
           else if [5, 10].contains(part.type), !settings.flag("hideMedia"), let url = part.url {
-            Button { playback = url } label: { Label(tr(part.type == 10 ? "audio" : "video"), systemImage: "play.circle.fill").frame(maxWidth: .infinity, alignment: .leading).padding(12) }.buttonStyle(.glass)
+            Button { playback = url } label: { Label(tr(part.type == 10 ? "audio" : "video"), forumSymbol: "play.circle.fill").frame(maxWidth: .infinity, alignment: .leading).padding(12) }.buttonStyle(.glass)
           } else if !part.text.isEmpty { Text(part.text).tiebaFont(.body).foregroundStyle(.secondary) }
         }
       }

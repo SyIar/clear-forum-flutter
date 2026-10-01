@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import ImageIO
 
@@ -18,9 +19,8 @@ struct ForumTagStrip: View {
         ForEach(tags) { tag in
           Button { navigate(tag.url) } label: {
             Text(tag.title).forumFont(.caption2, weight: .semibold).lineLimit(1)
-              .padding(.horizontal, 7).padding(.vertical, 5)
-              .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-          }.buttonStyle(.plain).foregroundStyle(.blue).accessibilityLabel(AppText.format("Filter by %@", String(describing: tag.title)))
+              .forumTagSurface()
+          }.buttonStyle(.plain).accessibilityLabel(AppText.format("Filter by %@", String(describing: tag.title)))
         }
       }.padding(.vertical, 2)
     }.scrollIndicators(.hidden)
@@ -43,15 +43,13 @@ struct ForumEntryCard: View {
       Button { navigate(entry.url) } label: {
         HStack(spacing: 10) {
           if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
-          else { Image(systemName: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
+          else { Image(forumSymbol: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             if let tags = bookTitle?.tags, !tags.isEmpty {
               ScrollView(.horizontal) {
                 HStack(spacing: 5) {
                   ForEach(tags, id: \.self) { tag in
-                    Text(tag).forumFont(.caption2, weight: .semibold).foregroundStyle(.blue)
-                      .padding(.horizontal, 7).padding(.vertical, 3)
-                      .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                    Text(tag).forumFont(.caption2, weight: .semibold).forumTagSurface()
                   }
                 }
               }.scrollIndicators(.hidden)
@@ -76,10 +74,10 @@ struct ForumEntryCard: View {
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
           Spacer(minLength: 0)
-          Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+          Image(forumSymbol: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
-    }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }.padding(ForumDesignSystem.spacing.cardPadding).forumCardSurface()
   }
 }
 
@@ -95,7 +93,7 @@ struct ForumThumbnail: View {
       Color(uiColor: .tertiarySystemFill)
       if let image { Image(uiImage: image).resizable().scaledToFill() }
       else if loading { ProgressView().controlSize(.small) }
-      else { Image(systemName: "photo").font(.caption).foregroundStyle(.secondary) }
+      else { Image(forumSymbol: "photo").font(.caption).foregroundStyle(.secondary) }
     }.frame(width: compact ? 28 : 72, height: compact ? 28 : 50)
       .clipShape(RoundedRectangle(cornerRadius: compact ? 6 : 9))
       .accessibilityHidden(true)
@@ -124,8 +122,8 @@ struct PostCard: View {
   var openAvatar: (() -> Void)?
   var selectText: (() -> Void)?
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(spacing: 10) {
+    VStack(alignment: .leading, spacing: ForumDesignSystem.spacing.md) {
+      HStack(spacing: ForumDesignSystem.spacing.md) {
         PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
           Text(post.author).forumFont(.subheadline, weight: .bold)
@@ -160,9 +158,8 @@ struct PostCard: View {
         source.gallery = imageGallery(in: post.blocks)
         openImage(source)
       }, purchase: purchase, purchasing: purchasing)
-    }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-      .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
-      .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.05)))
+    }.padding(ForumDesignSystem.spacing.cardPadding).frame(maxWidth: .infinity, alignment: .leading)
+      .forumCardSurface()
   }
 }
 
@@ -289,7 +286,7 @@ struct RichBodyView: View {
     case .purchase:
       if let offer = block.purchase {
         HStack(spacing: 12) {
-          Image(systemName: "lock.fill").foregroundStyle(.secondary)
+          Image(forumSymbol: "lock.fill").foregroundStyle(.secondary)
           Text(AppText.format("%@ SP", String(describing: offer.priceText))).appFont(.subheadline, weight: .semibold)
           Spacer(minLength: 0)
           Button { purchase(offer) } label: {
@@ -326,14 +323,13 @@ struct CompactLink: View {
   var body: some View {
     Button { navigate(url) } label: {
       HStack(spacing: 5) {
-        Image(systemName: "link").font(.system(size: 11))
+        Image(forumSymbol: "link").font(.system(size: 11))
         Text(ExternalLinkPresentation.title(url: url, label: label, site: session.site))
           .forumFont(.caption).lineLimit(1).truncationMode(.middle)
-        Image(systemName: "arrow.up.right").font(.system(size: 9))
-      }.padding(.horizontal, 8).padding(.vertical, 5)
-        .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.blue.opacity(0.14)))
-    }.buttonStyle(.plain).foregroundStyle(.blue)
+        Image(forumSymbol: "arrow.up.right").font(.system(size: 9))
+      }.padding(.horizontal, ForumDesignSystem.spacing.sm).padding(.vertical, 6)
+        .background(ForumDesignSystem.surface, in: RoundedRectangle(cornerRadius: ForumDesignSystem.radius.md, style: .continuous))
+    }.buttonStyle(.plain).foregroundStyle(ForumDesignSystem.primary)
       .accessibilityLabel(label.isEmpty ? url.absoluteString : label)
   }
 }
@@ -351,10 +347,10 @@ struct MediaRow: View {
         Color(uiColor: .tertiarySystemFill)
         if let poster { RemoteImageView(url: poster, ratio: 108.0 / 84.0, maximumHeight: 84, fillsFrame: true) }
         else if fetching { ProgressView() }
-        else { Image(systemName: "film").foregroundStyle(.secondary) }
+        else { Image(forumSymbol: "film").foregroundStyle(.secondary) }
       }.frame(width: 108, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
       Button { play(block) } label: {
-        Image(systemName: "play.fill").font(.system(size: 18, weight: .semibold))
+        Image(forumSymbol: "play.fill").font(.system(size: 18, weight: .semibold))
           .offset(x: 1).frame(width: 44, height: 44)
           .overlay(Circle().strokeBorder(.blue.opacity(0.65), lineWidth: 1.5))
           .frame(maxWidth: .infinity).frame(height: 84).foregroundStyle(.blue)
@@ -468,7 +464,7 @@ struct RemoteImageView: View {
               .frame(width: bounds.size.width, height: bounds.size.height).clipped()
           }
         } else if loading { ProgressView() }
-        else { Button(AppText.text("Retry image"), systemImage: "arrow.clockwise") { attempt += 1 }.appFont(.caption) }
+        else { Button(AppText.text("Retry image"), forumSymbol: "arrow.clockwise") { attempt += 1 }.appFont(.caption) }
       }
       .clipShape(RoundedRectangle(cornerRadius: 10))
       .contentShape(Rectangle())

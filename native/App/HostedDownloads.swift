@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import Combine
 
@@ -149,7 +150,7 @@ struct HostedBatchRow: View {
   var body: some View {
     NavigationLink { HostedBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
-        Label(batch.listing.title, systemImage: "folder").appFont(.headline).lineLimit(2)
+        Label(batch.listing.title, forumSymbol: "folder").appFont(.headline).lineLimit(2)
         Text(AppText.format("%@ · %@ saved · %@ queued", batch.provider, String(batch.saved.count), String(batch.queued))).appFont(.caption).foregroundStyle(.secondary)
         Text(batch.status).appFont(.caption).foregroundStyle(.secondary)
         if batch.running {
@@ -158,7 +159,7 @@ struct HostedBatchRow: View {
         }
       }.padding(.vertical, 4)
     }.swipeActions {
-      if batch.finished { Button(AppText.text("Remove from list"), systemImage: "xmark") { HostedDownloadManager.shared.remove(batch) } }
+      if batch.finished { Button(AppText.text("Remove from list"), forumSymbol: "xmark") { HostedDownloadManager.shared.remove(batch) } }
     }
   }
 }
@@ -180,31 +181,31 @@ struct HostedBatchView: View {
             ProgressView(value: progress)
             Text("\(Int(progress * 100))%").appFont(.caption).monospacedDigit()
           } else { ProgressView() }
-          Button(AppText.text("Pause"), systemImage: "pause", action: batch.pause)
+          Button(AppText.text("Pause"), forumSymbol: "pause", action: batch.pause)
         } else {
           if batch.phase == .paused {
             TimelineView(.periodic(from: .now, by: 1)) { context in
               if let date = batch.retryAfter, date > context.date {
                 Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).appFont(.caption).monospacedDigit()
-              } else { Button(AppText.text("Continue"), systemImage: "play", action: batch.resume).disabled(!batch.canResume) }
+              } else { Button(AppText.text("Continue"), forumSymbol: "play", action: batch.resume).disabled(!batch.canResume) }
             }
-            Button(AppText.text("Skip this item"), systemImage: "forward.end", action: batch.skip).disabled(batch.pending == 0)
+            Button(AppText.text("Skip this item"), forumSymbol: "forward.end", action: batch.skip).disabled(batch.pending == 0)
           }
         }
-        if batch.issue != nil { Button(AppText.text("Open website"), systemImage: "safari") { website = batch.listing.url } }
+        if batch.issue != nil { Button(AppText.text("Open website"), forumSymbol: "safari") { website = batch.listing.url } }
       }
       if let directory = batch.directory {
         Section {
-          Label(AppText.text("Files → On My iPhone → Forum Lite → File Downloads"), systemImage: "folder").appFont(.caption)
-          Button(AppText.text("Export folder"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }.disabled(batch.running)
+          Label(AppText.text("Files → On My iPhone → Forum Lite → File Downloads"), forumSymbol: "folder").appFont(.caption)
+          Button(AppText.text("Export folder"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }.disabled(batch.running)
         }
       }
       if !batch.saved.isEmpty {
         Section(AppText.text("Saved files")) {
           ForEach(batch.saved) { file in
             Button { preview = GofileLocalFile(url: file.url) } label: {
-              Label(file.name, systemImage: "checkmark.circle").foregroundStyle(.primary).lineLimit(2)
-            }.contextMenu { Button(AppText.text("Export file"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: file.url) } }
+              Label(file.name, forumSymbol: "checkmark.circle").foregroundStyle(.primary).lineLimit(2)
+            }.contextMenu { Button(AppText.text("Export file"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: file.url) } }
           }
         }
       }
@@ -218,7 +219,7 @@ struct HostedBatchView: View {
           }
         }
       }
-      if !batch.finished { Section { Button(AppText.text("Stop batch"), systemImage: "stop", role: .destructive, action: batch.cancel) } }
+      if !batch.finished { Section { Button(AppText.text("Stop batch"), forumSymbol: "stop", role: .destructive, action: batch.cancel) } }
     }.navigationTitle(AppText.text("Downloads")).navigationBarTitleDisplayMode(.inline).toolbarRole(.editor)
       .sheet(item: $export) { GofileExport(file: $0.url) }
       .navigationDestination(item: $preview) { GofileQuickLook(file: $0.url).ignoresSafeArea(.container, edges: .bottom).navigationBarTitleDisplayMode(.inline) }

@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import PhotosUI
 
@@ -23,7 +24,7 @@ struct SettingsView: View {
             Button { settings.set("customPrimaryColor", value) } label: {
               Circle().fill(Color(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)).frame(width: 24, height: 24)
                 .overlay {
-                  if Int(settings.number("customPrimaryColor")) == value { Image(systemName: "checkmark").appFont(.caption2, weight: .bold).foregroundStyle(.white) }
+                  if Int(settings.number("customPrimaryColor")) == value { Image(forumSymbol: "checkmark").appFont(.caption2, weight: .bold).foregroundStyle(.white) }
                 }
             }
           }
@@ -58,7 +59,9 @@ struct SettingsView: View {
         NavigationLink(tr("licenses")) { LicenseView() }
       }
     }.accessibilityIdentifier("settings.form").navigationTitle(tr("settings")).task { cacheSize = PictureCache.shared.bytes }
-      .confirmationDialog(tr("clearImageCacheConfirm"), isPresented: $clearing, titleVisibility: .visible) { Button(tr("clearImageCache"), role: .destructive) { do { try PictureCache.shared.clear(); cacheSize = PictureCache.shared.bytes } catch { app.error = error.localizedDescription } } }
+      .forumConfirmation(tr("clearImageCacheConfirm"), isPresented: $clearing, actions: { [
+          ForumDialogAction(tr("clearImageCache"), role: .destructive) { do { try PictureCache.shared.clear(); cacheSize = PictureCache.shared.bytes } catch { app.error = error.localizedDescription } }
+        ] })
   }
   private var time: Date { let formatter = DateFormatter(); formatter.dateFormat = "HH:mm"; return formatter.date(from: settings.text("autoSignTime")) ?? formatter.date(from: "09:00")! }
 }
@@ -72,10 +75,10 @@ struct BlockRulesView: View {
   var body: some View {
     List {
       ForEach(Array(app.library.rows("blocks").enumerated()), id: \.offset) { index, rule in
-        HStack { Image(systemName: boolean(rule["allow"]) ? "checkmark.shield" : "eye.slash"); VStack(alignment: .leading) { Text(first(rule, ["label", "value"])); Text(string(rule["kind"])).appFont(.caption).foregroundStyle(.secondary) } }
+        HStack { Image(forumSymbol: boolean(rule["allow"]) ? "checkmark.shield" : "eye.slash"); VStack(alignment: .leading) { Text(first(rule, ["label", "value"])); Text(string(rule["kind"])).appFont(.caption).foregroundStyle(.secondary) } }
           .swipeActions { Button(tr("clear"), role: .destructive) { app.updateLibrary { var rules = $0.rows("blocks"); if rules.indices.contains(index) { rules.remove(at: index) }; $0.document["blocks"] = rules } } }
       }
-    }.navigationTitle(tr("privacyAndFilters")).toolbar { ToolbarItem(placement: .topBarTrailing) { Button(tr("addKeyword"), systemImage: "plus") { adding = true } } }
+    }.navigationTitle(tr("privacyAndFilters")).toolbar { ToolbarItem(placement: .topBarTrailing) { Button(tr("addKeyword"), forumSymbol: "plus") { adding = true } } }
       .sheet(isPresented: $adding) { NavigationStack { Form {
         Picker(tr("filter"), selection: $kind) { Text(tr("keyword")).tag("keyword"); Text(tr("userId")).tag("user"); Text(tr("forumName")).tag("forum"); Text(tr("threadId")).tag("thread") }
         TextField(tr("keyword"), text: $value); Toggle(tr("showContent"), isOn: $allow)
@@ -88,7 +91,7 @@ struct BackgroundSettings: View {
   @State private var item: PhotosPickerItem?
   var body: some View {
     Form {
-      PhotosPicker(selection: $item, matching: .images) { Label(tr("chooseBackground"), systemImage: "photo") }
+      PhotosPicker(selection: $item, matching: .images) { Label(tr("chooseBackground"), forumSymbol: "photo") }
       Button(tr("removeBackground"), role: .destructive) { settings.set("nativeBackground", "") }
       HStack { Text(tr("backgroundBlur")); Slider(value: Binding(get: { settings.number("translucentBackgroundBlur") }, set: { settings.set("translucentBackgroundBlur", $0) }), in: 0...25) }
       HStack { Text(tr("surfaceOpacity")); Slider(value: Binding(get: { settings.number("nativeSurfaceOpacity") == 0 ? 0.9 : settings.number("nativeSurfaceOpacity") }, set: { settings.set("nativeSurfaceOpacity", $0) }), in: 0.5...1) }

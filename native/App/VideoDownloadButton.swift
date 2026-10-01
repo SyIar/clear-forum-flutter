@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct VideoDownloadButton: View {
@@ -47,9 +48,9 @@ private struct DownloadIndicator: View {
           // No content length means no honest percentage is available yet.
           ProgressView().controlSize(.mini)
         }
-      case .saved: Image(systemName: "checkmark")
-      case .paused: Image(systemName: "pause")
-      case .idle, .failed, .cancelled: Image(systemName: "arrow.down.to.line")
+      case .saved: Image(forumSymbol: "checkmark")
+      case .paused: Image(forumSymbol: "pause")
+      case .idle, .failed, .cancelled: Image(forumSymbol: "arrow.down.to.line")
       }
     }.frame(width: 28, height: 28)
       .foregroundStyle(.primary)

@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 // Torrent bytes are temporary metadata only; this never starts a BT download.
@@ -29,17 +30,17 @@ struct TorrentCopyButton: View {
       ZStack {
         if task != nil { ProgressView().controlSize(.small) }
         else {
-          Image(systemName: copied ? "checkmark" : "doc.on.doc")
-            .font(.body.weight(.medium)).contentTransition(.symbolEffect(.replace))
+          Image(forumSymbol: copied ? "checkmark" : "doc.on.doc")
+            .font(.body.weight(.medium)).contentTransition(.opacity)
         }
       }.frame(width: 44, height: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless).disabled(task != nil || unavailable)
       .accessibilityLabel(copied ? AppText.text("Magnet copied") : AppText.text("Copy magnet"))
       .accessibilityValue(task != nil ? AppText.text("Preparing") : "")
       .onDisappear { task?.cancel(); task = nil }
-      .alert(AppText.text("Could not copy magnet"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-        Button(AppText.text("Close"), role: .cancel) { error = nil }
-      } message: { Text(error ?? "") }
+      .forumAlert(AppText.text("Could not copy magnet"), isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } }), actions: { [
+          ForumDialogAction(AppText.text("Close"), role: .cancel) { error = nil }
+        ] }, message: { error ?? "" })
   }
 }
 

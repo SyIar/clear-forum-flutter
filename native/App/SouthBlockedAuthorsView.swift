@@ -1,13 +1,16 @@
+import ForumUI
 import SwiftUI
 
 struct SouthBlockedAuthorsView: View {
   @ObservedObject var library: LibraryStore
-  @Environment(\.dismiss) private var dismiss
+  @Environment(\.dismiss) private var nativeDismiss
+  @Environment(\.forumDismiss) private var forumDismiss
+  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
   var body: some View {
     NavigationStack {
       List {
         if library.document.blockedAuthors.isEmpty {
-          ContentUnavailableView(AppText.text("No blocked authors"), systemImage: "person.crop.circle.badge.checkmark")
+          ForumUnavailableView(AppText.text("No blocked authors"), forumSymbol: "person.crop.circle.badge.checkmark")
         }
         ForEach(library.document.blockedAuthors.keys.sorted(), id: \.self) { id in
           HStack {
@@ -21,9 +24,9 @@ struct SouthBlockedAuthorsView: View {
         }
       }.navigationTitle(AppText.text("Blocked authors")).navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button(AppText.text("Close")) { dismiss() } } }
-        .alert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
-          Button(AppText.text("OK"), role: .cancel) { library.error = nil }
-        } message: { Text(library.error ?? "") }
+        .forumAlert(AppText.text("Reading library"), isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } }), actions: { [
+          ForumDialogAction(AppText.text("OK"), role: .cancel) { library.error = nil }
+        ] }, message: { library.error ?? "" })
     }
   }
 }

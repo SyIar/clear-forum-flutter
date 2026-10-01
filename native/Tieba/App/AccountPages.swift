@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import PhotosUI
 
@@ -11,15 +12,15 @@ struct MeView: View {
         else { Button(tr("signIn")) { app.login = true } }
       }
       Section {
-        NavigationLink(value: Route.accounts) { Label(tr("accounts"), systemImage: "person.2") }
-        NavigationLink(value: Route.collection("favorites")) { Label(tr("favorites"), systemImage: "bookmark") }
-        NavigationLink(value: Route.collection("history")) { Label(tr("history"), systemImage: "clock") }
-        NavigationLink(value: Route.drafts) { Label(tr("drafts"), systemImage: "doc") }
+        NavigationLink(value: Route.accounts) { Label(tr("accounts"), forumSymbol: "person.2") }
+        NavigationLink(value: Route.collection("favorites")) { Label(tr("favorites"), forumSymbol: "bookmark") }
+        NavigationLink(value: Route.collection("history")) { Label(tr("history"), forumSymbol: "clock") }
+        NavigationLink(value: Route.drafts) { Label(tr("drafts"), forumSymbol: "doc") }
         if let session = app.session { NavigationLink(tr("myPosts"), value: Route.collection("posts:" + session.userID)); NavigationLink(tr("myForums"), value: Route.collection("forums:" + session.userID)) }
       }
       Section {
-        NavigationLink(value: Route.settings) { Label(tr("settings"), systemImage: "gearshape") }.accessibilityIdentifier("settings.open")
-        Button(tr("serviceCenter"), systemImage: "questionmark.circle") { app.requireLogin { service = true } }
+        NavigationLink(value: Route.settings) { Label(tr("settings"), forumSymbol: "gearshape") }.accessibilityIdentifier("settings.open")
+        Button(tr("serviceCenter"), forumSymbol: "questionmark.circle") { app.requireLogin { service = true } }
       }
     }.navigationTitle(tr("me")).sheet(isPresented: $service) { BaiduBrowser(session: app.session, url: URL(string: "https://tieba.baidu.com/mo/q/hybrid-main-service/uegServiceCenter")!) { result in service = false; if case .failure(let error) = result { app.error = error.localizedDescription } }.ignoresSafeArea() }
   }
@@ -31,13 +32,15 @@ struct AccountsView: View {
     List {
       ForEach(app.sessions, id: \.userID) { session in
         Button { do { try app.activate(session.userID) } catch { app.error = error.localizedDescription } } label: {
-          HStack { Avatar(user: session.user); Text(session.user.name); Spacer(); if app.activeID == session.userID { Image(systemName: "checkmark") } }
+          HStack { Avatar(user: session.user); Text(session.user.name); Spacer(); if app.activeID == session.userID { Image(forumSymbol: "checkmark") } }
         }.swipeActions { Button(tr("removeAccount"), role: .destructive) { remove = session.userID } }
       }
-      Button(tr("addAccount"), systemImage: "person.badge.plus") { app.login = true }
+      Button(tr("addAccount"), forumSymbol: "person.badge.plus") { app.login = true }
       if app.session != nil { Button(tr("signOut"), role: .destructive) { do { try app.activate(nil) } catch { app.error = error.localizedDescription } } }
     }.navigationTitle(tr("accounts"))
-      .confirmationDialog(tr("removeAccountBody"), isPresented: Binding(get: { remove != nil }, set: { if !$0 { remove = nil } }), titleVisibility: .visible) { Button(tr("removeAccount"), role: .destructive) { if let remove { do { try app.removeAccount(remove) } catch { app.error = error.localizedDescription } }; remove = nil } }
+      .forumConfirmation(tr("removeAccountBody"), isPresented: Binding(get: { remove != nil }, set: { if !$0 { remove = nil } }), actions: { [
+          ForumDialogAction(tr("removeAccount"), role: .destructive) { [remove] in if let remove { do { try app.removeAccount(remove) } catch { app.error = error.localizedDescription } }; remove = nil }
+        ] })
   }
 }
 
@@ -83,10 +86,12 @@ struct CollectionView: View {
       if type != "history" { LoadState(loading: loading, error: error, empty: result.items.isEmpty && forums.isEmpty) { request = UUID() } }
     }.navigationTitle(tr(type == "history" ? "history" : type == "favorites" ? "favorites" : type == "forums" ? "myForums" : type == "replies" ? "userReplies" : "userPosts"))
       .toolbar {
-        if type == "history" { ToolbarItem(placement: .topBarTrailing) { Button(tr("clear"), systemImage: "trash") { clear = true } } }
+        if type == "history" { ToolbarItem(placement: .topBarTrailing) { Button(tr("clear"), forumSymbol: "trash") { clear = true } } }
         else { Pagination(page: page, more: more, loading: loading, previous: { page -= 1; request = UUID() }, refresh: { request = UUID() }, next: { page += 1; request = UUID() }) }
       }.task(id: request) { await load() }.refreshable { await load() }
-      .confirmationDialog(tr("clearConfirm"), isPresented: $clear, titleVisibility: .visible) { Button(tr("clear"), role: .destructive) { app.updateLibrary { $0.document[historyTab == "threads" ? "history" : "forumHistory"] = []; if historyTab == "forums" { $0.document["recentForums"] = [] } } } }
+      .forumConfirmation(tr("clearConfirm"), isPresented: $clear, actions: { [
+          ForumDialogAction(tr("clear"), role: .destructive) { app.updateLibrary { $0.document[historyTab == "threads" ? "history" : "forumHistory"] = []; if historyTab == "forums" { $0.document["recentForums"] = [] } } }
+        ] })
   }
   private func load() async {
     guard type != "history" else { return }; loading = true; error = nil; defer { loading = false }
@@ -141,7 +146,7 @@ struct ProfileEditor: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section { HStack { Spacer(); if let avatar { Image(uiImage: avatar).resizable().scaledToFill().frame(width: 90, height: 90).clipShape(Circle()) } else { Avatar(user: profile, size: 90) }; Spacer() }; PhotosPicker(selection: $item, matching: .images) { Label(tr("changeAvatar"), systemImage: "person.crop.circle") } }
+        Section { HStack { Spacer(); if let avatar { Image(uiImage: avatar).resizable().scaledToFill().frame(width: 90, height: 90).clipShape(Circle()) } else { Avatar(user: profile, size: 90) }; Spacer() }; PhotosPicker(selection: $item, matching: .images) { Label(tr("changeAvatar"), forumSymbol: "person.crop.circle") } }
         Section { TextField(tr("nickname"), text: $name); TextField(tr("intro"), text: $intro, axis: .vertical).lineLimit(3...8); Picker(tr("profileSex"), selection: $sex) { Text(tr("profileSexUnset")).tag(0); Text(tr("profileSexMale")).tag(1); Text(tr("profileSexFemale")).tag(2) } }
         if let error { Text(error).foregroundStyle(.red) }
         if uncertain { Button(tr("refresh")) { saved() } }

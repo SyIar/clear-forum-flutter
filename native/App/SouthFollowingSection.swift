@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct SouthFollowingSection: View {
@@ -17,12 +18,12 @@ struct SouthFollowingSection: View {
               HStack(spacing: 10) {
                 PostAvatar(url: author.avatar, author: author.name)
                 Text(author.name).forumFont(.subheadline, weight: .semibold).foregroundStyle(.primary).lineLimit(1)
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                Image(forumSymbol: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
               }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(AppText.format("All topics by %@", String(describing: author.name)))
             Spacer(minLength: 0)
             if library.refreshingAuthors.contains(author.id) { ProgressView().controlSize(.small) }
-            Button { library.unfollow(author.id) } label: { Image(systemName: "person.badge.minus") }
+            Button { library.unfollow(author.id) } label: { Image(forumSymbol: "person.badge.minus") }
               .buttonStyle(.borderless).accessibilityLabel(AppText.format("Unfollow %@", String(describing: author.name)))
           }
           ForEach(author.topics) { topic in

@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 import PhotosUI
 import CryptoKit
@@ -72,8 +73,8 @@ struct ReplyEditor: View {
           }
         }
         Section {
-          PhotosPicker(selection: $picked, maxSelectionCount: max(1, 9 - attachments.count), matching: .images) { Label(tr("attachImages"), systemImage: "photo.on.rectangle") }.disabled(attachments.count >= 9 || busy || importing)
-          Button(tr("emoticons"), systemImage: "face.smiling") { emoticons = true }
+          PhotosPicker(selection: $picked, maxSelectionCount: max(1, 9 - attachments.count), matching: .images) { Label(tr("attachImages"), forumSymbol: "photo.on.rectangle") }.disabled(attachments.count >= 9 || busy || importing)
+          Button(tr("emoticons"), forumSymbol: "face.smiling") { emoticons = true }
           Toggle(tr("originalImage"), isOn: $original)
         }
         if busy { HStack { ProgressView(); Text("\(tr("sendingImages")) \(progress)/\(attachments.count)") } }
@@ -83,11 +84,13 @@ struct ReplyEditor: View {
           ToolbarItem(placement: .confirmationAction) { Button(tr("send")) { if settings.flag("postOrReplyWarning") { confirmation = true } else { Task { await send() } } }.disabled(busy || importing || completed || (text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty)) }
         }
         .interactiveDismissDisabled(!text.isEmpty || !attachments.isEmpty || busy)
-        .confirmationDialog(tr("replyWarning"), isPresented: $confirmation, titleVisibility: .visible) { Button(tr("send")) { Task { await send() } } }
-        .confirmationDialog(tr("leaveDraftTitle"), isPresented: $leaving, titleVisibility: .visible) {
-          Button(tr("saveDraft")) { save(); dismiss() }
-          Button(tr("discard"), role: .destructive) { if account == app.activeID { app.updateLibrary { $0.removeDraft(key) } }; dismiss() }
-        }
+        .forumConfirmation(tr("replyWarning"), isPresented: $confirmation, actions: { [
+          ForumDialogAction(tr("send")) { Task { await send() } }
+        ] })
+        .forumConfirmation(tr("leaveDraftTitle"), isPresented: $leaving, actions: { [
+          ForumDialogAction(tr("saveDraft")) { save(); dismiss() },
+          ForumDialogAction(tr("discard"), role: .destructive) { if account == app.activeID { app.updateLibrary { $0.removeDraft(key) } }; dismiss() }
+        ] })
         .task {
           guard !initialized else { return }; initialized = true; account = app.activeID; original = settings.flag("originalImages")
           if !DraftFiles.wasSent(account: account, draft: key), let draft = context.restored ?? app.library.rows("drafts").first(where: { string($0["key"]) == key }) {
@@ -110,7 +113,9 @@ struct ReplyEditor: View {
             }.padding() }.navigationTitle(tr("emoticons")).toolbar { ToolbarItem(placement: .confirmationAction) { Button(tr("done")) { emoticons = false } } }
           }.presentationDetents([.medium, .large])
         }
-    }.alert(tr("operationFailed"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) { Button(tr("done")) { failure = nil } } message: { Text(failure ?? "") }
+    }.forumAlert(tr("operationFailed"), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } }), actions: { [
+          ForumDialogAction(tr("done")) { failure = nil }
+        ] }, message: { failure ?? "" })
   }
   private func save() {
     guard !completed, account == app.activeID else { return }
@@ -157,7 +162,7 @@ struct DraftsView: View {
         } } label: { VStack(alignment: .leading, spacing: 6) { Text(string(draft["forumName"])).tiebaFont(.caption).foregroundStyle(.secondary); Text(string(draft["content"])).tiebaFont(.body).lineLimit(3) } }.disabled(opening)
           .swipeActions { Button(tr("discard"), role: .destructive) { app.updateLibrary { $0.removeDraft(string(draft["key"])) } } }
       }
-      if drafts.isEmpty { ContentUnavailableView(tr("emptyDrafts"), systemImage: "doc") }
+      if drafts.isEmpty { ForumUnavailableView(tr("emptyDrafts"), forumSymbol: "doc") }
     }.navigationTitle(tr("drafts")).sheet(item: $selection) { ReplyEditor(context: $0) { selection = nil } }
   }
 }

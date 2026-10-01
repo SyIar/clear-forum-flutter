@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct ReplyContext: Identifiable {
@@ -63,17 +64,17 @@ struct ThreadView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
           ToolbarItemGroup(placement: .topBarTrailing) {
-            if !reader { Button(tr("reply"), systemImage: "square.and.pencil") { app.requireLogin { reply = ReplyContext(thread: id, forum: result.forum ?? Forum()) } }.disabled(result.forum == nil) }
+            if !reader { Button(tr("reply"), forumSymbol: "square.and.pencil") { app.requireLogin { reply = ReplyContext(thread: id, forum: result.forum ?? Forum()) } }.disabled(result.forum == nil) }
             Menu {
               Toggle(tr("onlyAuthor"), isOn: $onlyAuthor)
               Toggle(tr("newestFirst"), isOn: $reverse)
               Toggle(tr("readerMode"), isOn: $reader)
-              Button(tr(saved ? "unsavePost" : "savePost"), systemImage: saved ? "bookmark.slash" : "bookmark") { perform { try await app.api.bookmark(thread: id, post: visiblePost, remove: saved); saved.toggle() } }
-              Button(tr("jumpPage"), systemImage: "number") { jumpValue = String(page); jump = true }
-              Button(tr("backToTop"), systemImage: "arrow.up") { withAnimation { proxy.scrollTo("top") } }
-              ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(id)")!) { Label(tr("share"), systemImage: "square.and.arrow.up") }
-              if result.thread?.author.id == app.activeID { Button(tr("deleteThread"), systemImage: "trash", role: .destructive) { removing = true } }
-            } label: { Image(systemName: "ellipsis") }
+              Button(tr(saved ? "unsavePost" : "savePost"), forumSymbol: saved ? "bookmark.slash" : "bookmark") { perform { try await app.api.bookmark(thread: id, post: visiblePost, remove: saved); saved.toggle() } }
+              Button(tr("jumpPage"), forumSymbol: "number") { jumpValue = String(page); jump = true }
+              Button(tr("backToTop"), forumSymbol: "arrow.up") { withAnimation { proxy.scrollTo("top") } }
+              ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(id)")!) { Label(tr("share"), forumSymbol: "square.and.arrow.up") }
+              if result.thread?.author.id == app.activeID { Button(tr("deleteThread"), forumSymbol: "trash", role: .destructive) { removing = true } }
+            } label: { Image(forumSymbol: "ellipsis") }
           }
           Pagination(page: page, more: result.hasMore, loading: loading, previous: { change(page - 1) }, refresh: { request = UUID() }, next: { change(page + 1) }, jump: { jumpValue = String(page); jump = true })
         }
@@ -99,8 +100,12 @@ struct ThreadView: View {
         }
         .onDisappear { historyTask?.cancel(); if !visiblePost.isEmpty { remember(visiblePost) } }
         .sheet(item: $reply) { context in ReplyEditor(context: context) { reply = nil; request = UUID() } }
-        .alert(tr("jumpPage"), isPresented: $jump) { TextField(tr("page"), text: $jumpValue).keyboardType(.numberPad); Button(tr("open")) { if let value = Int(jumpValue), (1...1_000_000).contains(value) { change(value) } else { app.error = tr("invalidPage") } }; Button(tr("cancel"), role: .cancel) {} }
-        .confirmationDialog(tr("deleteConfirm"), isPresented: $removing, titleVisibility: .visible) { Button(tr("deleteThread"), role: .destructive) { perform { try await app.api.removeOwnContent(forum: result.forum ?? Forum(), thread: id); request = UUID() } } }
+      .forumPrompt(tr("jumpPage"), isPresented: $jump, text: $jumpValue, placeholder: tr("page"), numeric: true, submit: tr("open")) {
+        if let value = Int(jumpValue), (1...1_000_000).contains(value) { change(value) } else { app.error = tr("invalidPage") }
+      }
+        .forumConfirmation(tr("deleteConfirm"), isPresented: $removing, actions: { [
+          ForumDialogAction(tr("deleteThread"), role: .destructive) { perform { try await app.api.removeOwnContent(forum: result.forum ?? Forum(), thread: id); request = UUID() } }
+        ] })
     }
   }
   private func change(_ value: Int) { page = max(1, value); anchor = ""; request = UUID() }
@@ -148,12 +153,12 @@ struct PostCard: View {
           Spacer(minLength: 2)
           if post.floor > 0 { Text("#\(post.floor)").appFont(.caption, weight: .semibold).foregroundStyle(.tint) }
           Menu {
-            Button(tr("copyText"), systemImage: "document.on.document") { UIPasteboard.general.string = post.plainText }
-            Button(tr("savePost"), systemImage: "bookmark") { perform { try await app.api.bookmark(thread: post.threadID, post: post.id) } }
-            Button(tr("blockUser"), systemImage: "person.slash") { app.updateLibrary { $0.addBlock(kind: "user", value: post.author.id, label: post.author.name) } }
-            Button(tr("report"), systemImage: "flag") { perform { let result = try await app.api.report(post.id); if let url = safeURL(first(object(result["data"]).isEmpty ? result : object(result["data"]), ["url", "report_url", "jubao_url"])) { actionURL = url } else { throw APIError(message: tr("operationFailed")) } } }
-            if app.activeID == post.author.id { Button(tr("deletePost"), systemImage: "trash", role: .destructive) { removing = true } }
-          } label: { Image(systemName: "ellipsis").appFont(.subheadline).padding(5) }
+            Button(tr("copyText"), forumSymbol: "document.on.document") { UIPasteboard.general.string = post.plainText }
+            Button(tr("savePost"), forumSymbol: "bookmark") { perform { try await app.api.bookmark(thread: post.threadID, post: post.id) } }
+            Button(tr("blockUser"), forumSymbol: "person.slash") { app.updateLibrary { $0.addBlock(kind: "user", value: post.author.id, label: post.author.name) } }
+            Button(tr("report"), forumSymbol: "flag") { perform { let result = try await app.api.report(post.id); if let url = safeURL(first(object(result["data"]).isEmpty ? result : object(result["data"]), ["url", "report_url", "jubao_url"])) { actionURL = url } else { throw APIError(message: tr("operationFailed")) } } }
+            if app.activeID == post.author.id { Button(tr("deletePost"), forumSymbol: "trash", role: .destructive) { removing = true } }
+          } label: { Image(forumSymbol: "ellipsis").appFont(.subheadline).padding(5) }
         }
         RichContent(parts: post.content)
         if !reader && !settings.flag("hideReply") {
@@ -177,8 +182,8 @@ struct PostCard: View {
         }
         HStack {
           if !reader {
-            Button { perform { let undo = liked ?? post.liked; try await app.api.agree(thread: post.threadID, post: post.id, forum: forum.id, undo: undo); liked = !undo; likes = max(0, (likes ?? post.likes) + (undo ? -1 : 1)) } } label: { Label((likes ?? post.likes).formatted(), systemImage: (liked ?? post.liked) ? "hand.thumbsup.fill" : "hand.thumbsup").foregroundStyle((liked ?? post.liked) ? settings.accent : Color(uiColor: .secondaryLabel)) }.disabled(busy)
-            Button(tr("reply"), systemImage: "arrowshape.turn.up.left") { app.requireLogin { reply(ReplyContext(thread: post.threadID, forum: forum, parent: post.parentID.isEmpty ? post.id : post.parentID, subpost: post.parentID.isEmpty ? "" : post.id, replyUser: post.author.id)) } }
+            Button { perform { let undo = liked ?? post.liked; try await app.api.agree(thread: post.threadID, post: post.id, forum: forum.id, undo: undo); liked = !undo; likes = max(0, (likes ?? post.likes) + (undo ? -1 : 1)) } } label: { Label((likes ?? post.likes).formatted(), forumSymbol: (liked ?? post.liked) ? "hand.thumbsup.fill" : "hand.thumbsup").foregroundStyle((liked ?? post.liked) ? settings.accent : Color(uiColor: .secondaryLabel)) }.disabled(busy)
+            Button(tr("reply"), forumSymbol: "arrowshape.turn.up.left") { app.requireLogin { reply(ReplyContext(thread: post.threadID, forum: forum, parent: post.parentID.isEmpty ? post.id : post.parentID, subpost: post.parentID.isEmpty ? "" : post.id, replyUser: post.author.id)) } }
           }
           Spacer()
           if let date = post.time { Text(date, style: .relative).appFont(.caption2).foregroundStyle(.secondary) }
@@ -186,7 +191,9 @@ struct PostCard: View {
       }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: max(8, settings.number("radius"))))
         .sheet(isPresented: $nested) { NavigationStack { FloorView(thread: post.threadID, post: post.id, forum: forum).toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("close")) { nested = false } } } } }
         .sheet(item: Binding(get: { actionURL.map(URLItem.init) }, set: { actionURL = $0?.url })) { item in BaiduBrowser(session: app.session, url: item.url) { result in actionURL = nil; if case .failure(let error) = result { app.error = error.localizedDescription } }.ignoresSafeArea() }
-        .confirmationDialog(tr("deleteConfirm"), isPresented: $removing, titleVisibility: .visible) { Button(tr("deletePost"), role: .destructive) { perform { try await app.api.removeOwnContent(forum: forum, thread: post.threadID, post: post.id, nested: !post.parentID.isEmpty) } } }
+        .forumConfirmation(tr("deleteConfirm"), isPresented: $removing, actions: { [
+          ForumDialogAction(tr("deletePost"), role: .destructive) { perform { try await app.api.removeOwnContent(forum: forum, thread: post.threadID, post: post.id, nested: !post.parentID.isEmpty) } }
+        ] })
     }
   }
   private func perform(_ body: @escaping () async throws -> Void) { app.requireLogin { Task { @MainActor in busy = true; defer { busy = false }; do { try await body() } catch { app.error = error.localizedDescription } } } }

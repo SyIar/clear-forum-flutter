@@ -1,9 +1,12 @@
+import ForumUI
 import SwiftUI
 
 struct PageSelector: View {
   let page: ForumPage
   let select: (Int) -> Void
-  @Environment(\.dismiss) private var dismiss
+  @Environment(\.dismiss) private var nativeDismiss
+  @Environment(\.forumDismiss) private var forumDismiss
+  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
   @State private var query = ""
   private var requestedPage: Int? {
     guard let number = Int(query.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -34,7 +37,7 @@ struct PageSelector: View {
               HStack {
                 Text(AppText.format("Page %@", String(describing: number))).monospacedDigit().foregroundStyle(.primary)
                 Spacer()
-                if number == page.pageNumber { Image(systemName: "checkmark").foregroundStyle(.blue) }
+                if number == page.pageNumber { Image(forumSymbol: "checkmark").foregroundStyle(.blue) }
               }.contentShape(Rectangle())
             }
           }

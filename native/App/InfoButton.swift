@@ -1,3 +1,4 @@
+import ForumUI
 import SwiftUI
 
 struct InfoButton: View {
@@ -7,22 +8,12 @@ struct InfoButton: View {
 
   var body: some View {
     Button { showingInfo = true } label: {
-      Image(systemName: "info.circle").font(.body)
+      Image(forumSymbol: "info.circle").font(.body)
         .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless)
       .accessibilityLabel(AppText.format("%@ information", String(describing: title)))
-      .popover(isPresented: $showingInfo) {
-        ViewThatFits(in: .vertical) {
-          information
-          ScrollView { information }
-        }.frame(idealWidth: 280, maxWidth: 320, maxHeight: 400)
-          .presentationCompactAdaptation(.popover)
-      }
-  }
-  private var information: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text(title).appFont(.headline)
-      Text(message).appFont(.subheadline).foregroundStyle(.secondary)
-    }.textCase(nil).padding(20).fixedSize(horizontal: false, vertical: true)
+      .forumAlert(title, isPresented: $showingInfo, actions: {
+        [ForumDialogAction(AppText.text("OK"))]
+      }, message: { message })
   }
 }
