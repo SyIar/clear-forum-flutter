@@ -49,6 +49,11 @@ struct ForumLiteApp: App {
                 HomeView(path: $path)
               case .search:
                 ForumSearchView { path.append(.reader($0)) }
+              case .book(let id):
+                if let book = bookhouseLibrary.document.followedBooks[id] {
+                  BookhouseReaderView(initialURL: book.resumeURL, navigate: { path.append(.reader($0)) },
+                    home: { path = [.home(.bookhouse)] }, search: { path.append(.search(.bookhouse)) }, followedBookID: id)
+                }
               case .reader(let url):
                 if site == .bookhouse {
                   BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) }, home: { path = [.home(site)] },
@@ -77,10 +82,12 @@ enum ForumDestination: Hashable {
   case home(ForumSite)
   case search(ForumSite)
   case reader(URL)
+  case book(String)
   var site: ForumSite {
     switch self {
     case .home(let site), .search(let site): return site
     case .reader(let url): return ForumSite(url: url) ?? .simp
+    case .book: return .bookhouse
     }
   }
 }
@@ -113,6 +120,9 @@ final class LibraryStore: ObservableObject {
   private var directoryEntries: [ForumEntry] = []
   private var authorTasks: [String: Task<ReaderFailure?, Never>] = [:]
   private var authorTokens: [String: UUID] = [:]
+  @Published var bookRefreshPhases: [String: ForumRefreshPhase] = [:]
+  @Published var bookErrors: [String: String] = [:]
+  var bookTasks: [String: Task<Void, Never>] = [:]
   init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
     do { document = try LibraryDocument.load(from: .standard, site: site); ready = true; error = nil }
@@ -342,6 +352,9 @@ struct HomeView: View {
             }.buttonStyle(.glass).buttonBorderShape(.circle)
               .accessibilityLabel(AppText.text("Open original forum website"))
           }.padding(.vertical, 6)
+        }
+        if session.site == .bookhouse {
+          BookhouseFollowingSection(library: library, session: session) { path.append(.book($0)) }
         }
         Section {
           if visibleBookmarks.isEmpty { Text(AppText.text("No bookmarks")).foregroundStyle(.secondary) }

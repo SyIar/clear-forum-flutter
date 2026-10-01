@@ -86,6 +86,7 @@ struct ForumSearchView: View {
           if entries.isEmpty { Text(AppText.text("No results")).foregroundStyle(.secondary) }
           ForEach(entries) { entry in
             ForumEntryCard(entry: entry, isForum: false, navigate: navigate, formatBookhouseTitle: session.site == .bookhouse)
+              .modifier(BookhouseFollowMenu(entry: entry))
               .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
           }
         }.disabled(loading).id("search-results")

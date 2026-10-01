@@ -1,0 +1,92 @@
+import Foundation
+import ForumUI
+
+extension LibraryStore {
+  @discardableResult func followBook(_ entry: ForumEntry, session: ForumSession) -> String? {
+    guard site == .bookhouse, session.site == .bookhouse else { return nil }
+    if let existing = document.followedBook(for: entry) { return existing.id }
+    guard document.followedBooks.count < 100, let book = BookhouseFollowedBook(entry: entry) else {
+      error = AppText.text("A book needs a numbered chapter title and a posting author to follow.")
+      return nil
+    }
+    change { $0.followedBooks[book.id] = book }
+    guard document.followedBooks[book.id] != nil else { return nil }
+    Task { await refreshBook(book.id, session: session) }
+    return book.id
+  }
+  func unfollowBook(_ id: String) {
+    bookTasks[id]?.cancel()
+    change { $0.followedBooks.removeValue(forKey: id) }
+    bookRefreshPhases.removeValue(forKey: id); bookErrors.removeValue(forKey: id)
+  }
+  func recordBook(_ id: String, url: URL, chapter: Int, paragraph: Int) {
+    guard let book = document.followedBooks[id],
+          book.position != BookhouseReadingPosition(url: url, chapter: chapter, paragraph: paragraph) else { return }
+    change { $0.followedBooks[id]?.record(url: url, chapter: chapter, paragraph: paragraph) }
+  }
+  func refreshBooks(session: ForumSession, force: Bool = false) async {
+    guard site == .bookhouse, session.site == .bookhouse else { return }
+    for book in document.readingBooks {
+      guard !Task.isCancelled else { return }
+      if force || book.checkedAt.map({ Date().timeIntervalSince($0) >= 900 }) ?? true {
+        await refreshBook(book.id, session: session)
+      }
+    }
+  }
+  func refreshBook(_ id: String, session: ForumSession) async {
+    guard site == .bookhouse, session.site == .bookhouse else { return }
+    if let task = bookTasks[id] { await task.value; return }
+    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.title) else { return }
+    bookRefreshPhases[id] = .checking; bookErrors[id] = nil
+    let task = Task { @MainActor [weak self] in
+      guard let self else { return }
+      defer {
+        self.bookTasks[id] = nil
+        if self.bookRefreshPhases[id] == .checking { self.bookRefreshPhases[id] = nil }
+      }
+      do {
+        // Verify the source account against the selected post before indexing.
+        let seed = try await session.load(book.seed)
+        guard book.accepts(seed), let owner = seed.posts.first else { throw BookhouseFollowingFailure.author }
+        var next: URL? = search
+        var visited = Set<String>(), entries: [ForumEntry] = []
+        while let url = next {
+          try Task.checkCancellation()
+          guard visited.count < 50, BookhouseSitePolicy.pageRoot(url) == BookhouseSitePolicy.pageRoot(search),
+                visited.insert(BookhouseSitePolicy.pageCacheKey(url)).inserted else { throw BookhouseFollowingFailure.catalog }
+          let page = try await session.load(url)
+          entries += page.entries.filter(book.matches)
+          guard entries.count <= 5_000 else { throw BookhouseFollowingFailure.catalog }
+          next = page.next
+        }
+        try Task.checkCancellation()
+        guard self.document.followedBooks[id]?.followedAt == book.followedAt else { return }
+        guard !entries.isEmpty else { throw BookhouseFollowingFailure.catalog }
+        let date = Date()
+        self.change {
+          // Merge into the latest record so an in-flight check cannot erase reading progress.
+          $0.followedBooks[id]?.authorID = owner.authorID
+          $0.followedBooks[id]?.merge(entries, checkedAt: date)
+        }
+        guard self.document.followedBooks[id]?.checkedAt == date else { throw ReaderFailure.storage }
+        self.bookRefreshPhases[id] = (self.document.followedBooks[id]?.latestChapter ?? 0) > book.latestChapter && book.checkedAt != nil ? .updated : .checked
+      } catch {
+        guard !Task.isCancelled, self.document.followedBooks[id]?.followedAt == book.followedAt else { return }
+        self.bookRefreshPhases[id] = .failed
+        self.bookErrors[id] = AppText.error(error)
+      }
+    }
+    bookTasks[id] = task
+    await task.value
+  }
+}
+
+enum BookhouseFollowingFailure: Error, LocalizedError {
+  case author, catalog
+  var errorDescription: String? {
+    switch self {
+    case .author: return AppText.text("This post does not match the followed book and posting author.")
+    case .catalog: return AppText.text("Could not check every catalog page. Your existing chapters and position are kept.")
+    }
+  }
+}

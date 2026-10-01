@@ -412,3 +412,24 @@
 "Update check completed" = "\U5DF2\U5B8C\U6210\U68C0\U67E5";
 "New updates found" = "\U53D1\U73B0\U65B0\U66F4\U65B0";
 "Update check failed" = "\U68C0\U67E5\U5931\U8D25";
+
+"A book needs a numbered chapter title and a posting author to follow." = "\U8ffd\U8bfb\U9700\U8981\U53ef\U8bc6\U522b\U7684\U7ae0\U8282\U6807\U9898\U548c\U53d1\U5e16\U4f5c\U8005\Uff0c\U6700\U591a\U53ef\U8ffd\U8bfb100\U672c\U3002";
+"This post does not match the followed book and posting author." = "\U6b64\U5e16\U7684\U4e66\U540d\U6216\U53d1\U5e16\U4f5c\U8005\U4e0e\U8ffd\U8bfb\U8bb0\U5f55\U4e0d\U4e00\U81f4\Uff0c\U5df2\U505c\U6b62\U8df3\U8f6c\U3002";
+"Could not check every catalog page. Your existing chapters and position are kept." = "\U672a\U80fd\U5b8c\U6574\U68c0\U67e5\U7ae0\U8282\U76ee\U5f55\Uff0c\U5df2\U4fdd\U7559\U539f\U6709\U76ee\U5f55\U548c\U9605\U8bfb\U8fdb\U5ea6\Uff0c\U8bf7\U7a0d\U540e\U91cd\U8bd5\U3002";
+"Stop following book" = "\U53d6\U6d88\U8ffd\U8bfb";
+"Follow book" = "\U6dfb\U52a0\U4e3a\U8ffd\U8bfb";
+"Long-press a numbered search result to follow a book." = "\U957f\U6309\U542b\U6709\U7ae0\U8282\U7f16\U53f7\U7684\U641c\U7d22\U7ed3\U679c\Uff0c\U5373\U53ef\U6dfb\U52a0\U8ffd\U8bfb\U3002";
+"Reading chapter %@" = "\U8bfb\U5230\U7b2c %@ \U7ae0";
+"Not started" = "\U5c1a\U672a\U5f00\U59cb\U9605\U8bfb";
+"Latest chapter %@" = "\U66f4\U65b0\U81f3\U7b2c %@ \U7ae0";
+"My followed books" = "\U6211\U7684\U8ffd\U8bfb";
+"Check new chapters" = "\U68c0\U67e5\U7ae0\U8282\U66f4\U65b0";
+"Chapter number" = "\U7ae0\U8282\U53f7";
+"Chapters" = "\U7ae0\U8282\U76ee\U5f55";
+"This chapter is not in the current catalog. Check for updates or choose another chapter." = "\U5f53\U524d\U76ee\U5f55\U4e2d\U6ca1\U6709\U8fd9\U4e00\U7ae0\Uff0c\U8bf7\U68c0\U67e5\U66f4\U65b0\U6216\U9009\U62e9\U5176\U4ed6\U7ae0\U8282\U3002";
+"Previous chapter" = "\U4e0a\U4e00\U7ae0";
+"Next chapter" = "\U4e0b\U4e00\U7ae0";
+"Swipe up at the end to continue reading." = "\U5230\U5e95\U540e\U7ee7\U7eed\U4e0a\U6ed1\Uff0c\U63a5\U7740\U9605\U8bfb\U4e0b\U4e00\U7ae0\U3002";
+"The next chapter is missing. Choose a chapter from the catalog." = "\U4e0b\U4e00\U7ae0\U7f3a\U5931\Uff0c\U8bf7\U4ece\U76ee\U5f55\U9009\U62e9\U7ae0\U8282\U3002";
+"You have reached the latest chapter." = "\U5df2\U8bfb\U5230\U6700\U65b0\U7ae0\U8282\U3002";
+"This post has no recognizable heading for the requested chapter. Showing the publication from its beginning." = "\U672a\U8bc6\U522b\U5230\U76ee\U6807\U7ae0\U8282\U6807\U9898\Uff0c\U5df2\U5b9a\U4f4d\U5230\U672c\U5e16\U5f00\U5934\Uff0c\U8bf7\U624b\U52a8\U786e\U8ba4\U3002";

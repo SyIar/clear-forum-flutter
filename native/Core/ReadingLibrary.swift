@@ -78,9 +78,10 @@ struct LibraryDocument: Codable {
   var blockedAuthors: [String: String] = [:]
   var followedAuthors: [String: SouthFollowedAuthor] = [:]
   var readSouthThreads: Set<String> = []
+  var followedBooks: [String: BookhouseFollowedBook] = [:]
   static let key = "reading_library_v1"
   private enum CodingKeys: String, CodingKey {
-    case site, version, bookmarks, recent, threads, presentations, blockedAuthors, followedAuthors, readSouthThreads
+    case site, version, bookmarks, recent, threads, presentations, blockedAuthors, followedAuthors, readSouthThreads, followedBooks
   }
   init(site: ForumSite = .simp) { self.site = site }
   static func key(for site: ForumSite) -> String { site == .bookhouse ? "bookhouse_reading_library_v1" : site == .simp ? key : "south_reading_library_v1" }
@@ -95,6 +96,7 @@ struct LibraryDocument: Codable {
     blockedAuthors = try values.decodeIfPresent([String: String].self, forKey: .blockedAuthors) ?? [:]
     followedAuthors = try values.decodeIfPresent([String: SouthFollowedAuthor].self, forKey: .followedAuthors) ?? [:]
     readSouthThreads = try values.decodeIfPresent(Set<String>.self, forKey: .readSouthThreads) ?? []
+    followedBooks = try values.decodeIfPresent([String: BookhouseFollowedBook].self, forKey: .followedBooks) ?? [:]
     if site == .south {
       readSouthThreads.formUnion(recent.compactMap { site.accepts($0.url) ? SitePolicy.threadKey($0.url) : nil })
       readSouthThreads.formUnion(threads.filter { $0.value.seenMaximum != nil }.keys)
@@ -113,6 +115,11 @@ struct LibraryDocument: Codable {
     document.recent = Array(unique(document.recent, key: recentKey).prefix(10))
     document.pruneTracking()
     document.blockedAuthors = site == .south ? document.blockedAuthors.filter { SouthSitePolicy.validAuthorID($0.key) } : [:]
+    document.followedBooks = site == .bookhouse ? document.followedBooks.filter { key, book in
+      key == book.id && BookhouseSitePolicy.threadKey(book.seed) != nil && !book.title.isEmpty && !book.author.isEmpty &&
+      !book.chapters.isEmpty && book.chapters.allSatisfy { BookhouseSitePolicy.threadKey($0.url) != nil &&
+        $0.first > 0 && $0.last >= $0.first && $0.last <= 100_000 }
+    } : [:]
     return document
   }
   func save(to defaults: UserDefaults) throws {

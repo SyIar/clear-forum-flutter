@@ -55,4 +55,14 @@ final class BookhouseSearchTests: XCTestCase {
     XCTAssertTrue(page.entries.isEmpty)
     XCTAssertThrowsError(try ForumParser().parse("<h1>Temporarily unavailable</h1>", url: url))
   }
+
+  func testEmptyTerminalPageStopsEvenWhenSiteRendersAnotherNextLink() throws {
+    let first = try XCTUnwrap(BookhouseSitePolicy.search("test"))
+    let current = try XCTUnwrap(BookhouseSitePolicy.pageURL(first, number: 3))
+    let next = try XCTUnwrap(BookhouseSitePolicy.pageURL(first, number: 4))
+    let html = "<ul class='thread-list'></ul><nav class='pagination-bar'><a href='\(next.absoluteString)'>Next</a></nav>"
+    let page = try ForumParser().parse(html, url: current)
+    XCTAssertNil(page.next)
+    XCTAssertEqual(BookhouseSitePolicy.pageNumber(try XCTUnwrap(page.previous)), 2)
+  }
 }

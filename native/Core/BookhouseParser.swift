@@ -67,7 +67,8 @@ struct BookhouseParser {
       }
       page.totalPages = numbers.max()
       page.previous = current > 1 ? BookhouseSitePolicy.pageURL(url, number: current - 1) : nil
-      page.next = (numbers.max() ?? current) > current ? BookhouseSitePolicy.pageURL(url, number: current + 1) : nil
+      // The site renders a Next link even beyond the last results page.
+      page.next = !page.entries.isEmpty && (numbers.max() ?? current) > current ? BookhouseSitePolicy.pageURL(url, number: current + 1) : nil
     }
     return page
   }
