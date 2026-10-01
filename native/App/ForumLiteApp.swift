@@ -51,7 +51,8 @@ struct ForumLiteApp: App {
                 ForumSearchView { path.append(.reader($0)) }
               case .reader(let url):
                 if site == .bookhouse {
-                  BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) }, home: { path = [.home(site)] })
+                  BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) }, home: { path = [.home(site)] },
+                                      search: { path.append(.search(site)) })
                 } else {
                   ReaderView(initialURL: url, library: library(for: site), session: session(for: site), home: { path = [.home(site)] })
                 }
@@ -102,8 +103,10 @@ final class LibraryStore: ObservableObject {
   @Published var error: String?
   @Published private(set) var refreshing = false
   @Published private(set) var refreshMessage: String?
-  @Published private(set) var refreshingAuthors: Set<String> = []
+  @Published private(set) var threadRefreshPhases: [String: ForumRefreshPhase] = [:]
+  @Published private(set) var authorRefreshPhases: [String: ForumRefreshPhase] = [:]
   @Published private(set) var authorErrors: [String: String] = [:]
+  var refreshingAuthors: Set<String> { Set(authorRefreshPhases.filter { $0.value == .checking }.keys) }
   private var ready = false
   private var visitTokens: [String: UUID] = [:]
   private var visitTasks: [String: Task<Void, Never>] = [:]
@@ -162,6 +165,8 @@ final class LibraryStore: ObservableObject {
     guard site.supportsThreadUpdates, session.site == site, ready, !refreshing else { return }
     let targets = document.trackedThreads
     guard document.hasRefreshTargets else { refreshMessage = nil; return }
+    threadRefreshPhases = [:]
+    authorRefreshPhases = authorRefreshPhases.filter { $0.value == .checking }
     refreshing = true
     defer { refreshing = false }
     var checked = 0
@@ -169,10 +174,13 @@ final class LibraryStore: ObservableObject {
     for (index, url) in targets.enumerated() {
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       guard let key = SitePolicy.threadKey(url) else { continue }
+      threadRefreshPhases[key] = .checking
+      defer { if threadRefreshPhases[key] == .checking { threadRefreshPhases.removeValue(forKey: key) } }
       if let visit = visitTasks[key] { await visit.value }
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       guard visitTasks[key] == nil else { continue }
       let token = visitTokens[key]
+      let previousMaximum = document.threads[key]?.latestMaximum ?? document.threads[key]?.seenMaximum
       refreshMessage = AppText.format("Checking %@ of %@...", String(describing: index + 1), String(describing: targets.count))
       do {
         let page = try await session.load(url)
@@ -182,10 +190,14 @@ final class LibraryStore: ObservableObject {
         guard !Task.isCancelled else { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.
         guard visitTokens[key] == token, visitTasks[key] == nil else { continue }
-        change { $0.threads[key, default: ThreadReadState()].checked(maximum: maximum) }
+        let checkedAt = Date()
+        change { $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt) }
+        guard document.threads[key]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
+        threadRefreshPhases[key] = previousMaximum.map { maximum > $0 } == true ? .updated : .checked
         checked += 1
       } catch {
         if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
+        threadRefreshPhases[key] = .failed
         if let failure = error as? ReaderFailure, [.login, .verification, .rateLimit].contains(failure) {
           refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
@@ -219,7 +231,7 @@ final class LibraryStore: ObservableObject {
     guard !document.followsAuthor(id) else { return }
     authorTokens.removeValue(forKey: id)
     authorTasks.removeValue(forKey: id)?.cancel()
-    refreshingAuthors.remove(id)
+    authorRefreshPhases.removeValue(forKey: id)
     authorErrors.removeValue(forKey: id)
   }
   @discardableResult
@@ -229,7 +241,7 @@ final class LibraryStore: ObservableObject {
     if let task = authorTasks[id] { return await task.value }
     let token = UUID()
     authorTokens[id] = token
-    refreshingAuthors.insert(id)
+    authorRefreshPhases[id] = .checking
     authorErrors.removeValue(forKey: id)
     let task = Task { [weak self] () -> ReaderFailure? in
       guard let self else { return nil }
@@ -237,7 +249,7 @@ final class LibraryStore: ObservableObject {
         if self.authorTokens[id] == token {
           self.authorTokens.removeValue(forKey: id)
           self.authorTasks.removeValue(forKey: id)
-          self.refreshingAuthors.remove(id)
+          if self.authorRefreshPhases[id] == .checking { self.authorRefreshPhases.removeValue(forKey: id) }
         }
       }
       do {
@@ -262,11 +274,18 @@ final class LibraryStore: ObservableObject {
         }
         guard accepted else { throw ReaderFailure.unsupported }
         guard self.document.followedAuthors[id]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
+        let previousTopics = Set(author.topics.compactMap { SitePolicy.threadKey($0.url) })
+        let hasNewTopics = self.document.followedAuthors[id]?.topics.contains { topic in
+          guard let key = SitePolicy.threadKey(topic.url) else { return false }
+          return !previousTopics.contains(key) && self.document.isUnreadSouthThread(topic.url)
+        } == true
+        self.authorRefreshPhases[id] = hasNewTopics ? .updated : .checked
         return nil
       } catch {
         guard !Task.isCancelled, self.authorTokens[id] == token,
               self.document.followedAuthors[id]?.followedAt == author.followedAt else { return nil }
         let failure = error as? ReaderFailure ?? .network
+        self.authorRefreshPhases[id] = .failed
         self.authorErrors[id] = failure.localizedDescription
         return failure
       }
@@ -327,7 +346,7 @@ struct HomeView: View {
         Section {
           if visibleBookmarks.isEmpty { Text(AppText.text("No bookmarks")).foregroundStyle(.secondary) }
           ForEach(visibleBookmarks) { entry in
-            savedRow(entry, bookmark: true)
+            savedRow(entry)
               .swipeActions { Button(AppText.text("Remove"), role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         } header: {
@@ -413,10 +432,11 @@ struct HomeView: View {
           ForumDialogAction(AppText.text("OK"), role: .cancel) { library.error = nil }
         ] }, message: { library.error ?? "" })
   }
-  private func savedRow(_ entry: SavedPage, bookmark: Bool = false) -> some View {
+  private func savedRow(_ entry: SavedPage) -> some View {
     let key = SitePolicy.threadKey(entry.url)
     let presentation = key.flatMap { library.document.presentations[$0] }
     let state = library.site.supportsThreadUpdates ? key.flatMap { library.document.threads[$0] } : nil
+    let refreshPhase = key.flatMap { library.threadRefreshPhases[$0] }
     return VStack(alignment: .leading, spacing: 6) {
       if let tags = presentation?.tags, !tags.isEmpty {
         ForumTagStrip(tags: tags) { path.append(.reader($0)) }
@@ -446,12 +466,12 @@ struct HomeView: View {
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
-          Image(forumSymbol: "chevron.right", size: 12).font(.caption).foregroundStyle(.tertiary)
+          LibraryRefreshIndicator(phase: refreshPhase, showsChevron: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
     }.padding(.vertical, 3)
-      .modifier(ForumBookmarkUpdate(maximum: state?.latestMaximum, enabled: bookmark && library.site == .simp && state?.updated == true))
+      .modifier(ForumRefreshFeedback(phase: refreshPhase))
   }
 }
 

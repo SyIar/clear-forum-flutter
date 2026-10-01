@@ -85,7 +85,7 @@ struct ForumSearchView: View {
         Section(submitted.isEmpty ? AppText.text("Results") : submitted) {
           if entries.isEmpty { Text(AppText.text("No results")).foregroundStyle(.secondary) }
           ForEach(entries) { entry in
-            ForumEntryCard(entry: entry, isForum: false, navigate: navigate)
+            ForumEntryCard(entry: entry, isForum: false, navigate: navigate, formatBookhouseTitle: session.site == .bookhouse)
               .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
           }
         }.disabled(loading).id("search-results")
@@ -95,7 +95,9 @@ struct ForumSearchView: View {
               Button { if let previous = page.previous { load(previous) } } label: { Image(forumSymbol: "chevron.left") }
                 .accessibilityLabel(AppText.text("Previous results")).disabled(loading || page.previous == nil)
               Spacer()
-              Text("\(page.pageNumber) / \(page.pageCount)").monospacedDigit().foregroundStyle(.secondary)
+              // Bookhouse provides previous/next links, not a reliable total count.
+              Text(session.site == .bookhouse ? AppText.format("Page %@", String(page.pageNumber)) : "\(page.pageNumber) / \(page.pageCount)")
+                .monospacedDigit().foregroundStyle(.secondary)
               Spacer()
               Button { if let next = page.next { load(next) } } label: { Image(forumSymbol: "chevron.right") }
                 .accessibilityLabel(AppText.text("Next results")).disabled(loading || page.next == nil)
@@ -117,10 +119,10 @@ struct ForumSearchView: View {
         session.endBrowsing()
         guard let captured, let address = captured["url"] as? String, let target = URL(string: address),
               session.site.accepts(target), let html = captured["html"] as? String else { return }
-        if SimpSitePolicy.searchResults(target) || SouthSearch.parameters(target) != nil {
+        if SimpSitePolicy.searchResults(target) || SouthSearch.parameters(target) != nil || BookhouseSitePolicy.route(target)?.kind == .search {
           do {
             page = try ForumParser().parse(html, url: target)
-            submitted = SouthSearch.parameters(target)?["keyword"] ?? URLComponents(url: target, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value ?? AppText.text("Results")
+            submitted = BookhouseSitePolicy.route(target)?.parameters["keywords"] ?? SouthSearch.parameters(target)?["keyword"] ?? URLComponents(url: target, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value ?? AppText.text("Results")
             error = nil
           }
           catch { self.error = AppText.error(error) }
@@ -180,7 +182,8 @@ struct ForumSearchView: View {
     loading = false
   }
   private func openBrowser() {
-    let url = needsLogin ? session.site.login : page?.url ?? session.site.search
+    let bookhouseSearch = session.site == .bookhouse ? BookhouseSitePolicy.search(submitted.isEmpty ? keywords : submitted) : nil
+    let url = needsLogin ? session.site.login : page?.url ?? bookhouseSearch ?? session.site.search
     cancel()
     editing = false
     page = nil

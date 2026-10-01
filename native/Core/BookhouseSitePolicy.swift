@@ -79,7 +79,13 @@ enum BookhouseSitePolicy {
     parameters["p"] = number == 1 ? nil : String(number)
     return make(parameters)
   }
-  static func pageRoot(_ url: URL) -> URL { pageURL(url, number: 1) ?? SitePolicy.withoutFragment(url) }
+  static func pageRoot(_ url: URL) -> URL {
+    guard let route = route(url), route.kind == .search else { return SitePolicy.withoutFragment(url) }
+    var parameters = route.parameters
+    // Form presentation fields do not change the query. Preserve actual filters.
+    for key in ["p", "submit", "action", "bbsdr"] { parameters.removeValue(forKey: key) }
+    return make(parameters)
+  }
   static func pageCacheKey(_ url: URL) -> String {
     guard let route = route(url) else { return SitePolicy.withoutFragment(url).absoluteString }
     var values = route.parameters

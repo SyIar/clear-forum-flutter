@@ -2,6 +2,17 @@ import SwiftUI
 import UIKit
 import CoreText
 
+enum ReaderBodyStyle { case forum, novel }
+private struct ReaderBodyStyleKey: EnvironmentKey {
+  static let defaultValue = ReaderBodyStyle.forum
+}
+extension EnvironmentValues {
+  var readerBodyStyle: ReaderBodyStyle {
+    get { self[ReaderBodyStyleKey.self] }
+    set { self[ReaderBodyStyleKey.self] = newValue }
+  }
+}
+
 enum AppTypography {
   @MainActor static func uiFont(_ style: UIFont.TextStyle, bold: Bool = false) -> UIFont {
     let font = UIFont.preferredFont(forTextStyle: style)

@@ -22,7 +22,7 @@ struct SouthFollowingSection: View {
               }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(AppText.format("All topics by %@", String(describing: author.name)))
             Spacer(minLength: 0)
-            if library.refreshingAuthors.contains(author.id) { ProgressView().controlSize(.small) }
+            LibraryRefreshIndicator(phase: library.authorRefreshPhases[author.id])
             Button { library.unfollow(author.id) } label: { Image(forumSymbol: "person.badge.minus") }
               .buttonStyle(.borderless).accessibilityLabel(AppText.format("Unfollow %@", String(describing: author.name)))
           }
@@ -52,6 +52,7 @@ struct SouthFollowingSection: View {
               .appFont(.caption).foregroundStyle(.secondary)
           }
         }.padding(.vertical, 6)
+          .modifier(ForumRefreshFeedback(phase: library.authorRefreshPhases[author.id]))
       }
     } header: {
       HStack {

@@ -17,20 +17,28 @@ struct BookhouseParser {
       page = listing(rows, url: url)
     } else {
       // Browser captures and search pages already contain the rendered list.
-      let rows = try doc.select(".thread-list > li,.post-list .post-item").array()
+      // Search pages also contain an unrelated featured list above the results.
+      let rows = try doc.select(route.kind == .search ? ".thread-list > li" : ".thread-list > li,.post-list .post-item").array()
       var entries: [ForumEntry] = []
       var seen = Set<String>()
       for row in rows {
         let anchors = try row.select("a[href]").array()
-        guard let anchor = anchors.first, let target = BookhouseSitePolicy.resolve(try anchor.attr("href"), from: url, internalOnly: true),
+        guard let anchor = anchors.first(where: {
+          BookhouseSitePolicy.resolve(try? $0.attr("href"), from: url, internalOnly: true).flatMap(BookhouseSitePolicy.threadKey) != nil
+        }), let target = BookhouseSitePolicy.resolve(try anchor.attr("href"), from: url, internalOnly: true),
               let id = BookhouseSitePolicy.threadKey(target), seen.insert(id).inserted else { continue }
         let title = try anchor.text()
         guard !title.isEmpty else { continue }
-        let author = anchors.dropFirst().first.flatMap { try? $0.text() } ?? ""
-        entries.append(ForumEntry(title: title, url: target, subtitle: author, authorName: author))
+        let children = row.children().array()
+        let author = children.first(where: { $0.tagName() == "font" }).flatMap { try? $0.text() }
+          ?? anchors.dropFirst().first.flatMap { try? $0.text() } ?? ""
+        let date = children.first(where: { ["i", "time"].contains($0.tagName()) }).flatMap { try? $0.text() } ?? ""
+        entries.append(ForumEntry(title: title, url: target, subtitle: author, authorName: author,
+                                  postedAt: date.isEmpty ? nil : date))
       }
       let catalogContainer = try doc.select("#d_list").first()
-      guard !rows.isEmpty || route.kind == .search || catalogContainer != nil else { throw ReaderFailure.unsupported }
+      let searchContainer = route.kind == .search ? try doc.select(".thread-list").first() : nil
+      guard !rows.isEmpty || searchContainer != nil || catalogContainer != nil else { throw ReaderFailure.unsupported }
       page = ForumPage(url: url, title: route.kind == .search ? AppText.text("Search results") : AppText.text("Forbidden Library"),
                        kind: .threads, entries: entries, posts: [], pageNumber: BookhouseSitePolicy.pageNumber(url))
     }

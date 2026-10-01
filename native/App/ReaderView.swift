@@ -168,23 +168,26 @@ struct ReaderView: View {
       .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? AppText.text("Author threads") : page?.kind == .posts ? AppText.text("Thread") : AppText.text("Forums")).navigationBarTitleDisplayMode(.inline)
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-          Button(action: home) { ForumToolbarIcon("house") }
-            .buttonStyle(.borderless).accessibilityLabel(AppText.text("Home"))
-          Button {
-            library.toggle(current, title: page?.title ?? current.path)
-          } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
-            .buttonStyle(.borderless).accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil || loading)
-          Menu {
-            ShareLink(item: current) { Label(AppText.text("Share link"), forumSymbol: "square.and.arrow.up") }
-            Button(AppText.text("Site browser"), forumSymbol: "globe") { openBrowser(current) }
-            Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
-            Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
-            if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
-            Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
-          } label: { ForumToolbarIcon("ellipsis") }
-            .accessibilityLabel(AppText.text("Page actions")).disabled(purchasing)
-        }
+        ToolbarItem(placement: .topBarTrailing) {
+          ForumToolbarGroup {
+            Button(action: home) { ForumToolbarIcon("house") }
+              .accessibilityLabel(AppText.text("Home"))
+            Button {
+              library.toggle(current, title: page?.title ?? current.path)
+            } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
+              .accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil || loading)
+            Menu {
+              ShareLink(item: current) { Label(AppText.text("Share link"), forumSymbol: "square.and.arrow.up") }
+              Button(AppText.text("Site browser"), forumSymbol: "globe") { openBrowser(current) }
+              Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
+              Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
+              if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
+              Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
+            } label: { ForumToolbarIcon("ellipsis") }
+              .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 44, height: 44)
+              .accessibilityLabel(AppText.text("Page actions")).disabled(purchasing)
+          }
+        }.sharedBackgroundVisibility(.hidden)
         ToolbarItem(placement: .bottomBar) {
           Button { setBottomPanel(bottomPanel == .pages ? nil : .pages) } label: {
             ForumToolbarIcon(bottomPanel == .pages ? "xmark" : "page.jump").contentTransition(.opacity)

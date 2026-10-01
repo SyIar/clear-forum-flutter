@@ -5,17 +5,21 @@ import SwiftUI
 struct EmoticonText: View {
   let runs: [TextRun]
   @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 17
+  @ScaledMetric(relativeTo: .body) private var novelLineSpacing: CGFloat = 7
+  @Environment(\.readerBodyStyle) private var bodyStyle
   @EnvironmentObject private var session: ForumSession
   @Environment(\.displayScale) private var displayScale
   @ScaledMetric(relativeTo: .body) private var height: CGFloat = 24
   @State private var images: [URL: UIImage] = [:]
+  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (20.0 / 17.0) : textSize }
 
   private var sources: [URL] {
     var seen = Set<URL>()
     return runs.compactMap(\.emoticon).filter { seen.insert($0).inserted }
   }
   var body: some View {
-    paragraph.forumFont(.body).lineSpacing(2).textSelection(.enabled)
+    paragraph.font(Font(MixedScriptFont.font(size: bodyTextSize, bold: false)))
+      .lineSpacing(bodyStyle == .novel ? novelLineSpacing : 2).textSelection(.enabled)
       .fixedSize(horizontal: false, vertical: true)
       .task(id: sources) {
         for source in sources where images[source] == nil {
@@ -34,7 +38,7 @@ struct EmoticonText: View {
         // A small text fallback never reserves a full photo-sized loading area.
         part = Text(Image(forumSymbol: "face.smiling")).foregroundColor(.secondary)
       } else {
-        part = Text(AppTypography.richText(run, size: textSize))
+        part = Text(AppTypography.richText(run, size: bodyTextSize))
       }
       return Text("\(result)\(part)")
     }

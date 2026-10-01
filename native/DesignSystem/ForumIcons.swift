@@ -47,6 +47,19 @@ public struct ForumToolbarIcon: View {
   }
 }
 
+// Host the whole cluster in one ToolbarItem so UIKit cannot space a Menu
+// differently from a Button. Each child owns the same 44-point column.
+public struct ForumToolbarGroup<Content: View>: View {
+  private let content: () -> Content
+  public init(@ViewBuilder content: @escaping () -> Content) { self.content = content }
+  public var body: some View {
+    HStack(spacing: 0, content: content)
+      .buttonStyle(.plain).tint(.blue)
+      .padding(.horizontal, 6).padding(.vertical, 2)
+      .glassEffect(.regular.interactive(), in: .capsule)
+  }
+}
+
 public extension Label where Title == Text, Icon == Image {
   init(_ title: String, forumSymbol: String) {
     self.init { Text(title) } icon: { Image(forumSymbol: forumSymbol) }

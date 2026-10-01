@@ -5,6 +5,7 @@ struct BookhouseReaderView: View {
   let initialURL: URL
   let navigate: (URL) -> Void
   let home: () -> Void
+  let search: () -> Void
   @EnvironmentObject private var session: ForumSession
   @EnvironmentObject private var library: LibraryStore
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,7 +43,7 @@ struct BookhouseReaderView: View {
 
   private var readingContent: some View {
     ScrollView {
-        LazyVStack(alignment: .leading, spacing: 16) {
+        LazyVStack(alignment: .leading, spacing: page?.kind == .posts ? 8 : 16) {
           Color.clear.frame(height: 1).id("top")
           if let page {
             Text(page.title).forumFont(.title2, weight: .bold).padding(.top, 8)
@@ -93,16 +94,20 @@ struct BookhouseReaderView: View {
   }
 
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
-      ToolbarItemGroup(placement: .topBarTrailing) {
-        Button(action: home) { ForumToolbarIcon("house") }
-          .buttonStyle(.borderless).accessibilityLabel(AppText.text("Home"))
-        Button {
-          library.toggle(current, title: page?.title ?? current.path)
-        } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
-          .buttonStyle(.borderless).accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil)
-        Button { external = current } label: { ForumToolbarIcon("safari") }
-          .buttonStyle(.borderless).accessibilityLabel(AppText.text("Site browser"))
-      }
+      ToolbarItem(placement: .topBarTrailing) {
+        ForumToolbarGroup {
+          Button(action: home) { ForumToolbarIcon("house") }
+            .accessibilityLabel(AppText.text("Home"))
+          Button(action: search) { ForumToolbarIcon("magnifyingglass") }
+            .accessibilityLabel(AppText.text("Search forum"))
+          Button {
+            library.toggle(current, title: page?.title ?? current.path)
+          } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
+            .accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil)
+          Button { external = current } label: { ForumToolbarIcon("safari") }
+            .accessibilityLabel(AppText.text("Site browser"))
+        }
+      }.sharedBackgroundVisibility(.hidden)
       if BookhouseSitePolicy.route(current)?.kind == .search {
         ToolbarItem(placement: .bottomBar) {
           Button { setBottomPanel(bottomPanel == .pages ? nil : .pages) } label: {
@@ -178,6 +183,7 @@ struct BookhouseReaderView: View {
         RichBodyView(blocks: [block], posters: posters, navigate: open,
                      play: { if let url = $0.url { external = url } },
                      openImage: { image = ImageViewerPresentation(source: $0) }, purchase: { _ in }, purchasing: false)
+          .environment(\.readerBodyStyle, .novel)
           .id("paragraph-\(index)")
       }
       Divider().padding(.top, 16)

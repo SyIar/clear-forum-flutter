@@ -408,3 +408,7 @@
 "Reading folder" = "\U6B63\U5728\U8BFB\U53D6\U6587\U4EF6\U5939";
 "%@ saved · %@ skipped · %@ queued" = "\U5DF2\U4FDD\U5B58 %@ \U9879 · \U5DF2\U8DF3\U8FC7 %@ \U9879 · \U6392\U961F %@ \U9879";
 "%@ · %@ saved · %@ queued" = "%@ · \U5DF2\U4FDD\U5B58 %@ \U9879 · \U6392\U961F %@ \U9879";
+"Checking for updates" = "\U6B63\U5728\U68C0\U67E5\U66F4\U65B0";
+"Update check completed" = "\U5DF2\U5B8C\U6210\U68C0\U67E5";
+"New updates found" = "\U53D1\U73B0\U65B0\U66F4\U65B0";
+"Update check failed" = "\U68C0\U67E5\U5931\U8D25";

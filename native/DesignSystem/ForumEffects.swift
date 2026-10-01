@@ -25,41 +25,63 @@ public struct ForumEdgeBlur: View {
   }
 }
 
-// Use ChunUI's shader locally. Its public fire() API owns a fullscreen window,
-// which would highlight unrelated rows and obscure the item being updated.
-public struct ForumBookmarkUpdate: ViewModifier {
-  public let maximum: Int?
-  public let enabled: Bool
+public enum ForumRefreshPhase: Equatable {
+  case checking, checked, updated, failed
+}
+
+// Keep ChunUI's sweep inside the item being checked, not its fullscreen window.
+public struct ForumRefreshFeedback: ViewModifier {
+  public let phase: ForumRefreshPhase?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.scenePhase) private var scenePhase
+  @State private var visible = false
   @State private var started: Date?
-  @State private var token = 0
-  public init(maximum: Int?, enabled: Bool) { self.maximum = maximum; self.enabled = enabled }
+  @State private var completion: Date?
+  public init(phase: ForumRefreshPhase?) { self.phase = phase }
   public func body(content: Content) -> some View {
-    content.overlay {
-      if let started, !reduceMotion {
+    content
+    .background {
+      if phase == .checking {
+        RoundedRectangle(cornerRadius: 12).fill(.blue.opacity(0.045))
+          .allowsHitTesting(false).accessibilityHidden(true)
+      }
+    }
+    .overlay {
+      if visible, scenePhase == .active, !reduceMotion, let start = completion ?? started {
         GeometryReader { geometry in
-          TimelineView(.animation) { timeline in
-            let elapsed = max(0, timeline.date.timeIntervalSince(started))
-            let progress = 1 - pow(1 - min(1, elapsed / 0.62), 4)
-            let alpha = elapsed <= 0.62 ? 0.25 : max(0, 0.25 * (1 - (elapsed - 0.62) / 0.26))
+          TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+            let elapsed = max(0, timeline.date.timeIntervalSince(start))
+            let repeating = phase == .checking
+            let time = repeating ? elapsed.truncatingRemainder(dividingBy: 1.6) : elapsed
+            let duration = repeating ? 1.25 : 0.62
+            let raw = min(1, time / duration)
+            let progress = repeating ? raw : 1 - pow(1 - raw, 4)
+            let peak = repeating ? 0.14 : 0.28
+            let alpha = time <= duration ? peak : max(0, peak * (1 - (time - duration) / 0.26))
             Rectangle().fill(.white).colorEffect(CCShaders.glimmSweep(
               .float2(Float(geometry.size.width), Float(geometry.size.height)),
-              .float(Float(elapsed)), .float(Float(progress)), .float(Float(alpha)),
+              .float(Float(time)), .float(Float(progress)), .float(Float(alpha)),
               .float(0), .float3(0.2, 0.65, 1), .float(0.85)))
           }
         }.clipShape(RoundedRectangle(cornerRadius: 12))
           .allowsHitTesting(false).accessibilityHidden(true)
       }
     }
-    .onChange(of: maximum) { previous, current in
-      guard enabled, let previous, let current, current > previous, !reduceMotion else { return }
-      started = Date(); token += 1
+    .onChange(of: phase) { previous, current in
+      started = current == .checking ? Date() : nil
+      completion = previous == .checking && current == .updated && visible &&
+        scenePhase == .active && !reduceMotion ? Date() : nil
     }
-    .task(id: token) {
-      guard started != nil else { return }
+    .task(id: completion) {
+      guard completion != nil else { return }
       do { try await Task.sleep(for: .milliseconds(950)) } catch { return }
-      started = nil
+      completion = nil
     }
-    .onDisappear { started = nil }
+    .onChange(of: scenePhase) { _, current in
+      completion = nil
+      started = current == .active && phase == .checking ? Date() : nil
+    }
+    .onAppear { visible = true; started = phase == .checking ? Date() : nil; completion = nil }
+    .onDisappear { visible = false; started = nil; completion = nil }
   }
 }
