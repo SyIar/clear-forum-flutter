@@ -91,8 +91,8 @@ public struct ForumActionButtonStyle: ButtonStyle {
 }
 
 public extension View {
-  func forumCardSurface(radius: CGFloat = ForumDesignSystem.radius.card) -> some View {
-    modifier(ForumCardSurface(radius: radius))
+  func forumCardSurface(radius: CGFloat? = nil) -> some View {
+    modifier(ForumCardSurface(radius: radius ?? ForumDesignSystem.radius.card))
   }
   func forumTagSurface() -> some View { modifier(ForumTagSurface()) }
   func forumModuleGlass() -> some View {
