@@ -16,6 +16,14 @@ Explicit single-file downloads now use a manager-owned Gofile batch containing e
 
 - Local Swift syntax, repository language, localization, icon coverage, Gofile bridge tests and media-script checks passed. Syntax checks do not establish Swift compilation.
 - Added Swift regressions for numbered Filester CDN resolution, lookalike rejection, single-file selection, and separate file/folder identities.
-- Device compilation and Swift test results will be recorded after CI completes. No simulator is used.
+- [Build 1058](https://github.com/SyIar/clear-forum-flutter/actions/runs/36807793188) passed 326 Forum Core tests and 20 Tieba Core tests, JavaScript checks, resource checks, and the arm64 Release device build. Source commit: `36c95461be9863605e6ae91bcdf67158d82d0c1b`. No simulator was used.
 
 Physical-device acceptance: download the Filester sample; start one Gofile video download, leave the list, open the floating widget, and verify progress and the saved file. Reopen the file list and verify the same task is shown.
+
+## Verified package
+
+- `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1058-unsigned.ipa`
+- Size: 55,962,530 bytes.
+- SHA-256: `c4212746be5b71497a238be3f57a304f6ff1587a04ad85766cb4f716eaccd5ea`.
+- Downloaded archive CRC, source/build metadata, arm64 executable, shared UI framework, Pika resources, ChunUI shaders, fonts and localization resources verified.
+- Physical-device acceptance remains pending with the user.
