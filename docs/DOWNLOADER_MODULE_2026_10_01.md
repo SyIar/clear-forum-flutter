@@ -14,4 +14,11 @@
 
 - Local Swift grammar, localization, design-system, repository-policy, and diff checks passed. Grammar checking is not compilation or type checking.
 - Five new Swift tests cover provider aliases, Gofile direct files, HTTP upgrades, encoded signed links, invalid input, and unsupported routes.
-- Apple compiler and test results are recorded after CI completes. No simulator was used; visual acceptance remains on a physical device.
+- CI run [36855927417](https://github.com/SyIar/clear-forum-flutter/actions/runs/36855927417) passed for source commit `12bc880b9eec7139209fd274ba3484a47d267f40`: 353 ForumCore tests, 20 TiebaCore tests, and the Release iPhoneOS build (1065).
+- No simulator was used; visual acceptance remains on a physical device.
+
+## Delivery
+
+- Package: `D:\workspace\sideloadly-setup\ForumLite-0.3.0-1065-unsigned.ipa` (56,219,094 bytes).
+- SHA-256: `7da40d6e3b8cc4311af7e2eae19b02fa56802a58150ae9d7519047d9964da72a`.
+- Verified the CI artifact checksum, archive integrity, source/build metadata, iPhoneOS ARM64 binary, bundled fonts/localization, and ForumUI resources. The package is unsigned and ready for the existing sideload workflow.
