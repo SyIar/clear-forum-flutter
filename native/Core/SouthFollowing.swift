@@ -7,6 +7,7 @@ struct SouthFollowedAuthor: Codable, Identifiable, Equatable {
   var followedAt: Date
   var topics: [SavedPage] = []
   var checkedAt: Date?
+  var attemptedAt: Date?
   var nameFromPost: Bool?
 }
 

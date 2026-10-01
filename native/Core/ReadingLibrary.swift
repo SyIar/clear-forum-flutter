@@ -43,6 +43,7 @@ struct ThreadReadState: Codable, Equatable {
   var seenMaximum: Int?
   var latestMaximum: Int?
   var checkedAt: Date?
+  var attemptedAt: Date?
   var viewedMaximum: Int?
   func displayedReadMaximum(for site: ForumSite) -> Int? {
     guard site.supportsThreadUpdates else { return nil }

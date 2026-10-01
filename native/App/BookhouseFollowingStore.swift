@@ -24,19 +24,19 @@ extension LibraryStore {
           book.position != BookhouseReadingPosition(url: url, chapter: chapter, paragraph: paragraph) else { return }
     change { $0.followedBooks[id]?.record(url: url, chapter: chapter, paragraph: paragraph) }
   }
-  func refreshBooks(session: ForumSession, force: Bool = false) async {
+  func refreshBooks(session: ForumSession, manual: Bool = false) async {
     guard site == .bookhouse, session.site == .bookhouse else { return }
     for book in document.readingBooks {
       guard !Task.isCancelled else { return }
-      if force || book.checkedAt.map({ Date().timeIntervalSince($0) >= 900 }) ?? true {
-        await refreshBook(book.id, session: session)
-      }
+      await refreshBook(book.id, session: session, manual: manual)
     }
   }
-  func refreshBook(_ id: String, session: ForumSession) async {
+  func refreshBook(_ id: String, session: ForumSession, manual: Bool = true) async {
     guard site == .bookhouse, session.site == .bookhouse else { return }
     if let task = bookTasks[id] { await task.value; return }
-    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.title) else { return }
+    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.title),
+          LibraryRefreshPolicy.isDue(checkedAt: book.checkedAt, attemptedAt: book.attemptedAt, manual: manual) else { return }
+    change { $0.followedBooks[id]?.attemptedAt = Date() }
     bookRefreshPhases[id] = .checking; bookErrors[id] = nil
     let task = Task { @MainActor [weak self] in
       guard let self else { return }

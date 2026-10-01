@@ -428,6 +428,7 @@
 "Chapters" = "\U7ae0\U8282\U76ee\U5f55";
 "This chapter is not in the current catalog. Check for updates or choose another chapter." = "\U5f53\U524d\U76ee\U5f55\U4e2d\U6ca1\U6709\U8fd9\U4e00\U7ae0\Uff0c\U8bf7\U68c0\U67e5\U66f4\U65b0\U6216\U9009\U62e9\U5176\U4ed6\U7ae0\U8282\U3002";
 "Previous chapter" = "\U4e0a\U4e00\U7ae0";
+"Could not join this chapter. Choose a chapter from the catalog." = "\U6682\U65e0\U6cd5\U8854\U63a5\U6b64\U7ae0\U8282\Uff0c\U8bf7\U4ece\U5de6\U4e0b\U89d2\U76ee\U5f55\U9009\U62e9\U7ae0\U8282\U3002";
 "Next chapter" = "\U4e0b\U4e00\U7ae0";
 "Swipe up at the end to continue reading." = "\U5230\U5e95\U540e\U7ee7\U7eed\U4e0a\U6ed1\Uff0c\U63a5\U7740\U9605\U8bfb\U4e0b\U4e00\U7ae0\U3002";
 "The next chapter is missing. Choose a chapter from the catalog." = "\U4e0b\U4e00\U7ae0\U7f3a\U5931\Uff0c\U8bf7\U4ece\U76ee\U5f55\U9009\U62e9\U7ae0\U8282\U3002";

@@ -70,6 +70,7 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable {
   var position: BookhouseReadingPosition?
   var maximumRead: Int?
   var checkedAt: Date?
+  var attemptedAt: Date?
   var acknowledgedMaximum: Int
   var latestChapter: Int { chapters.map(\.last).max() ?? 0 }
   var updated: Bool { latestChapter > max(acknowledgedMaximum, maximumRead ?? 0) }

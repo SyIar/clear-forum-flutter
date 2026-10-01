@@ -216,6 +216,7 @@ private struct BodyGroup: Identifiable {
 struct RichBodyView: View {
   @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 17
   @ScaledMetric(relativeTo: .body) private var novelLineSpacing: CGFloat = 7
+  @ScaledMetric(relativeTo: .body) private var novelParagraphSpacing: CGFloat = 14
   @Environment(\.readerBodyStyle) private var bodyStyle
   @EnvironmentObject private var session: ForumSession
   private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (20.0 / 17.0) : textSize }
@@ -240,7 +241,7 @@ struct RichBodyView: View {
     return result
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: bodyStyle == .novel ? 8 : 10) {
+    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing : 10) {
       ForEach(groups) { group in
         if group.blocks[0].kind == .image {
           if group.blocks.count == 1 { image(group.blocks[0], grid: false) }

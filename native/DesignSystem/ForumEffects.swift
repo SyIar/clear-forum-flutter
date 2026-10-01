@@ -40,13 +40,14 @@ public struct ForumRefreshFeedback: ViewModifier {
   public init(phase: ForumRefreshPhase?) { self.phase = phase }
   public func body(content: Content) -> some View {
     content
+    .padding(.horizontal, 12).padding(.vertical, 10)
     .background {
       if phase == .checking {
         RoundedRectangle(cornerRadius: 12).fill(.blue.opacity(0.045))
           .allowsHitTesting(false).accessibilityHidden(true)
       }
     }
-    .overlay {
+    .background {
       if visible, scenePhase == .active, !reduceMotion, let start = completion ?? started {
         GeometryReader { geometry in
           TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in

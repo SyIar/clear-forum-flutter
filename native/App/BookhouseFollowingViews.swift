@@ -38,38 +38,32 @@ struct BookhouseFollowingSection: View {
         VStack(alignment: .leading, spacing: 8) {
           Button { open(book.id) } label: {
             HStack(spacing: 10) {
-              VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                  Text(book.title).forumFont(.headline).foregroundStyle(.primary).lineLimit(2)
-                  if book.updated {
-                    Text(AppText.text("Updated")).appFont(.caption2).foregroundStyle(.blue)
-                      .padding(.horizontal, 6).padding(.vertical, 3).background(.blue.opacity(0.1), in: Capsule())
-                  }
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                  Text(book.title).forumFont(.headline).foregroundStyle(.primary).lineLimit(1).layoutPriority(1)
+                  Text(book.author).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
-                Text(book.author).forumFont(.caption).foregroundStyle(.secondary)
-                Text(book.position.map { AppText.format("Reading chapter %@", String($0.chapter)) } ?? AppText.text("Not started"))
-                  .appFont(.caption).foregroundStyle(.secondary)
-                Text(AppText.format("Latest chapter %@", String(book.latestChapter)))
-                  .appFont(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                  Text(book.position.map { AppText.format("Reading chapter %@", String($0.chapter)) } ?? AppText.text("Not started"))
+                    .foregroundStyle(.secondary)
+                  Text(AppText.format("Latest chapter %@", String(book.latestChapter)))
+                    .foregroundStyle(book.updated ? .blue : .secondary)
+                }.appFont(.caption).lineLimit(1).minimumScaleFactor(0.85)
               }.frame(maxWidth: .infinity, alignment: .leading)
               LibraryRefreshIndicator(phase: library.bookRefreshPhases[book.id], showsChevron: true)
             }.contentShape(Rectangle())
           }.buttonStyle(.plain)
           if let error = library.bookErrors[book.id] {
-            HStack(alignment: .top) {
-              Text(error).appFont(.caption).foregroundStyle(.secondary)
-              Button(AppText.text("Retry")) { Task { await library.refreshBook(book.id, session: session) } }
-                .buttonStyle(.borderless).disabled(library.bookRefreshPhases[book.id] == .checking)
-            }
+            Text(error).appFont(.caption).foregroundStyle(.secondary)
           }
-        }.padding(.vertical, 4).modifier(ForumRefreshFeedback(phase: library.bookRefreshPhases[book.id]))
+        }.modifier(ForumRefreshFeedback(phase: library.bookRefreshPhases[book.id]))
           .swipeActions { Button(AppText.text("Stop following book"), role: .destructive) { library.unfollowBook(book.id) } }
       }
     } header: {
       HStack {
         Text(AppText.text("My followed books"))
         Spacer()
-        Button { Task { await library.refreshBooks(session: session, force: true) } } label: {
+        Button { Task { await library.refreshBooks(session: session, manual: true) } } label: {
           Image(forumSymbol: "arrow.clockwise", size: 17).frame(width: 32, height: 32)
         }.buttonStyle(.borderless).disabled(library.document.readingBooks.isEmpty || library.bookRefreshPhases.values.contains(.checking))
           .accessibilityLabel(AppText.text("Check new chapters"))
