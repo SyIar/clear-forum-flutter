@@ -19,7 +19,8 @@ struct BookhouseReaderView: View {
   @State private var image: ImageViewerPresentation?
   @State private var visibleID: String?
   @State private var restoreID: String?
-  @State private var quickActions = false
+  @State private var bottomPanel: ReaderBottomPanel?
+  @State private var selectingPage = false
   @State private var operation: Task<Void, Never>?
   @State private var requestID = UUID()
   private var current: URL { page?.url ?? initialURL }
@@ -30,10 +31,13 @@ struct BookhouseReaderView: View {
       .navigationTitle(AppText.text(page?.kind == .posts ? "Reading" : "Forbidden Library"))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { readerToolbar }
+      .forumSheet(isPresented: $selectingPage) {
+        if let page { PageSelector(page: page) { if let target = page.url(forPage: $0) { startLoad(target) } } }
+      }
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
       .task { if page == nil { await load(initialURL) } }
-      .onDisappear { savePosition(); operation?.cancel(); quickActions = false }
+      .onDisappear { savePosition(); operation?.cancel(); bottomPanel = nil }
   }
 
   private var readingContent: some View {
@@ -82,16 +86,10 @@ struct BookhouseReaderView: View {
         guard let value else { return }
         DispatchQueue.main.async { proxy.scrollTo(value, anchor: .top); restoreID = nil }
       }
-      .overlay(alignment: .bottomTrailing) {
-        if quickActions {
-          ReaderQuickActions(canJump: page != nil, busy: loading,
-            top: { quickActions = false; proxy.scrollTo("top", anchor: .top) },
-            bottom: { quickActions = false; proxy.scrollTo("bottom", anchor: .bottom) },
-            refresh: { quickActions = false; startLoad(current, refresh: true) })
-            .padding(.trailing, 14).padding(.bottom, 12)
-            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-        }
+      .onScrollPhaseChange { _, phase in
+        if phase == .tracking { setBottomPanel(nil) }
       }
+      .overlay(alignment: .bottom) { bottomControls(proxy: proxy) }
   }
 
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
@@ -106,21 +104,47 @@ struct BookhouseReaderView: View {
           .buttonStyle(.borderless).accessibilityLabel(AppText.text("Site browser"))
       }
       if BookhouseSitePolicy.route(current)?.kind == .search {
-        ToolbarItemGroup(placement: .bottomBar) {
-          Button(AppText.text("Previous page"), forumSymbol: "chevron.left") { if let target = page?.previous { startLoad(target) } }
-            .disabled(loading || page?.previous == nil)
-          Text(AppText.format("Page %@", String(page?.pageNumber ?? 1))).appFont(.subheadline).monospacedDigit()
-          Button(AppText.text("Next page"), forumSymbol: "chevron.right") { if let target = page?.next { startLoad(target) } }
-            .disabled(loading || page?.next == nil)
+        ToolbarItem(placement: .bottomBar) {
+          Button { setBottomPanel(bottomPanel == .pages ? nil : .pages) } label: {
+            ForumToolbarIcon(bottomPanel == .pages ? "xmark" : "page.jump").contentTransition(.opacity)
+          }.buttonStyle(.borderless).accessibilityLabel(AppText.text("Choose page"))
+            .accessibilityValue(bottomPanel == .pages ? AppText.text("Expanded") : AppText.text("Collapsed"))
         }
       }
       ToolbarSpacer(.flexible, placement: .bottomBar)
       ToolbarItem(placement: .bottomBar) {
-        Button {
-          withAnimation(reduceMotion ? nil : .spring(response: 0.3)) { quickActions.toggle() }
-        } label: { Image(forumSymbol: quickActions ? "xmark" : "slider.horizontal.3") }
-          .accessibilityLabel(AppText.text("Page actions"))
+        Button { setBottomPanel(bottomPanel == .actions ? nil : .actions) } label: {
+          ForumToolbarIcon(bottomPanel == .actions ? "xmark" : "slider.horizontal.3").contentTransition(.opacity)
+        }.buttonStyle(.borderless).accessibilityLabel(AppText.text("Page actions"))
+          .accessibilityValue(bottomPanel == .actions ? AppText.text("Expanded") : AppText.text("Collapsed"))
       }
+  }
+
+  @ViewBuilder private func bottomControls(proxy: ScrollViewProxy) -> some View {
+    if let bottomPanel {
+      Group {
+        switch bottomPanel {
+        case .pages:
+          ReaderPagingActions(pageNumber: page?.pageNumber ?? BookhouseSitePolicy.pageNumber(current),
+            canGoBack: page?.previous != nil && !loading,
+            canGoForward: page?.next != nil && !loading,
+            canSelect: page != nil && !loading,
+            previous: { if let target = page?.previous { startLoad(target) } },
+            select: { setBottomPanel(nil); selectingPage = true },
+            next: { if let target = page?.next { startLoad(target) } })
+        case .actions:
+          ReaderQuickActions(canJump: page != nil, busy: loading,
+            top: { setBottomPanel(nil); proxy.scrollTo("top", anchor: .top) },
+            bottom: { setBottomPanel(nil); proxy.scrollTo("bottom", anchor: .bottom) },
+            refresh: { startLoad(current, refresh: true) })
+        }
+      }
+      .padding(.bottom, 12)
+      .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+  }
+  private func setBottomPanel(_ panel: ReaderBottomPanel?) {
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { bottomPanel = panel }
   }
 
   @ViewBuilder private func catalog(_ page: ForumPage) -> some View {
@@ -178,6 +202,7 @@ struct BookhouseReaderView: View {
     else { external = url }
   }
   private func startLoad(_ url: URL, refresh: Bool = false, append: Bool = false) {
+    setBottomPanel(nil)
     operation?.cancel()
     operation = Task { await load(url, refresh: refresh, append: append) }
   }

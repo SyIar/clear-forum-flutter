@@ -57,6 +57,7 @@
   "lock.fill": "lock-close",
   "magnifyingglass": "search-default",
   "number": "hashtag",
+  "page.jump": "swap-arrow-horizontal",
   "pause": "pause-small",
   "pause.toolbar": "pause-big",
   "person": "user-default",

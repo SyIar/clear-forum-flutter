@@ -31,7 +31,7 @@ struct ReaderView: View {
   @State private var purchaseMessage: String?
   @State private var purchaseTask: Task<Void, Never>?
   @State private var textSelection: PostTextSelection?
-  @State private var quickActionsExpanded = false
+  @State private var bottomPanel: ReaderBottomPanel?
   @State private var showingDiagnostics = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.scenePhase) private var scenePhase
@@ -152,7 +152,7 @@ struct ReaderView: View {
           scrollTracking.trigger.beginDrag(at: Double(phase == .tracking ? scrollTracking.pull.offset : previousOffset))
           scrollTracking.peakTopPull = 0; scrollTracking.peakBottomPull = 0
         }
-        if phase == .tracking { setQuickActions(false) }
+        if phase == .tracking { setBottomPanel(nil) }
         if phase == .interacting || phase == .decelerating {
           checkEdgeDrag(phase: old == .interacting ? .interacting : phase)
         }
@@ -185,21 +185,20 @@ struct ReaderView: View {
           } label: { ForumToolbarIcon("ellipsis") }
             .accessibilityLabel(AppText.text("Page actions")).disabled(purchasing)
         }
-        ToolbarItemGroup(placement: .bottomBar) {
-          Button(AppText.text("Previous page"), forumSymbol: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)
-          Button { selectingPage = true } label: {
-            Text(AppText.format("Page %@", String(error == nil ? page?.pageNumber ?? SitePolicy.pageNumber(current) : SitePolicy.pageNumber(current)))).appFont(.subheadline, weight: .semibold).monospacedDigit()
-          }.disabled(page == nil || loading || purchasing).accessibilityLabel(AppText.text("Choose page"))
-          Button(AppText.text("Next page"), forumSymbol: "chevron.right") { if let next = page?.next { go(to: next) } }.disabled(page?.next == nil || loading || purchasing)
+        ToolbarItem(placement: .bottomBar) {
+          Button { setBottomPanel(bottomPanel == .pages ? nil : .pages) } label: {
+            ForumToolbarIcon(bottomPanel == .pages ? "xmark" : "page.jump").contentTransition(.opacity)
+          }.buttonStyle(.borderless).disabled(purchasing)
+            .accessibilityLabel(AppText.text("Choose page"))
+            .accessibilityValue(bottomPanel == .pages ? AppText.text("Expanded") : AppText.text("Collapsed"))
         }
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
-          Button { setQuickActions(!quickActionsExpanded) } label: {
-            Image(forumSymbol: quickActionsExpanded ? "xmark" : "slider.horizontal.3")
-              .contentTransition(.opacity)
-          }.disabled(purchasing)
+          Button { setBottomPanel(bottomPanel == .actions ? nil : .actions) } label: {
+            ForumToolbarIcon(bottomPanel == .actions ? "xmark" : "slider.horizontal.3").contentTransition(.opacity)
+          }.buttonStyle(.borderless).disabled(purchasing)
             .accessibilityLabel(AppText.text("Page actions"))
-            .accessibilityValue(quickActionsExpanded ? AppText.text("Expanded") : AppText.text("Collapsed"))
+            .accessibilityValue(bottomPanel == .actions ? AppText.text("Expanded") : AppText.text("Collapsed"))
         }
   }
   private func activeReader(proxy: ScrollViewProxy) -> some View {
@@ -247,22 +246,13 @@ struct ReaderView: View {
         proxy.scrollTo(anchor, anchor: .top)
         pendingScrollAnchor = nil
       }
-      .overlay(alignment: .bottomTrailing) {
-        if quickActionsExpanded {
-          ReaderQuickActions(canJump: page != nil && error == nil, busy: loading || purchasing,
-            top: { setQuickActions(false); jumpToBoundary(bottom: false, proxy: proxy) },
-            bottom: { setQuickActions(false); jumpToBoundary(bottom: true, proxy: proxy) },
-            refresh: { setQuickActions(false); reload() })
-            .padding(.trailing, 14).padding(.bottom, 12)
-            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-        }
-      }
+      .overlay(alignment: .bottom) { bottomControls(proxy: proxy) }
       .onAppear {
         isVisible = true
         if page == nil { completedRequestID = nil; requestID = UUID() }
       }
-      .onDisappear { quickActionsExpanded = false; purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
-      .onChange(of: purchasing) { _, value in if value { setQuickActions(false) } }
+      .onDisappear { bottomPanel = nil; purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
+      .onChange(of: purchasing) { _, value in if value { setBottomPanel(nil) } }
       .onChange(of: canRecordReading) { _, value in if value { recordVisibleProgress() } }
       .onChange(of: visibleID) { old, value in
         guard !loading, error == nil else { return }
@@ -373,18 +363,42 @@ struct ReaderView: View {
     let preview = ForumIcons.image("person.crop.circle").withTintColor(.systemGray, renderingMode: .alwaysOriginal)
     imageSheet = ImageViewerPresentation(source: ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
   }
-  private func setQuickActions(_ expanded: Bool) {
-    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { quickActionsExpanded = expanded }
+  @ViewBuilder private func bottomControls(proxy: ScrollViewProxy) -> some View {
+    if let bottomPanel {
+      Group {
+        switch bottomPanel {
+        case .pages:
+          ReaderPagingActions(
+            pageNumber: error == nil ? page?.pageNumber ?? SitePolicy.pageNumber(current) : SitePolicy.pageNumber(current),
+            canGoBack: page?.previous != nil && !loading && !purchasing,
+            canGoForward: page?.next != nil && !loading && !purchasing,
+            canSelect: page != nil && !loading && !purchasing,
+            previous: { if let target = page?.previous { go(to: target) } },
+            select: { setBottomPanel(nil); selectingPage = true },
+            next: { if let target = page?.next { go(to: target) } })
+        case .actions:
+          ReaderQuickActions(canJump: page != nil && error == nil, busy: loading || purchasing,
+            top: { setBottomPanel(nil); jumpToBoundary(bottom: false, proxy: proxy) },
+            bottom: { setBottomPanel(nil); jumpToBoundary(bottom: true, proxy: proxy) },
+            refresh: reload)
+        }
+      }
+      .padding(.bottom, 12)
+      .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+  }
+  private func setBottomPanel(_ panel: ReaderBottomPanel?) {
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { bottomPanel = panel }
   }
   private func openBrowser(_ target: URL) {
     guard !purchasing, session.site.sameOrigin(target) else { return }
     session.beginBrowsing()
     presentation = .browser(target)
   }
-  private func reload() { guard !purchasing else { return }; setQuickActions(false); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
+  private func reload() { guard !purchasing else { return }; setBottomPanel(nil); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL) {
     guard !purchasing, session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
-    setQuickActions(false)
+    setBottomPanel(nil)
     savePosition()
     cancelAdjacent()
     forceNextLoad = false
