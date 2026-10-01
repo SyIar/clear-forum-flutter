@@ -74,7 +74,7 @@ struct ForumEntryCard: View {
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
           Spacer(minLength: 0)
-          Image(forumSymbol: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+          Image(forumSymbol: "chevron.right", size: 12).font(.caption).foregroundStyle(.tertiary)
         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
     }.padding(ForumDesignSystem.spacing.cardPadding).forumCardSurface()
@@ -93,7 +93,7 @@ struct ForumThumbnail: View {
       Color(uiColor: .tertiarySystemFill)
       if let image { Image(uiImage: image).resizable().scaledToFill() }
       else if loading { ProgressView().controlSize(.small) }
-      else { Image(forumSymbol: "photo").font(.caption).foregroundStyle(.secondary) }
+      else { Image(forumSymbol: "photo", size: 12).font(.caption).foregroundStyle(.secondary) }
     }.frame(width: compact ? 28 : 72, height: compact ? 28 : 50)
       .clipShape(RoundedRectangle(cornerRadius: compact ? 6 : 9))
       .accessibilityHidden(true)
@@ -323,10 +323,10 @@ struct CompactLink: View {
   var body: some View {
     Button { navigate(url) } label: {
       HStack(spacing: 5) {
-        Image(forumSymbol: "link").font(.system(size: 11))
+        Image(forumSymbol: "link", size: 11).font(.system(size: 11))
         Text(ExternalLinkPresentation.title(url: url, label: label, site: session.site))
           .forumFont(.caption).lineLimit(1).truncationMode(.middle)
-        Image(forumSymbol: "arrow.up.right").font(.system(size: 9))
+        Image(forumSymbol: "arrow.up.right", size: 9).font(.system(size: 9))
       }.padding(.horizontal, ForumDesignSystem.spacing.sm).padding(.vertical, 6)
         .background(ForumDesignSystem.surface, in: RoundedRectangle(cornerRadius: ForumDesignSystem.radius.md, style: .continuous))
     }.buttonStyle(.plain).foregroundStyle(ForumDesignSystem.primary)
@@ -350,7 +350,7 @@ struct MediaRow: View {
         else { Image(forumSymbol: "film").foregroundStyle(.secondary) }
       }.frame(width: 108, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
       Button { play(block) } label: {
-        Image(forumSymbol: "play.fill").font(.system(size: 18, weight: .semibold))
+        Image(forumSymbol: "play.fill", size: 18).font(.system(size: 18, weight: .semibold))
           .offset(x: 1).frame(width: 44, height: 44)
           .overlay(Circle().strokeBorder(.blue.opacity(0.65), lineWidth: 1.5))
           .frame(maxWidth: .infinity).frame(height: 84).foregroundStyle(.blue)

@@ -18,7 +18,7 @@ struct ReaderQuickActions: View {
   }
   private func action(_ title: String, symbol: String, disabled: Bool, perform: @escaping () -> Void) -> some View {
     Button(action: perform) {
-      Image(forumSymbol: symbol).font(.system(size: 20, weight: .medium))
+      Image(forumSymbol: symbol, size: 20).font(.system(size: 20, weight: .medium))
         .frame(width: 50, height: 50).contentShape(Circle())
     }.buttonStyle(.plain).foregroundStyle(.blue).disabled(disabled)
       .opacity(disabled ? 0.4 : 1)

@@ -27,7 +27,7 @@ struct SouthPollCard: View {
               if let votes = option.votes {
                 Text(AppText.format("%@ votes", String(describing: votes.formatted()))).appFont(.caption).monospacedDigit().foregroundStyle(.secondary)
               } else {
-                Image(forumSymbol: "eye.slash").font(.caption).foregroundStyle(.tertiary).accessibilityLabel(AppText.text("Votes hidden"))
+                Image(forumSymbol: "eye.slash", size: 12).font(.caption).foregroundStyle(.tertiary).accessibilityLabel(AppText.text("Votes hidden"))
               }
             }
             if let share = poll.share(of: option) {

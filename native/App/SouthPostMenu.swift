@@ -37,7 +37,7 @@ struct SouthPostMenu: View {
         }.disabled(post.authorID.map { !SouthSitePolicy.validAuthorID($0) } ?? true)
       }
     } label: {
-      Image(forumSymbol: "ellipsis").font(.system(size: 10, weight: .semibold))
+      Image(forumSymbol: "ellipsis", size: 10).font(.system(size: 10, weight: .semibold))
         .frame(width: 24, height: 12)
     }.buttonStyle(.glass).buttonBorderShape(.capsule)
       .controlSize(.small).foregroundStyle(.blue).disabled(busy)

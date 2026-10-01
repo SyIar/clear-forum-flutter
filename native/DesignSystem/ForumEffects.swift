@@ -6,9 +6,15 @@ public struct ForumEdgeBlur: View {
   public var bottom: Bool
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   public init(bottom: Bool = false) { self.bottom = bottom }
+  private static var supportsVariableBlur: Bool {
+    let selector = NSSelectorFromString("filterWithType:")
+    guard let type = NSClassFromString("CAFilter") as? NSObject.Type,
+          type.responds(to: selector), let result = type.perform(selector, with: "variableBlur") else { return false }
+    return result.takeUnretainedValue() is NSObject
+  }
   public var body: some View {
     Group {
-      if !reduceTransparency, NSClassFromString("CAFilter") != nil {
+      if !reduceTransparency, Self.supportsVariableBlur {
         VariableBlurView(maxBlurRadius: 14,
           direction: bottom ? .blurredBottomClearTop : .blurredTopClearBottom)
       } else {

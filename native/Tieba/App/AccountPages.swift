@@ -39,7 +39,7 @@ struct AccountsView: View {
       if app.session != nil { Button(tr("signOut"), role: .destructive) { do { try app.activate(nil) } catch { app.error = error.localizedDescription } } }
     }.navigationTitle(tr("accounts"))
       .forumConfirmation(tr("removeAccountBody"), isPresented: Binding(get: { remove != nil }, set: { if !$0 { remove = nil } }), actions: { [
-          ForumDialogAction(tr("removeAccount"), role: .destructive) { [remove] in if let remove { do { try app.removeAccount(remove) } catch { app.error = error.localizedDescription } }; remove = nil }
+          ForumDialogAction(tr("removeAccount"), role: .destructive) { [accountID = remove] in if let accountID { do { try app.removeAccount(accountID) } catch { app.error = error.localizedDescription } }; remove = nil }
         ] })
   }
 }

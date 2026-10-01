@@ -7,6 +7,7 @@ private final class ForumAssetLocator: NSObject {}
 // Pika SVG, including UIKit buttons and labels that cannot host a SwiftUI view.
 public enum ForumIcons {
   private static let bundle = Bundle(for: ForumAssetLocator.self)
+  private static let resized = NSCache<NSString, UIImage>()
   private static let names: [String: String] = {
     guard let url = bundle.url(forResource: "PikaSymbolMap", withExtension: "json"),
           let data = try? Data(contentsOf: url),
@@ -18,11 +19,21 @@ public enum ForumIcons {
     let name = names[symbol] ?? "question-mark-circle"
     return (UIImage(named: name, in: bundle, compatibleWith: nil) ?? UIImage()).withRenderingMode(.alwaysTemplate)
   }
+  public static func image(_ symbol: String, size: CGFloat) -> UIImage {
+    let key = "\(symbol):\(size)" as NSString
+    if let cached = resized.object(forKey: key) { return cached }
+    let bounds = CGRect(x: 0, y: 0, width: size, height: size)
+    let result = UIGraphicsImageRenderer(size: bounds.size).image { _ in
+      image(symbol).draw(in: bounds)
+    }.withRenderingMode(.alwaysTemplate)
+    resized.setObject(result, forKey: key)
+    return result
+  }
 }
 
 public extension Image {
-  init(forumSymbol: String) {
-    self.init(uiImage: ForumIcons.image(forumSymbol))
+  init(forumSymbol: String, size: CGFloat? = nil) {
+    self.init(uiImage: size.map { ForumIcons.image(forumSymbol, size: $0) } ?? ForumIcons.image(forumSymbol))
   }
 }
 

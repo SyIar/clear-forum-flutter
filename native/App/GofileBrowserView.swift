@@ -125,7 +125,7 @@ struct GofileBrowserView: View {
             Circle().trim(from: 0, to: fraction).stroke(.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).rotationEffect(.degrees(-90))
             Text("\(Int(fraction * 100))").font(.system(size: 10, weight: .semibold)).monospacedDigit()
           } else { ProgressView() }
-        } else { Image(forumSymbol: state?.file == nil ? "arrow.down" : "square.and.arrow.up").font(.body.weight(.medium)) }
+        } else { Image(forumSymbol: state?.file == nil ? "arrow.down" : "square.and.arrow.up", size: 17).font(.body.weight(.medium)) }
       }.frame(width: 28, height: 28).padding(6)
     }.buttonStyle(.glass).buttonBorderShape(.circle)
       .accessibilityLabel(state?.busy == true ? AppText.text("Cancel download") : state?.file == nil ? AppText.text("Download file") : AppText.text("Save to Files"))
@@ -141,7 +141,7 @@ private struct GofileThumbnail: View {
     ZStack {
       RoundedRectangle(cornerRadius: 10).fill(Color(uiColor: .tertiarySystemFill))
       if let image { Image(uiImage: image).resizable().scaledToFill() }
-      else { Image(forumSymbol: entry.symbol).font(.title2).foregroundStyle(.blue) }
+      else { Image(forumSymbol: entry.symbol, size: 22).font(.title2).foregroundStyle(.blue) }
     }.frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 10))
       .task(id: "\(session.revision):\(entry.thumbnail?.absoluteString ?? entry.id)") { image = await session.thumbnail(entry) }
       .accessibilityHidden(true)

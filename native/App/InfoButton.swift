@@ -8,7 +8,7 @@ struct InfoButton: View {
 
   var body: some View {
     Button { showingInfo = true } label: {
-      Image(forumSymbol: "info.circle").font(.body)
+      Image(forumSymbol: "info.circle", size: 17).font(.body)
         .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless)
       .accessibilityLabel(AppText.format("%@ information", String(describing: title)))

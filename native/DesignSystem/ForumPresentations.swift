@@ -14,7 +14,7 @@ public struct ForumDialogAction {
 @MainActor public enum ForumDialogs {
   public static func notice(title: String, message: String, close: String) {
     AppHelper.shared.showBottomAlert(title: title, message: message,
-      actions: [CCAlertAction(title: close)])
+      actions: [CCAlertAction(title: close, role: .secondary)])
   }
 }
 
@@ -45,8 +45,10 @@ private struct ForumAlertModifier: ViewModifier {
         choices.append(ForumDialogAction(CCStrings.current.cancel, role: .cancel))
       }
       let mapped = choices.map { choice in
+        // Upstream's default alert uses an adaptive foreground accent but fixed
+        // white button text. Outline actions remain readable in dark mode.
         CCAlertAction(title: choice.title,
-          role: choice.role == .destructive ? .destructive : choice.role == .cancel ? .secondary : .default,
+          role: choice.role == .destructive ? .destructive : .secondary,
           handler: choice.action)
       }
       // CCAlertCenter owns dismissal (including backdrop taps). Consume the
@@ -141,10 +143,30 @@ private struct ForumSheetModifier<Sheet: View>: ViewModifier {
           owner.host = host
           if !presented { owner.dismiss() }
         }) {
-          sheet().environment(\.forumDismiss, close)
+          sheet().scrollContentBackground(.hidden).environment(\.forumDismiss, close)
         }
       } else { owner.dismiss() }
-    }.onDisappear { owner.dismiss() }
+    }.background {
+      ForumSheetLifetime(owner: owner, removed: { presented = false }).frame(width: 0, height: 0)
+    }
+  }
+}
+
+// A full-height/landscape sheet may make its presenter disappear without
+// removing it. Only actual removal should cancel a queued presentation.
+private struct ForumSheetLifetime: UIViewRepresentable {
+  let owner: ForumSheetOwner
+  let removed: () -> Void
+  final class Coordinator {
+    let owner: ForumSheetOwner
+    var removed: () -> Void
+    init(owner: ForumSheetOwner, removed: @escaping () -> Void) { self.owner = owner; self.removed = removed }
+  }
+  func makeCoordinator() -> Coordinator { Coordinator(owner: owner, removed: removed) }
+  func makeUIView(context: Context) -> UIView { UIView() }
+  func updateUIView(_ uiView: UIView, context: Context) { context.coordinator.removed = removed }
+  static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+    DispatchQueue.main.async { coordinator.removed(); coordinator.owner.dismiss() }
   }
 }
 

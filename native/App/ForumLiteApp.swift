@@ -319,7 +319,7 @@ struct HomeView: View {
               session.beginBrowsing()
               browserPresentation = .browser(session.site.start)
             } label: {
-              Image(forumSymbol: "safari").font(.title3).frame(width: 44, height: 44)
+              Image(forumSymbol: "safari", size: 20).font(.title3).frame(width: 44, height: 44)
             }.buttonStyle(.glass).buttonBorderShape(.circle)
               .accessibilityLabel(AppText.text("Open original forum website"))
           }.padding(.vertical, 6)
@@ -373,7 +373,7 @@ struct HomeView: View {
         Button { Task { await library.refresh(session: session) } } label: {
           Group {
             if library.refreshing { ProgressView() }
-            else { Image(forumSymbol: "arrow.clockwise").font(.title3.weight(.semibold)) }
+            else { Image(forumSymbol: "arrow.clockwise", size: 20).font(.title3.weight(.semibold)) }
           }.frame(width: 52, height: 52)
         }.buttonStyle(.glass).buttonBorderShape(.circle)
           .disabled(library.refreshing || !library.document.hasRefreshTargets)
@@ -446,7 +446,7 @@ struct HomeView: View {
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
-          Image(forumSymbol: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+          Image(forumSymbol: "chevron.right", size: 12).font(.caption).foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)

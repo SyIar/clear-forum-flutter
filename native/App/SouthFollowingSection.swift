@@ -18,7 +18,7 @@ struct SouthFollowingSection: View {
               HStack(spacing: 10) {
                 PostAvatar(url: author.avatar, author: author.name)
                 Text(author.name).forumFont(.subheadline, weight: .semibold).foregroundStyle(.primary).lineLimit(1)
-                Image(forumSymbol: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                Image(forumSymbol: "chevron.right", size: 11).font(.caption2).foregroundStyle(.tertiary)
               }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(AppText.format("All topics by %@", String(describing: author.name)))
             Spacer(minLength: 0)

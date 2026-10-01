@@ -45,7 +45,7 @@ struct HomeView: View {
     else { LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 14) { ForEach(visible, id: \.name) { forum in
       NavigationLink(value: Route.forum(forum.name)) {
         VStack(spacing: 7) {
-          AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(forumSymbol: "bubble.left.and.bubble.right.fill").appFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
+          AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(forumSymbol: "bubble.left.and.bubble.right.fill", size: 22).appFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
           Text(forum.name).tiebaFont(.subheadline).lineLimit(1)
           if forum.following { Text(tr(forum.signed ? "checkedIn" : "notCheckedIn")).appFont(.caption2).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity).padding(.vertical, 7)
@@ -99,10 +99,10 @@ struct ForumView: View {
                 if index > 0 { Divider().padding(.leading, 38) }
                 NavigationLink(value: Route.thread(item.id, "", 1, false)) {
                   HStack(spacing: 10) {
-                    Image(forumSymbol: "pin.fill").appFont(.caption).foregroundStyle(settings.accent)
+                    Image(forumSymbol: "pin.fill", size: 12).appFont(.caption).foregroundStyle(settings.accent)
                     Text(item.title).tiebaFont(.subheadline).foregroundStyle(Color(uiColor: .label)).lineLimit(1)
                     Spacer(minLength: 0)
-                    Image(forumSymbol: "chevron.right").appFont(.caption2).foregroundStyle(Color(uiColor: .tertiaryLabel))
+                    Image(forumSymbol: "chevron.right", size: 11).appFont(.caption2).foregroundStyle(Color(uiColor: .tertiaryLabel))
                   }.padding(12).contentShape(Rectangle())
                 }.buttonStyle(.plain)
               }

@@ -92,7 +92,7 @@ struct ReaderView: View {
               ScrollView(.horizontal) {
                 HStack(spacing: 6) {
                   ForEach(Array(page.breadcrumbs.enumerated()), id: \.offset) { index, entry in
-                    if index > 0 { Image(forumSymbol: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
+                    if index > 0 { Image(forumSymbol: "chevron.right", size: 9).font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
                     Button(entry.title) { navigate(entry.url) }
                       .forumFont(.caption, weight: .medium).buttonStyle(.plain).foregroundStyle(.blue)
                       .padding(.horizontal, 6).frame(minHeight: 36)

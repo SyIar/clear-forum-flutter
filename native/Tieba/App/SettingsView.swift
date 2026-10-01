@@ -24,7 +24,7 @@ struct SettingsView: View {
             Button { settings.set("customPrimaryColor", value) } label: {
               Circle().fill(Color(red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255, blue: Double(value & 255) / 255)).frame(width: 24, height: 24)
                 .overlay {
-                  if Int(settings.number("customPrimaryColor")) == value { Image(forumSymbol: "checkmark").appFont(.caption2, weight: .bold).foregroundStyle(.white) }
+                  if Int(settings.number("customPrimaryColor")) == value { Image(forumSymbol: "checkmark", size: 11).appFont(.caption2, weight: .bold).foregroundStyle(.white) }
                 }
             }
           }

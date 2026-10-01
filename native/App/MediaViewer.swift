@@ -174,7 +174,7 @@ struct ImageViewerSheet: View {
     .presentationContentInteraction(.resizes)
   }
   private func galleryButton(_ title: String, symbol: String, disabled: Bool, action: @escaping () -> Void) -> some View {
-    Button(action: action) { Image(forumSymbol: symbol).font(.title3.weight(.semibold)).frame(width: 44, height: 44) }
+    Button(action: action) { Image(forumSymbol: symbol, size: 20).font(.title3.weight(.semibold)).frame(width: 44, height: 44) }
       .buttonStyle(.glass).buttonBorderShape(.circle).disabled(disabled).accessibilityLabel(title)
   }
 }

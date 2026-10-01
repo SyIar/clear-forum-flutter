@@ -158,7 +158,7 @@ struct PostCard: View {
             Button(tr("blockUser"), forumSymbol: "person.slash") { app.updateLibrary { $0.addBlock(kind: "user", value: post.author.id, label: post.author.name) } }
             Button(tr("report"), forumSymbol: "flag") { perform { let result = try await app.api.report(post.id); if let url = safeURL(first(object(result["data"]).isEmpty ? result : object(result["data"]), ["url", "report_url", "jubao_url"])) { actionURL = url } else { throw APIError(message: tr("operationFailed")) } } }
             if app.activeID == post.author.id { Button(tr("deletePost"), forumSymbol: "trash", role: .destructive) { removing = true } }
-          } label: { Image(forumSymbol: "ellipsis").appFont(.subheadline).padding(5) }
+          } label: { Image(forumSymbol: "ellipsis", size: 15).appFont(.subheadline).padding(5) }
         }
         RichContent(parts: post.content)
         if !reader && !settings.flag("hideReply") {

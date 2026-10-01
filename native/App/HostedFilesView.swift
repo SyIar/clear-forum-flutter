@@ -100,7 +100,7 @@ struct HostedFilesView: View {
                     }.buttonStyle(.borderless).disabled(opening != nil).accessibilityLabel(AppText.format("Play %@", String(describing: entry.name)))
                   }
                   Button { enqueue(HostedFileListing(url: entry.pageURL, title: entry.name, entries: [entry])) } label: {
-                    Image(forumSymbol: "arrow.down.circle").font(.body.weight(.medium))
+                    Image(forumSymbol: "arrow.down.circle", size: 17).font(.body.weight(.medium))
                       .frame(width: 44, height: 44).contentShape(Rectangle())
                   }.buttonStyle(.borderless).accessibilityLabel(AppText.format("Download %@", String(describing: entry.name)))
                 }
@@ -137,7 +137,7 @@ struct HostedFilesView: View {
   }
   private func fileLabel(_ entry: HostedFileEntry) -> some View {
     HStack(spacing: 12) {
-      Image(forumSymbol: entry.symbol).font(.title2).foregroundStyle(ForumDesignSystem.primary)
+      Image(forumSymbol: entry.symbol, size: 22).font(.title2).foregroundStyle(ForumDesignSystem.primary)
         .frame(width: 44, height: 44).background(ForumDesignSystem.surface, in: RoundedRectangle(cornerRadius: ForumDesignSystem.radius.base))
       VStack(alignment: .leading, spacing: 4) {
         Text(entry.name).appFont(.subheadline).foregroundStyle(.primary).lineLimit(3)
