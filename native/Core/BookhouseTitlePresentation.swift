@@ -7,7 +7,8 @@ struct BookhouseTitlePresentation: Equatable {
   let tags: [String]
 
   init(title source: String, postingAuthor: String) {
-    let authorPattern = "\u{4F5C}\u{8005}\\s*[:\u{FF1A}]\\s*([^\u{300E}\u{300F}\\r\\n]+?)(?=\\s*\u{300E})"
+    // The author clause can end at a category tag or at the end of the title.
+    let authorPattern = "\u{4F5C}\u{8005}\\s*[:\u{FF1A}]\\s*([^\u{300E}\u{300F}\\r\\n]+?)(?=\\s*(?:\u{300E}|$))"
     let tagPattern = "\u{300E}([^\u{300E}\u{300F}\\r\\n]+)\u{300F}"
     var display = source
     var extractedAuthor = postingAuthor

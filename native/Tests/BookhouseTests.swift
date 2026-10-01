@@ -15,16 +15,32 @@ final class BookhouseTests: XCTestCase {
     XCTAssertEqual(page.posts.first?.author, "Uploader")
   }
 
-  func testCatalogTitleSupportsASCIIColonAndFallsBackWhenAuthorPatternIsIncomplete() {
+  func testCatalogTitleSupportsASCIIColonAndAuthorsWithoutTags() {
     let marker = "\u{4F5C}\u{8005}"
     let start = "\u{300E}", end = "\u{300F}"
     XCTAssertEqual(BookhouseTitlePresentation(title: "Book \(marker): Writer\(start)Tag\(end)", postingAuthor: "Account").author, "Writer")
-    let fallback = BookhouseTitlePresentation(title: "Book \(marker): Writer", postingAuthor: "Account")
-    XCTAssertEqual(fallback.author, "Account")
-    XCTAssertEqual(fallback.title, "Book \(marker): Writer")
+    let untagged = BookhouseTitlePresentation(title: "Book \(marker): Writer", postingAuthor: "Account")
+    XCTAssertEqual(untagged.author, "Writer")
+    XCTAssertEqual(untagged.title, "Book")
+    XCTAssertTrue(untagged.tags.isEmpty)
     let onlyTag = BookhouseTitlePresentation(title: "\(start)Tag\(end)", postingAuthor: "Account")
     XCTAssertEqual(onlyTag.title, "\(start)Tag\(end)")
     XCTAssertTrue(onlyTag.tags.isEmpty)
+  }
+
+  func testCatalogExtractsTerminalAuthorWithEitherColonAndTrailingWhitespace() {
+    let title = "\u{3010}Novel\u{3011}(27)"
+    let author = "\u{9752}\u{7389}\u{6D6E}\u{5C18}"
+    for colon in [":", "\u{FF1A}"] {
+      let source = title + " \u{4F5C}\u{8005}" + colon + " " + author + " \u{00A0}\u{3000}"
+      let view = BookhouseTitlePresentation(title: source, postingAuthor: "Uploader")
+      XCTAssertEqual(view.title, title)
+      XCTAssertEqual(view.author, author)
+      XCTAssertTrue(view.tags.isEmpty)
+    }
+    for source in [title, title + " \u{4F5C}\u{8005}:   ", title + " \u{4F5C}\u{8005}: \u{300E}Tag\u{300F}"] {
+      XCTAssertEqual(BookhouseTitlePresentation(title: source, postingAuthor: "Uploader").author, "Uploader")
+    }
   }
 
   private let start = BookhouseSitePolicy.start

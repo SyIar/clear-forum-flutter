@@ -3,6 +3,27 @@ import XCTest
 @testable import ForumCore
 
 final class BookhouseSearchTests: XCTestCase {
+  func testHighlightedTerminalAuthorIsDisplayedInsteadOfPostingAccount() throws {
+    let url = try XCTUnwrap(BookhouseSitePolicy.search("Novel"))
+    let author = "\u{9752}\u{7389}\u{6D6E}\u{5C18}"
+    let title = "\u{3010}Novel\u{3011}\u{FF08}27\u{FF09}"
+    let html = """
+    <ul class="post-list thread-list"><li class="l-m1">
+      <a href="index.php?app=forum&amp;act=threadview&amp;tid=20"><b>\(title)\u{4F5C}\u{8005}\u{FF1A}\u{9752}<span class="keyword">\u{7389}</span>\u{6D6E}<span class="keyword">\u{5C18}</span></b></a>
+      - <font color="black">Uploader</font><i> 10/04/25 </i>
+    </li></ul>
+    """
+    let page = try ForumParser().parse(html, url: url)
+    let entry = try XCTUnwrap(page.entries.first)
+    let view = BookhouseTitlePresentation(title: entry.title, postingAuthor: entry.authorName ?? "")
+    XCTAssertEqual(view.title, title)
+    XCTAssertEqual(view.author, author)
+    XCTAssertTrue(view.tags.isEmpty)
+    XCTAssertEqual(entry.authorName, "Uploader")
+    XCTAssertEqual(entry.title, title + "\u{4F5C}\u{8005}\u{FF1A}" + author)
+    XCTAssertEqual(entry.postedAt, "10/04/25")
+  }
+
   func testSearchExcludesFeaturedPostsAndKeepsHighlightedTitleAuthorAndDate() throws {
     let url = try XCTUnwrap(BookhouseSitePolicy.search("test"))
     let html = """
