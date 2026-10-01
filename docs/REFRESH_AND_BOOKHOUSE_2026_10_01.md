@@ -26,6 +26,16 @@ The user-supplied HTML and live response remain in local attachments/artifacts. 
 
 Windows Swift syntax checks, localization checks, repository policy and icon-resource checks passed. They do not replace the macOS compiler. No simulator is used; on-device sweep visibility, toolbar spacing and reading comfort remain for user acceptance.
 
+## Build 1061
+
+- Source: `5786bf26b4351a8f451b434edce3f93be9256212`.
+- [Native iOS CI run 36832486593](https://github.com/SyIar/clear-forum-flutter/actions/runs/36832486593) succeeded using Xcode 26.3 and the generic iPhoneOS Release destination.
+- ForumCore: 329 tests passed, including all three new Bookhouse search tests. TiebaCore: 20 tests passed.
+- Repository, localization, fonts, design-system resources, media-probe and Gofile bridge checks passed in CI.
+- No simulator was started. Physical-device visual acceptance remains pending.
+- Delivered `ForumLite-0.3.0-1061-unsigned.ipa` (56,020,516 bytes). SHA-256: `1962494d96e870b7ac3f88a419cc3d525f4eb23b5b8680783ec247f91edff333`.
+- Download verification matched the CI source/run/build metadata and checksum, checked ZIP integrity and the arm64 iPhoneOS executable, and verified bundled fonts, localization, ForumUI/Pika and ChunUI resources. The IPA remains unsigned for sideloading.
+
 ## References
 
 - [Pinned ChunUI sweep source](https://github.com/liseami/ChunUI/blob/b240cbbdb9c6d7afc9f02d9ce4ddff5a25ce73bb/Sources/ChunUI/Effects/CCSweepLight.swift), inspected from the existing local upstream source snapshot.
