@@ -338,33 +338,43 @@ struct MediaRow: View {
   let posters: PosterStore
   let play: (BodyBlock) -> Void
   @EnvironmentObject private var session: ForumSession
-  @State private var poster: URL?
+  @Environment(\.readerReferer) private var referer
+  @State private var poster: UIImage?
   @State private var fetching = true
   @State private var posterSource: URL?
   var body: some View {
-    HStack(spacing: 10) {
+    Button { play(block) } label: {
       ZStack {
         Color(uiColor: .tertiarySystemFill)
-        if let poster { RemoteImageView(url: poster, ratio: 108.0 / 84.0, maximumHeight: 84, fillsFrame: true) }
-        else if fetching { ProgressView() }
-        else { Image(forumSymbol: "film").foregroundStyle(.secondary) }
-      }.frame(width: 108, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
-      Button { play(block) } label: {
+        if let poster {
+          Image(uiImage: poster).resizable().scaledToFill()
+            .frame(width: 150, height: 84).clipped()
+        }
         Image(forumSymbol: "play.fill", size: 18).font(.system(size: 18, weight: .semibold))
-          .offset(x: 1).frame(width: 44, height: 44)
-          .overlay(Circle().strokeBorder(.blue.opacity(0.65), lineWidth: 1.5))
-          .frame(maxWidth: .infinity).frame(height: 84).foregroundStyle(.blue)
-          .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-          .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.1)))
-      }.buttonStyle(.plain).disabled(block.url == nil).accessibilityLabel(AppText.text("Play"))
-    }.task(id: block.url) {
+          .offset(x: 1).frame(width: 40, height: 40).foregroundStyle(.white)
+          .background(.black.opacity(0.48), in: Circle())
+          .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1))
+      }.frame(width: 150, height: 84)
+        .overlay(alignment: .topTrailing) {
+          if fetching {
+            ProgressView().controlSize(.mini).tint(.white).padding(4)
+              .background(.black.opacity(0.48), in: Circle()).padding(6)
+          }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }.buttonStyle(.plain).disabled(block.url == nil)
+      .accessibilityElement(children: .ignore).accessibilityLabel(AppText.text("Play"))
+      .task(id: block.url) {
       guard poster == nil || posterSource != block.url else { return }
       posterSource = block.url
       poster = nil
       fetching = true
       let resolved = await posters.resolve(block, session: session)
       guard !Task.isCancelled, posterSource == block.url else { return }
-      poster = resolved
+      let loaded = if let resolved { await session.images.load(resolved, referer: referer ?? session.site.base) } else { nil as UIImage? }
+      guard !Task.isCancelled, posterSource == block.url else { return }
+      poster = loaded
       fetching = false
     }
   }
