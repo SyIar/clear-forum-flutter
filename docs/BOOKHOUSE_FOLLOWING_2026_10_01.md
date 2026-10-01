@@ -25,3 +25,12 @@ Regression coverage includes numeric/fullwidth/Chinese chapter parsing, same-boo
 - Opening a known followed chapter from search, bookmarks or history also activates followed-reading mode.
 - Delivered `ForumLite-0.3.0-1063-unsigned.ipa` (56,159,486 bytes). SHA-256: `9005764960e24b911fc800c1ac267751fca2f94685415919dbd05ea8191d1386`.
 - Verified source/run/build metadata, archive CRC, arm64 iPhoneOS executable, bundled fonts and localization, ForumUI/Pika and ChunUI resources. The IPA is unsigned for sideloading; physical-device UI acceptance remains pending.
+
+## Build 1064 validation
+
+- Source: `0cf1fdc0435640a60f6945d9d73a9b279c048543`.
+- [Native iOS CI run 36840930252](https://github.com/SyIar/clear-forum-flutter/actions/runs/36840930252) passed, including the generic iPhoneOS Release build.
+- ForumCore: 348 tests passed. TiebaCore: 20 tests passed. The 11 new regressions cover bidirectional chapter joining, stable paragraph identities/progress, overlapping bundles, missing headings, author and response validation, eviction and revisiting, explicit jump reset, hourly eligibility, manual failure retries and persisted attempt timestamps.
+- Repository, localization, font, design-system, media-probe and Gofile bridge checks passed. No simulator was used.
+- Delivered `ForumLite-0.3.0-1064-unsigned.ipa` (56,187,483 bytes). SHA-256: `6ad289c45677ffe65fcb127f87c3578c24fcbf964a06841c38bd672a2814ca00`.
+- Verified downloaded archive CRC, exact source/run/build metadata, arm64 iPhoneOS executable, unsigned status, bundled fonts, Chinese resources, ForumUI/Pika and ChunUI assets. Physical-device acceptance is still needed for scroll transitions and the updated layout.
