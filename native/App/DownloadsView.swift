@@ -79,16 +79,27 @@ struct DownloadsView: View {
         .toolbar {
           ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Close"), forumSymbol: "xmark") { dismiss() } }
           ToolbarItemGroup(placement: .topBarTrailing) {
-            Button(AppText.text("Pause all"), forumSymbol: "pause") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
+            DownloadToolbarButton(title: AppText.text("Pause all"), symbol: "pause.toolbar") { manager.pauseAll(); gofile.pauseAll(); hosted.pauseAll() }
               .disabled(!manager.items.contains(where: \.canPause) && gofile.active.isEmpty && hosted.active.isEmpty)
-            Button(AppText.text("Continue all"), forumSymbol: "play") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
+            DownloadToolbarButton(title: AppText.text("Continue all"), symbol: "play.toolbar") { manager.resumeAll(); gofile.resumeAll(); hosted.resumeAll() }
               .disabled(!manager.items.contains(where: \.canResume) && gofile.resumable.isEmpty && hosted.resumable.isEmpty)
-            InfoButton(title: AppText.text("Downloads"), message: DownloadHelp.overview)
-            Button(AppText.text("Clear"), forumSymbol: "checkmark.circle") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
-              .accessibilityLabel(AppText.text("Clear finished downloads"))
+            InfoButton(title: AppText.text("Downloads"), message: DownloadHelp.overview, iconSize: 22).tint(.primary)
+            DownloadToolbarButton(title: AppText.text("Clear finished downloads"), symbol: "broom") { manager.clearFinished(); gofile.clearFinished(); hosted.clearFinished() }
+              .disabled(!manager.items.contains(where: { $0.phase == .saved || $0.phase == .cancelled }) && gofile.finished.isEmpty && !hosted.items.contains(where: \.finished))
           }
         }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+  }
+}
+
+private struct DownloadToolbarButton: View {
+  let title: String
+  let symbol: String
+  let action: () -> Void
+  var body: some View {
+    Button(action: action) {
+      ForumToolbarIcon(symbol)
+    }.buttonStyle(.borderless).tint(.primary).accessibilityLabel(title)
   }
 }
 

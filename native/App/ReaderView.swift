@@ -169,10 +169,12 @@ struct ReaderView: View {
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          Button(AppText.text("Home"), forumSymbol: "house", action: home)
-          Button(AppText.text("Bookmark"), forumSymbol: library.contains(current) ? "bookmark.fill" : "bookmark") {
+          Button(action: home) { ForumToolbarIcon("house") }
+            .buttonStyle(.borderless).accessibilityLabel(AppText.text("Home"))
+          Button {
             library.toggle(current, title: page?.title ?? current.path)
-          }.disabled(page == nil || loading)
+          } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
+            .buttonStyle(.borderless).accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil || loading)
           Menu {
             ShareLink(item: current) { Label(AppText.text("Share link"), forumSymbol: "square.and.arrow.up") }
             Button(AppText.text("Site browser"), forumSymbol: "globe") { openBrowser(current) }
@@ -180,7 +182,8 @@ struct ReaderView: View {
             Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
             if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
             Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
-          } label: { Image(forumSymbol: "ellipsis") }.disabled(purchasing)
+          } label: { ForumToolbarIcon("ellipsis") }
+            .accessibilityLabel(AppText.text("Page actions")).disabled(purchasing)
         }
         ToolbarItemGroup(placement: .bottomBar) {
           Button(AppText.text("Previous page"), forumSymbol: "chevron.left") { if let previous = page?.previous { go(to: previous) } }.disabled(page?.previous == nil || loading || purchasing)

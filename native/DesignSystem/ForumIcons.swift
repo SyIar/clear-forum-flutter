@@ -37,6 +37,16 @@ public extension Image {
   }
 }
 
+// Buttons and menus share a fixed icon canvas and touch target in native toolbars.
+public struct ForumToolbarIcon: View {
+  private let symbol: String
+  public init(_ symbol: String) { self.symbol = symbol }
+  public var body: some View {
+    Image(forumSymbol: symbol, size: 22)
+      .frame(width: 44, height: 44).contentShape(Rectangle())
+  }
+}
+
 public extension Label where Title == Text, Icon == Image {
   init(_ title: String, forumSymbol: String) {
     self.init { Text(title) } icon: { Image(forumSymbol: forumSymbol) }

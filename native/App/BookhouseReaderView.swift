@@ -96,11 +96,14 @@ struct BookhouseReaderView: View {
 
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button(AppText.text("Home"), forumSymbol: "house", action: home)
-        Button(AppText.text("Bookmark"), forumSymbol: library.contains(current) ? "bookmark.fill" : "bookmark") {
+        Button(action: home) { ForumToolbarIcon("house") }
+          .buttonStyle(.borderless).accessibilityLabel(AppText.text("Home"))
+        Button {
           library.toggle(current, title: page?.title ?? current.path)
-        }.disabled(page == nil)
-        Button(AppText.text("Site browser"), forumSymbol: "safari") { external = current }
+        } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
+          .buttonStyle(.borderless).accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil)
+        Button { external = current } label: { ForumToolbarIcon("safari") }
+          .buttonStyle(.borderless).accessibilityLabel(AppText.text("Site browser"))
       }
       if BookhouseSitePolicy.route(current)?.kind == .search {
         ToolbarItemGroup(placement: .bottomBar) {
