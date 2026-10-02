@@ -43,6 +43,7 @@ struct BookhouseReaderView: View {
   @State private var latestVisibleIDs: [String] = []
   @State private var progressSave: Task<Void, Never>?
   @State private var chapterPrefetch = BookhouseChapterPrefetch()
+  @State private var readerVisible = false
   private var current: URL { page?.url ?? initialURL }
   private var blocks: [BodyBlock] { page?.posts.first?.blocks ?? [] }
   private var book: BookhouseFollowedBook? { followedBookID.flatMap { library.document.followedBooks[$0] } }
@@ -62,7 +63,11 @@ struct BookhouseReaderView: View {
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
       .task { if page == nil { await load(initialURL) } }
-      .onDisappear { savePosition(); progressSave?.cancel(); operation?.cancel(); cancelAdjacent(); bottomPanel = nil }
+      .onAppear { readerVisible = true; prefetchNextChapter() }
+      .onDisappear {
+        readerVisible = false
+        savePosition(); progressSave?.cancel(); operation?.cancel(); cancelAdjacent(); bottomPanel = nil
+      }
       .onChange(of: scenePhase) { _, phase in
         if phase != .active { savePosition(); chapterPrefetch.cancel() }
         else { prefetchNextChapter() }
@@ -393,7 +398,7 @@ struct BookhouseReaderView: View {
     startLoad(chapter.url)
   }
   private func prefetchNextChapter() {
-    guard scenePhase == .active, let book, !loading, !restoring, error == nil, edgeLoading == nil,
+    guard readerVisible, scenePhase == .active, let book, !loading, !restoring, error == nil, edgeLoading == nil,
           let target = readingWindow.prefetchTarget(visibleIDs: latestVisibleIDs, book: book),
           session.pages.value(for: target.url) == nil else { return }
     chapterPrefetch.start(target.url) {
