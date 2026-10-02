@@ -15,6 +15,8 @@ struct LocalFilePreview: View {
       else if !available {
         ForumUnavailableView(AppText.text("File unavailable"), forumSymbol: "doc",
           description: Text(AppText.text("This file was moved or is no longer available. Refresh the folder.")))
+      } else if file.pathExtension.lowercased() == "zip" {
+        LocalArchiveView(file: file)
       } else if [.video, .audio].contains(LocalMediaKind.kind(file)) {
         LocalVideoSurface(file: file, immersive: $immersive).id(file)
           .background(.black).ignoresSafeArea(.container, edges: immersive ? .all : .bottom)

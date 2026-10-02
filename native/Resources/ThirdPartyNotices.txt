@@ -40,3 +40,7 @@ Apache License 2.0; license and notices are bundled in TiebaFeature.framework.
 ChunUI and Pika icon assets: liseami/ChunUI, revision b240cbbdb9c6d7afc9f02d9ce4ddff5a25ce73bb.
 See bundled ChunUI-LICENSE.md for the MIT license.
 Pow 1.0.6: Emerge Tools. See bundled Pow-LICENSE.md for the MIT license.
+
+ZIPFoundation 0.9.20: Thomas Zoechling and contributors.
+https://github.com/weichsel/ZIPFoundation
+See bundled ZIPFoundation-LICENSE.md for the MIT license.

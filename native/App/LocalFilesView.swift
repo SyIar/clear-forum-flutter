@@ -8,6 +8,8 @@ struct LocalFilesView: View {
   @StateObject private var store: LocalFilesStore
   @State private var search = ""
   @State private var gallery: LocalGalleryRequest?
+  @State private var archive: GofileLocalFile?
+  @State private var deletion: LocalFileEntry?
   @Environment(\.scenePhase) private var scenePhase
 
   init(path: [String] = []) { _store = StateObject(wrappedValue: LocalFilesStore(path: path)) }
@@ -30,17 +32,27 @@ struct LocalFilesView: View {
       ForEach(entries) { entry in
         if entry.directory {
           NavigationLink { LocalFilesView(path: entry.path) } label: { row(entry) }
+            .contextMenu {
+              Button(AppText.text("Delete folder"), forumSymbol: "trash", role: .destructive) { deletion = entry }
+            }
         } else {
           Button {
             do {
               guard let catalog = store.catalog else { throw LocalFileCatalog.Failure.unavailable }
-              _ = try catalog.url(for: entry.path)
+              let file = try catalog.url(for: entry.path)
+              if file.pathExtension.lowercased() == "zip" {
+                archive = GofileLocalFile(url: file)
+                return
+              }
               guard let selection = LocalGallerySelection(entries: store.entries, selected: entry.path) else {
                 throw LocalFileCatalog.Failure.unavailable
               }
               gallery = LocalGalleryRequest(catalog: catalog, selection: selection)
             } catch { store.error = AppText.text("This file was moved or is no longer available. Refresh the folder.") }
           } label: { row(entry) }.buttonStyle(.plain)
+            .contextMenu {
+              Button(AppText.text("Delete file"), forumSymbol: "trash", role: .destructive) { deletion = entry }
+            }
         }
       }
     }.appFont(.body)
@@ -49,7 +61,10 @@ struct LocalFilesView: View {
       .toolbar(.visible, for: .navigationBar).toolbar(.hidden, for: .bottomBar)
       .searchable(text: $search, prompt: AppText.text("Find files in this folder"))
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+          NavigationLink { LocalStorageView(path: store.path) } label: {
+            Image(forumSymbol: "chart.bar.xaxis")
+          }.accessibilityLabel(AppText.text("Storage analysis"))
           Button(AppText.text("Refresh"), forumSymbol: "arrow.clockwise") { Task { await store.reload() } }
             .disabled(store.loading)
         }
@@ -64,6 +79,8 @@ struct LocalFilesView: View {
           Task { await store.reload() }
         }
       .background { LocalGalleryPresenter(request: $gallery).frame(width: 0, height: 0) }
+      .navigationDestination(item: $archive) { LocalFilePreview(file: $0.url) }
+      .modifier(LocalFileDeletion(entry: $deletion, catalog: store.catalog, completed: { Task { await store.reload() } }))
   }
 
   private func row(_ entry: LocalFileEntry) -> some View {
