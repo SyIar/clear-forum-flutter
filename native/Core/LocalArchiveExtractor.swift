@@ -1,16 +1,16 @@
 import Foundation
-import ZIPFoundation
+import ArchiveSupport
 
 /// Expands a local ZIP into a new sibling folder, publishing only a complete result.
 enum LocalArchiveExtractor {
-  enum Failure: Error { case invalidArchive, unsafePath, tooLarge, insufficientSpace, unavailableDestination }
+  enum Failure: Error { case invalidArchive, unsafePath, tooLarge, insufficientSpace, unavailableDestination, passwordRequired, incorrectPassword, unsupportedEncryption }
   struct Limits {
     var entries = 50_000
     var bytes: UInt64 = 128 * 1024 * 1024 * 1024
   }
 
   static func extract(_ path: [String], in catalog: LocalFileCatalog,
-                      progress: Progress, limits: Limits = Limits()) throws -> [String] {
+                      progress: Progress, password: String? = nil, limits: Limits = Limits()) throws -> [String] {
     func checkCancellation() throws {
       if progress.isCancelled { throw CancellationError() }
       try Task.checkCancellation()
@@ -24,23 +24,23 @@ enum LocalArchiveExtractor {
     let parent = try catalog.url(for: parentPath)
     let expectedCount = try entryCount(in: source)
     guard expectedCount <= UInt64(limits.entries) else { throw Failure.tooLarge }
-    let archive = try Archive(url: source, accessMode: .read)
-    var entries: [(Entry, [String])] = []
+    let archive = try FLZipReader(path: source.path)
+    var entries: [(FLZipEntry, [String])] = []
     var total: UInt64 = 0
     var pathBytes = 0
-    for entry in archive {
+    while let entry = try archive.nextEntry() {
       try checkCancellation()
-      guard entry.type != .symlink else { throw Failure.unsafePath }
+      guard !entry.unsafe else { throw Failure.unsafePath }
       let parts = try components(entry.path)
       pathBytes += entry.path.utf8.count
       guard entries.count < limits.entries, pathBytes <= 16 * 1024 * 1024,
-            entry.uncompressedSize <= limits.bytes - total else { throw Failure.tooLarge }
-      total += entry.uncompressedSize
+            entry.size <= limits.bytes - total else { throw Failure.tooLarge }
+      total += entry.size
       entries.append((entry, parts))
     }
-    // ZIPFoundation's iterator stops at encrypted or malformed entries. Never
-    // report a partially enumerated archive as successfully extracted.
+    // Never publish an incompletely enumerated ZIP or a partially unlocked one.
     guard UInt64(entries.count) == expectedCount else { throw Failure.invalidArchive }
+    if entries.contains(where: { $0.0.encrypted }), password == nil { throw Failure.passwordRequired }
     if let free = try FileManager.default.attributesOfFileSystem(forPath: parent.path)[.systemFreeSize] as? NSNumber {
       guard free.uint64Value > total, free.uint64Value - total > 64 * 1024 * 1024 else { throw Failure.insufficientSpace }
     }
@@ -50,31 +50,31 @@ enum LocalArchiveExtractor {
     let staging = manager.temporaryDirectory.appendingPathComponent("ForumLite-Unzip-" + UUID().uuidString, isDirectory: true)
     try manager.createDirectory(at: staging, withIntermediateDirectories: false)
     defer { try? manager.removeItem(at: staging) }
+    try archive.rewind()
     for (entry, parts) in entries {
       try checkCancellation()
+      guard let current = try archive.nextEntry(), current.path == entry.path, current.size == entry.size,
+            current.encrypted == entry.encrypted, current.directory == entry.directory, !current.unsafe else { throw Failure.invalidArchive }
       var target = staging
       for part in parts { target.appendPathComponent(part) }
       guard target.standardizedFileURL.path.hasPrefix(staging.standardizedFileURL.path + "/") else { throw Failure.unsafePath }
-      if entry.type == .directory {
+      if entry.directory {
+        guard entry.size == 0 else { throw Failure.invalidArchive }
         try manager.createDirectory(at: target, withIntermediateDirectories: true)
       } else {
         try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard !manager.fileExists(atPath: target.path), manager.createFile(atPath: target.path, contents: nil) else { throw Failure.invalidArchive }
         let output = try FileHandle(forWritingTo: target)
         defer { try? output.close() }
-        var written: UInt64 = 0
-        let checksum = try archive.extract(entry, bufferSize: 256 * 1024) { data in
-          try checkCancellation()
-          guard UInt64(data.count) <= entry.uncompressedSize - written else { throw Failure.invalidArchive }
+        try consume(archive, encrypted: entry.encrypted, password: password, progress: progress) { data in
           try output.write(contentsOf: data)
-          written += UInt64(data.count)
-          progress.completedUnitCount += Int64(data.count)
         }
-        guard written == entry.uncompressedSize, checksum == entry.checksum else { throw Failure.invalidArchive }
-        if let date = entry.fileAttributes[.modificationDate] as? Date {
+        if let date = entry.modified {
           try manager.setAttributes([.modificationDate: date], ofItemAtPath: target.path)
         }
       }
+      // Empty encrypted directory entries also have password/authentication data.
+      if entry.directory { try consume(archive, encrypted: entry.encrypted, password: password, progress: progress) { _ in } }
       progress.completedUnitCount += 1
     }
     try checkCancellation()
@@ -94,6 +94,26 @@ enum LocalArchiveExtractor {
     throw Failure.unavailableDestination
   }
 
+  private static func consume(_ archive: FLZipReader, encrypted: Bool, password: String?, progress: Progress,
+                              write: (Data) throws -> Void) throws {
+    do {
+      try archive.openEntry(password: password)
+      while true {
+        if progress.isCancelled { throw CancellationError() }
+        try Task.checkCancellation()
+        let data = try autoreleasepool { try archive.readChunk() }
+        if data.isEmpty { break }
+        try write(data)
+        progress.completedUnitCount += Int64(data.count)
+      }
+      try archive.finishEntry()
+    } catch let error as NSError where error.domain == FLZipErrorDomain {
+      if error.code == -109 { throw Failure.unsupportedEncryption }
+      if encrypted && [-108, -106, -105, -3].contains(error.code) { throw Failure.incorrectPassword }
+      throw Failure.invalidArchive
+    }
+  }
+
   private static func components(_ path: String) throws -> [String] {
     let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
     let clean = path.hasSuffix("/") ? Array(parts.dropLast()) : parts
@@ -105,7 +125,7 @@ enum LocalArchiveExtractor {
   }
 
   // Read only the bounded ZIP footer to detect truncated enumeration, including
-  // ZIP64 archives. File contents are streamed by ZIPFoundation, never buffered whole.
+  // ZIP64 archives. File contents are streamed by minizip, never buffered whole.
   private static func entryCount(in file: URL) throws -> UInt64 {
     let handle = try FileHandle(forReadingFrom: file)
     defer { try? handle.close() }

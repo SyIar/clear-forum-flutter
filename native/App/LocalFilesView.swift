@@ -14,7 +14,7 @@ struct LocalFilesView: View {
 
   init(path: [String] = []) { _store = StateObject(wrappedValue: LocalFilesStore(path: path)) }
   private var entries: [LocalFileEntry] {
-    store.entries.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+    store.entries.filter { search.isEmpty || $0.displayName.localizedCaseInsensitiveContains(search) }
   }
 
   var body: some View {
@@ -31,7 +31,7 @@ struct LocalFilesView: View {
       }
       ForEach(entries) { entry in
         if entry.directory {
-          NavigationLink { LocalFilesView(path: entry.path) } label: { row(entry) }
+          NavigationLink { LocalFilesView(path: entry.destinationPath) } label: { row(entry) }
             .contextMenu {
               Button(AppText.text("Delete folder"), forumSymbol: "trash", role: .destructive) { deletion = entry }
             }
@@ -87,7 +87,7 @@ struct LocalFilesView: View {
     HStack(spacing: 12) {
       LocalFileThumbnail(entry: entry, catalog: store.catalog)
       VStack(alignment: .leading, spacing: 4) {
-        Text(entry.name).lineLimit(2).foregroundStyle(.primary)
+        Text(entry.displayName).lineLimit(2).foregroundStyle(.primary)
         HStack(spacing: 8) {
           if let bytes = entry.bytes { Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)) }
           if let date = entry.modified { Text(date, format: .dateTime.year().month().day()) }
@@ -115,7 +115,7 @@ struct LocalFilesView: View {
       let root = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
       let catalog = LocalFileCatalog(root: root)
       let path = path
-      let task = Task.detached(priority: .userInitiated) { try catalog.entries(in: path) }
+      let task = Task.detached(priority: .userInitiated) { try catalog.browserEntries(in: path) }
       let result = try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
       guard !Task.isCancelled, revision == token else { return }
       self.catalog = catalog

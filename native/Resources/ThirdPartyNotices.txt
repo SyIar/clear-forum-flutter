@@ -41,6 +41,7 @@ ChunUI and Pika icon assets: liseami/ChunUI, revision b240cbbdb9c6d7afc9f02d9ce4
 See bundled ChunUI-LICENSE.md for the MIT license.
 Pow 1.0.6: Emerge Tools. See bundled Pow-LICENSE.md for the MIT license.
 
-ZIPFoundation 0.9.20: Thomas Zoechling and contributors.
-https://github.com/weichsel/ZIPFoundation
-See bundled ZIPFoundation-LICENSE.md for the MIT license.
+ZipArchive 2.6.0 and its bundled minizip-ng: ZipArchive and contributors.
+https://github.com/ZipArchive/ZipArchive
+See bundled ZipArchive-LICENSE.md and minizip-LICENSE.md for licenses.
+ZIPFoundation 0.9.20 is used only by test fixtures, not the shipped app.

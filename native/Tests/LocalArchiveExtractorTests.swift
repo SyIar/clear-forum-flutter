@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 import ZIPFoundation
+import ZipArchive
 @testable import ForumCore
 
 final class LocalArchiveExtractorTests: XCTestCase {
@@ -23,6 +24,93 @@ final class LocalArchiveExtractorTests: XCTestCase {
   }
   private func assertNoOutput(_ root: URL, catalog: LocalFileCatalog) throws {
     XCTAssertEqual(try catalog.entries().map(\.name), ["Sample.zip"])
+  }
+  private func makeEncryptedZIP(_ root: URL, aes: Bool, password: String = "test-password",
+                                large: Bool = false) throws -> URL {
+    let file = root.appendingPathComponent("Sample.zip")
+    let zip = SSZipArchive(path: file.path)
+    XCTAssertTrue(zip.open())
+    defer { XCTAssertTrue(zip.close()) }
+    XCTAssertTrue(zip.write(Data("Plain text".utf8), filename: "Readme.txt", withPassword: nil))
+    XCTAssertTrue(zip.write(Data(), filename: "Empty.txt", compressionLevel: 0, password: password, aes: aes))
+    let content = large ? Data(repeating: 42, count: 2 * 1024 * 1024) : Data("Protected text".utf8)
+    XCTAssertTrue(zip.write(content, filename: "Nested/\u{6587}\u{4ef6}.txt", compressionLevel: 0, password: password, aes: aes))
+    return file
+  }
+
+  func testTraditionalAndAESArchivesPromptThenExtractWithoutSavingPassword() throws {
+    for aes in [false, true] {
+      try fixture { root, catalog in
+        let password = "Space \u{5bc6}\u{7801} #123 "
+        _ = try makeEncryptedZIP(root, aes: aes, password: password)
+        XCTAssertThrowsError(try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: Progress())) {
+          guard case LocalArchiveExtractor.Failure.passwordRequired = $0 else { return XCTFail("Expected a password request") }
+        }
+        try assertNoOutput(root, catalog: catalog)
+        let progress = Progress()
+        let folder = try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: progress, password: password)
+        XCTAssertEqual(try Data(contentsOf: catalog.url(for: folder + ["Nested", "\u{6587}\u{4ef6}.txt"])), Data("Protected text".utf8))
+        XCTAssertEqual(try Data(contentsOf: catalog.url(for: folder + ["Empty.txt"])), Data())
+        XCTAssertEqual(try catalog.storage(in: folder).files.count, 3)
+        XCTAssertEqual(progress.fractionCompleted, 1)
+      }
+    }
+  }
+
+  func testWrongPasswordPublishesNothingAndCorrectRetrySucceeds() throws {
+    for aes in [false, true] {
+      try fixture { root, catalog in
+        let file = try makeEncryptedZIP(root, aes: aes)
+        let original = try Data(contentsOf: file)
+        XCTAssertThrowsError(try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: Progress(), password: "wrong")) {
+          guard case LocalArchiveExtractor.Failure.incorrectPassword = $0 else { return XCTFail("Expected a password failure: \($0)") }
+        }
+        try assertNoOutput(root, catalog: catalog)
+        XCTAssertEqual(try Data(contentsOf: file), original)
+        _ = try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: Progress(), password: "test-password")
+      }
+    }
+  }
+
+  func testDamagedAESAuthenticationTrailerCannotPublishPlausiblePlaintext() throws {
+    try fixture { root, catalog in
+      let file = try makeEncryptedZIP(root, aes: true)
+      var bytes = try Data(contentsOf: file)
+      let central = try XCTUnwrap(bytes.range(of: Data([0x50, 0x4b, 0x01, 0x02])))
+      // The writer puts a signed data descriptor after the final encrypted entry.
+      let descriptor = try XCTUnwrap(bytes.range(of: Data([0x50, 0x4b, 0x07, 0x08]), options: .backwards, in: 0..<central.lowerBound))
+      bytes[descriptor.lowerBound - 1] ^= 1
+      try bytes.write(to: file)
+      XCTAssertThrowsError(try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: Progress(), password: "test-password"))
+      try assertNoOutput(root, catalog: catalog)
+    }
+  }
+
+  func testEncryptedExtractionCanBeCancelledWithinOneLargeFile() throws {
+    try fixture { root, catalog in
+      _ = try makeEncryptedZIP(root, aes: true, large: true)
+      let progress = Progress()
+      let observer = progress.observe(\.completedUnitCount, options: [.new]) { value, _ in
+        if value.completedUnitCount > 512 * 1024 { value.cancel() }
+      }
+      defer { observer.invalidate() }
+      XCTAssertThrowsError(try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: progress, password: "test-password")) {
+        XCTAssertTrue($0 is CancellationError)
+      }
+      try assertNoOutput(root, catalog: catalog)
+    }
+  }
+
+  func testMixedPasswordsDoNotPublishOnlyTheSuccessfullyUnlockedEntries() throws {
+    try fixture { root, catalog in
+      let zip = SSZipArchive(path: root.appendingPathComponent("Sample.zip").path)
+      XCTAssertTrue(zip.open())
+      XCTAssertTrue(zip.write(Data([1]), filename: "One.txt", withPassword: "first"))
+      XCTAssertTrue(zip.write(Data([2]), filename: "Two.txt", withPassword: "second"))
+      XCTAssertTrue(zip.close())
+      XCTAssertThrowsError(try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: Progress(), password: "first"))
+      try assertNoOutput(root, catalog: catalog)
+    }
   }
 
   func testExtractsNestedUnicodeFilesAndKeepsOriginalZIP() throws {

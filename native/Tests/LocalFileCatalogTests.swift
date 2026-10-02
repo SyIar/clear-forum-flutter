@@ -63,4 +63,52 @@ final class LocalFileCatalogTests: XCTestCase {
       XCTAssertThrowsError(try catalog.url(for: ["file.png"]))
     }
   }
+
+  func testCompactsSingleFolderChainsUntilFilesAndKeepsOuterDeletionScope() throws {
+    try fixture { root, catalog in
+      let path = ["Downloads", "Archive", "Pictures"]
+      let folder = root.appendingPathComponent(path.joined(separator: "/"))
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      try Data([1]).write(to: folder.appendingPathComponent("Photo.png"))
+      let entry = try XCTUnwrap(catalog.browserEntries().first)
+      XCTAssertEqual(entry.destinationPath, path)
+      XCTAssertEqual(entry.displayName, "Downloads / Archive / Pictures")
+      XCTAssertEqual(entry.path, ["Downloads"])
+      XCTAssertEqual(try catalog.entries(in: entry.destinationPath).map(\.name), ["Photo.png"])
+      try catalog.remove(entry)
+      XCTAssertTrue(try catalog.entries().isEmpty)
+    }
+  }
+
+  func testCompactionStopsAtFilesBranchesAndEmptyFolders() throws {
+    for kind in ["File", "Branch", "Empty", "Hidden"] {
+      try fixture { root, catalog in
+        let parent = root.appendingPathComponent("Outer/Inner")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        if kind != "Empty" {
+          try FileManager.default.createDirectory(at: parent.appendingPathComponent("Child"), withIntermediateDirectories: true)
+          if kind == "Branch" {
+            try FileManager.default.createDirectory(at: parent.appendingPathComponent("Other"), withIntermediateDirectories: true)
+          } else {
+            try Data([1]).write(to: parent.appendingPathComponent(kind == "Hidden" ? ".hidden" : "Readme.txt"))
+          }
+        }
+        XCTAssertEqual(try catalog.browserEntries().first?.destinationPath, ["Outer", "Inner"])
+      }
+    }
+  }
+
+  func testCompactionDoesNotFollowSymbolicLinksOrAlterFileEntries() throws {
+    try fixture { root, catalog in
+      let parent = root.appendingPathComponent("Outer")
+      try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+      try FileManager.default.createSymbolicLink(at: parent.appendingPathComponent("Loop"), withDestinationURL: root)
+      try Data([1, 2]).write(to: root.appendingPathComponent("Video.mp4"))
+      let rows = try catalog.browserEntries()
+      XCTAssertEqual(rows.first?.destinationPath, ["Outer"])
+      XCTAssertNil(rows.first?.compactedPath)
+      XCTAssertEqual(rows.last?.destinationPath, ["Video.mp4"])
+      XCTAssertEqual(rows.last?.bytes, 2)
+    }
+  }
 }

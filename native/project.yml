@@ -4,9 +4,8 @@ options:
   deploymentTarget:
     iOS: '26.0'
 packages:
-  ZIPFoundation:
-    url: https://github.com/weichsel/ZIPFoundation.git
-    exactVersion: 0.9.20
+  ArchiveSupport:
+    path: ArchiveSupport
   SwiftSoup:
     url: https://github.com/scinfu/SwiftSoup.git
     exactVersion: 2.13.9
@@ -43,7 +42,7 @@ targets:
       - path: ../ios/Runner/MediaProbe.js
         buildPhase: resources
     dependencies:
-      - package: ZIPFoundation
+      - package: ArchiveSupport
       - package: SwiftSoup
       - target: ForumUI
         embed: true

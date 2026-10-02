@@ -5,8 +5,11 @@ public struct LocalFileEntry: Identifiable, Hashable, Sendable {
   public let directory: Bool
   public let bytes: Int64?
   public let modified: Date?
+  public var compactedPath: [String]? = nil
   public var id: [String] { path }
   public var name: String { path.last ?? "" }
+  public var displayName: String { compactedPath?.dropFirst(max(0, path.count - 1)).joined(separator: " / ") ?? name }
+  public var destinationPath: [String] { compactedPath ?? path }
 }
 
 /// Lists only user files in one directory at a time, without reading file contents.
@@ -52,6 +55,30 @@ public struct LocalFileCatalog: Sendable {
     return entries.sorted {
       if $0.directory != $1.directory { return $0.directory }
       return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+    }
+  }
+
+  /// Compact directory-only chains for browsing without changing deletion scope.
+  public func browserEntries(in path: [String] = []) throws -> [LocalFileEntry] {
+    try entries(in: path).map { original in
+      guard original.directory else { return original }
+      var entry = original
+      var destination = original.path
+      for _ in 0..<64 {
+        try Task.checkCancellation()
+        guard let current = try? url(for: destination),
+              let children = try? FileManager.default.contentsOfDirectory(at: current,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: []),
+              children.count == 1, let child = children.first,
+              let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              values.isDirectory == true, values.isSymbolicLink != true,
+              !child.lastPathComponent.hasPrefix(".") else { break }
+        let next = destination + [child.lastPathComponent]
+        guard (try? url(for: next)) != nil else { break }
+        destination = next
+      }
+      if destination != original.path { entry.compactedPath = destination }
+      return entry
     }
   }
 }
