@@ -94,7 +94,8 @@ extension BookhouseFollowedBook {
   // Include the current publication and every split part covering the next five chapter numbers.
   var offlineTargets: [BookhouseChapter] {
     let first = position?.chapter ?? chapters.first?.first ?? 1
-    let end = min(100_000, first + 5)
-    return Array(chapters.filter { $0.last >= first && $0.first <= end }.prefix(50))
+    let start = sliderPosition(for: first)
+    let end = min(sliderChapterCount, start + 5)
+    return Array(chapters.filter { sliderPosition(for: $0.last) >= start && sliderPosition(for: $0.first) <= end }.prefix(50))
   }
 }

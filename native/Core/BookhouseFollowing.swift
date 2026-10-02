@@ -170,6 +170,11 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
   private func matchesTitle(_ source: String) -> Bool {
     guard let parsed = BookhouseChapterTitle(source),
           BookhouseChapterTitle.normalized(BookhouseChapterTitle.searchTitle(parsed.book)) == BookhouseChapterTitle.normalized(searchTitle) else { return false }
+    let candidate = BookhouseChapterTitle.normalized(parsed.book)
+    let original = BookhouseChapterTitle.normalized(title)
+    let primary = BookhouseChapterTitle.normalized(searchTitle)
+    // An omitted subtitle is fine; different explicit subtitles are not aliases.
+    guard candidate == original || candidate == primary || original == primary else { return false }
     guard authorSource == .title else { return true }
     let name = BookhouseTitlePresentation(title: source, postingAuthor: "").literaryAuthor
     return name.map { BookhouseChapterTitle.normalized($0) == BookhouseChapterTitle.normalized(author) } ?? false

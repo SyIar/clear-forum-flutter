@@ -44,6 +44,7 @@ final class BookhouseExtraChapterTests: XCTestCase {
     XCTAssertTrue(book.matches(missingBracket))
     XCTAssertTrue(book.matches(entry("8", "236", name: "Novel")))
     XCTAssertFalse(book.matches(entry("9", "236", name: "Novel sequel")))
+    XCTAssertFalse(book.matches(entry("11", "236", name: "Novel (Sequel)")))
     XCTAssertFalse(book.matches(entry("10", "236", author: "Uploader 1")))
   }
   func testSeamlessReadingCrossesRegularExtraBoundaryBothWaysAndPrefetchesExtras() throws {
@@ -59,6 +60,8 @@ final class BookhouseExtraChapterTests: XCTestCase {
     XCTAssertTrue(window.insert(page(firstExtra), at: .next, book: book))
     XCTAssertTrue(window.insert(page(secondExtra), at: .next, book: book))
     XCTAssertEqual(window.paragraphs.map(\.chapter), [234, 235, extra + 1, extra + 5])
+    book.record(url: firstExtra.url, chapter: extra + 3, paragraph: 0)
+    XCTAssertEqual(book.offlineTargets.map(\.url), [firstExtra.url, secondExtra.url])
     XCTAssertTrue(window.reset(page(secondExtra), book: book))
     XCTAssertTrue(window.insert(page(firstExtra), at: .previous, book: book))
     XCTAssertTrue(window.insert(regularPage, at: .previous, book: book))
