@@ -18,7 +18,7 @@ FOUNDATION_EXPORT NSString *const FLZipErrorDomain;
 - (nullable instancetype)initWithPath:(NSString *)path error:(NSError **)error;
 - (BOOL)rewindWithError:(NSError **)error NS_SWIFT_NAME(rewind());
 /// A nil entry with no error denotes the end of the directory.
-- (FLZipEntry * _Nullable_result)nextEntryWithError:(NSError **)error NS_SWIFT_NAME(nextEntry());
+- (nullable FLZipEntry *)nextEntryWithError:(NSError **)error NS_SWIFT_NOTHROW NS_SWIFT_NAME(nextEntry(error:));
 - (BOOL)openEntryWithPassword:(nullable NSString *)password error:(NSError **)error NS_SWIFT_NAME(openEntry(password:));
 - (nullable NSData *)readChunkWithError:(NSError **)error NS_SWIFT_NAME(readChunk());
 - (BOOL)finishEntryWithError:(NSError **)error NS_SWIFT_NAME(finishEntry());

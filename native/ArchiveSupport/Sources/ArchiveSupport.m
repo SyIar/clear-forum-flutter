@@ -131,9 +131,12 @@ static BOOL Fail(NSError **error, NSInteger code) {
   // authentication trailer before unzCloseCurrentFile destroys that stream.
   if (status == 0 && _aesVersion) {
     void *stream = NULL;
-    if (mz_zip_entry_get_compress_stream(unzGetHandle_MZ(_archive), &stream) != 0 ||
-        !stream || !((FLMinizipStream *)stream)->base) status = -103;
-    else status = mz_stream_close(((FLMinizipStream *)stream)->base);
+    if (mz_zip_entry_get_compress_stream(unzGetHandle_MZ(_archive), &stream) != 0 || !stream) status = -103;
+    else {
+      FLMinizipStream description;
+      memcpy(&description, stream, sizeof(description));
+      status = description.base ? mz_stream_close(description.base) : -103;
+    }
   }
   int closeStatus = unzCloseCurrentFile(_archive);
   _opened = NO;

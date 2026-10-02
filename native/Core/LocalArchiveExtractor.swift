@@ -28,7 +28,7 @@ enum LocalArchiveExtractor {
     var entries: [(FLZipEntry, [String])] = []
     var total: UInt64 = 0
     var pathBytes = 0
-    while let entry = try archive.nextEntry() {
+    while let entry = try nextEntry(in: archive) {
       try checkCancellation()
       guard !entry.unsafe else { throw Failure.unsafePath }
       let parts = try components(entry.path)
@@ -53,7 +53,7 @@ enum LocalArchiveExtractor {
     try archive.rewind()
     for (entry, parts) in entries {
       try checkCancellation()
-      guard let current = try archive.nextEntry(), current.path == entry.path, current.size == entry.size,
+      guard let current = try nextEntry(in: archive), current.path == entry.path, current.size == entry.size,
             current.encrypted == entry.encrypted, current.directory == entry.directory, !current.unsafe else { throw Failure.invalidArchive }
       var target = staging
       for part in parts { target.appendPathComponent(part) }
@@ -92,6 +92,13 @@ enum LocalArchiveExtractor {
       } catch let error as CocoaError where error.code == .fileWriteFileExists { continue }
     }
     throw Failure.unavailableDestination
+  }
+
+  private static func nextEntry(in archive: FLZipReader) throws -> FLZipEntry? {
+    var error: NSError?
+    let entry = archive.nextEntry(error: &error)
+    if let error { throw error }
+    return entry
   }
 
   private static func consume(_ archive: FLZipReader, encrypted: Bool, password: String?, progress: Progress,
@@ -158,12 +165,20 @@ enum LocalArchiveExtractor {
           guard value(zip64, 0, 4) == 0x06064b50, value(zip64, 4, 8) >= 44,
                 value(zip64, 16, 4) == 0, value(zip64, 20, 4) == 0,
                 value(zip64, 24, 8) == value(zip64, 32, 8) else { throw Failure.invalidArchive }
+          try validateDirectory(size: value(zip64, 40, 8), offset: value(zip64, 48, 8), fileSize: size)
           return value(zip64, 32, 8)
         }
       }
       guard count < 65_535 else { throw Failure.invalidArchive }
+      try validateDirectory(size: value(tail, offset + 12, 4), offset: value(tail, offset + 16, 4), fileSize: size)
       return count
     }
     throw Failure.invalidArchive
+  }
+
+  private static func validateDirectory(size: UInt64, offset: UInt64, fileSize: UInt64) throws {
+    // minizip loads central-directory metadata in memory; bound it before opening.
+    guard size <= 32 * 1024 * 1024 else { throw Failure.tooLarge }
+    guard offset <= fileSize, size <= fileSize - offset else { throw Failure.invalidArchive }
   }
 }

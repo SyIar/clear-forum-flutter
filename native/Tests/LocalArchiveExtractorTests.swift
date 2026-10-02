@@ -173,6 +173,20 @@ final class LocalArchiveExtractorTests: XCTestCase {
     }
   }
 
+  func testRejectsOversizedDirectoryMetadataBeforeOpeningEngine() throws {
+    try fixture { root, catalog in
+      let file = try makeZIP(root, entries: [("File.txt", Data([1]))])
+      var data = try Data(contentsOf: file)
+      let offset = data.count - 22 + 12
+      data.replaceSubrange(offset..<(offset + 4), with: [0, 0, 0, 4])
+      try data.write(to: file)
+      XCTAssertThrowsError(try LocalArchiveExtractor.extract(["Sample.zip"], in: catalog, progress: Progress())) {
+        guard case LocalArchiveExtractor.Failure.tooLarge = $0 else { return XCTFail("Expected bounded directory metadata") }
+      }
+      try assertNoOutput(root, catalog: catalog)
+    }
+  }
+
   func testCancellationPreservesZIPAndDoesNotPublishPartialFolder() throws {
     try fixture { root, catalog in
       _ = try makeZIP(root, entries: [("Large.txt", Data(repeating: 1, count: 1024 * 1024))])
