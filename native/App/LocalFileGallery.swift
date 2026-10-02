@@ -90,8 +90,8 @@ final class LocalGalleryController: UIViewController, UIPageViewControllerDataSo
     selected.setActive(true)
     updateHeader(reset: true)
     view.accessibilityCustomActions = [
-      UIAccessibilityCustomAction(name: AppText.text("Previous file"), target: self, selector: #selector(previous)),
-      UIAccessibilityCustomAction(name: AppText.text("Next file"), target: self, selector: #selector(next)),
+      UIAccessibilityCustomAction(name: AppText.text("Previous file"), target: self, selector: #selector(previousFile)),
+      UIAccessibilityCustomAction(name: AppText.text("Next file"), target: self, selector: #selector(nextFile)),
     ]
   }
   private func makeHeader() {
@@ -175,8 +175,8 @@ final class LocalGalleryController: UIViewController, UIPageViewControllerDataSo
     pages[index]?.setChromeHidden(hidden)
     setNeedsStatusBarAppearanceUpdate()
   }
-  @objc private func previous() -> Bool { move(-1) }
-  @objc private func next() -> Bool { move(1) }
+  @objc private func previousFile() -> Bool { move(-1) }
+  @objc private func nextFile() -> Bool { move(1) }
   private func move(_ offset: Int) -> Bool {
     guard !changingPage, !dragging, !closing, let next = request.selection.neighbor(of: index, offset: offset) else { return false }
     changingPage = true
