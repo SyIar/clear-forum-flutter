@@ -40,14 +40,7 @@ struct SouthFollowingSection: View {
               }.frame(minHeight: 36).contentShape(Rectangle())
             }.buttonStyle(.plain)
           }
-          if let error = library.authorErrors[author.id] {
-            HStack(alignment: .top) {
-              Text(error).appFont(.caption).foregroundStyle(.secondary)
-              Spacer(minLength: 8)
-              Button(AppText.text("Retry")) { Task { await library.refreshAuthor(author.id, session: session) } }
-                .appFont(.caption).buttonStyle(.borderless).disabled(library.refreshingAuthors.contains(author.id))
-            }
-          } else if author.topics.isEmpty && !library.refreshingAuthors.contains(author.id) {
+          if author.topics.isEmpty && !library.refreshingAuthors.contains(author.id) {
             Text(author.checkedAt == nil ? AppText.text("Not refreshed") : AppText.text("No topics"))
               .appFont(.caption).foregroundStyle(.secondary)
           }

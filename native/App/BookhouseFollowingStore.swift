@@ -29,9 +29,10 @@ extension LibraryStore {
     let targets = document.readingBooks.filter { LibraryRefreshPolicy.isDue(checkedAt: $0.checkedAt, attemptedAt: $0.attemptedAt, manual: manual) }
     guard !targets.isEmpty else { if manual { checkProgress = LibraryCheckProgress(skippedFresh: true) }; return }
     checkProgress = LibraryCheckProgress(running: true, total: targets.count)
-    defer { checkProgress.running = false; checkProgress.finishedAt = Date() }
+    defer { checkProgress.running = false; checkProgress.currentTitle = nil; checkProgress.finishedAt = Date() }
     for book in targets {
       guard !Task.isCancelled else { return }
+      checkProgress.currentTitle = book.title
       await refreshBook(book.id, session: session, manual: manual)
       checkProgress.completed += 1
       if bookRefreshPhases[book.id] == .updated { checkProgress.updated += 1 }
@@ -41,7 +42,7 @@ extension LibraryStore {
   func refreshBook(_ id: String, session: ForumSession, manual: Bool = true) async {
     guard site == .bookhouse, session.site == .bookhouse else { return }
     if let task = bookTasks[id] { await task.value; return }
-    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.searchTitle),
+    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.catalogKeywords),
           LibraryRefreshPolicy.isDue(checkedAt: book.checkedAt, attemptedAt: book.attemptedAt, manual: manual) else { return }
     change { $0.followedBooks[id]?.attemptedAt = Date() }
     bookRefreshPhases[id] = .checking; bookErrors[id] = nil
@@ -65,7 +66,10 @@ extension LibraryStore {
           guard visited.count < 50, BookhouseSitePolicy.pageRoot(url) == BookhouseSitePolicy.pageRoot(search),
                 visited.insert(BookhouseSitePolicy.pageCacheKey(url)).inserted else { throw BookhouseFollowingFailure.catalog }
           let page = try await session.load(url)
-          entries += page.entries.filter(indexedBook.matches)
+          guard page.kind == .threads, BookhouseSitePolicy.pageRoot(page.url) == BookhouseSitePolicy.pageRoot(search) else {
+            throw BookhouseFollowingFailure.catalog
+          }
+          entries += page.entries.filter(indexedBook.matchesCatalogResult)
           guard entries.count <= 5_000 else { throw BookhouseFollowingFailure.catalog }
           next = page.next
         }

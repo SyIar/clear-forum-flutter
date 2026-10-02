@@ -195,6 +195,11 @@ final class LibraryStore: ObservableObject {
     change { $0 = next }
   }
   func refresh(session: ForumSession, manual: Bool = true) async {
+    if site == .bookhouse {
+      guard ready else { return }
+      await refreshBooks(session: session, manual: manual)
+      return
+    }
     guard site.supportsThreadUpdates, session.site == site, ready, !refreshing else { return }
     let targets = document.trackedThreads.filter { url in
       guard let key = SitePolicy.threadKey(url) else { return false }
@@ -395,9 +400,6 @@ struct HomeView: View {
               .accessibilityLabel(AppText.text("Open original forum website"))
           }.padding(.vertical, 6)
         }
-        if session.site != .simp {
-          LibraryCheckStatus(library: library).listRowBackground(Color.clear).listRowSeparator(.hidden)
-        }
         if session.site == .bookhouse {
           BookhouseFollowingSection(library: library, session: session) { path.append(.book($0)) }
         }
@@ -447,20 +449,8 @@ struct HomeView: View {
         }
       }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
-        if session.site == .simp {
-          LibraryUpdateButton(library: library) { Task { await library.refresh(session: session) } }
-            .padding(.trailing, 16).padding(.bottom, 8)
-        } else if session.site.supportsThreadUpdates {
-        Button { Task { await library.refresh(session: session) } } label: {
-          Group {
-            if library.refreshing { ProgressView() }
-            else { Image(forumSymbol: "arrow.clockwise", size: 20).font(.title3.weight(.semibold)) }
-          }.frame(width: 52, height: 52)
-        }.buttonStyle(.glass).buttonBorderShape(.circle)
-          .disabled(library.refreshing || !library.document.hasRefreshTargets)
-          .accessibilityLabel(AppText.text("Refresh thread and author updates"))
+        LibraryUpdateButton(library: library) { Task { await library.refresh(session: session) } }
           .padding(.trailing, 16).padding(.bottom, 8)
-        }
       }
       .modifier(LibraryUpdateRefresh(library: library, session: session))
       .task {
@@ -548,11 +538,7 @@ private struct LibraryUpdateRefresh: ViewModifier {
   let library: LibraryStore
   let session: ForumSession
   func body(content: Content) -> some View {
-    if session.site.supportsThreadUpdates {
-      content.refreshable { await library.refresh(session: session) }
-    } else {
-      content
-    }
+    content.refreshable { await library.refresh(session: session) }
   }
 }
 

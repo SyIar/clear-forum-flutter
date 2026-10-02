@@ -114,12 +114,14 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
   var acknowledgedMaximum: Int
   var acknowledgedRegularMaximum: Int?
   var maximumReadRegular: Int?
-  var catalogVersion: Int? = 2
+  var catalogVersion: Int? = 3
   var latestChapter: Int { chapters.map(\.last).max() ?? 0 }
   var latestRegularChapter: Int { chapters.filter { !BookhouseChapterTitle.isExtra($0.first) }.map(\.last).max() ?? 0 }
   var latestExtraChapter: Int { chapters.filter { BookhouseChapterTitle.isExtra($0.first) }.map { BookhouseChapterTitle.localNumber($0.last) }.max() ?? 0 }
   var sliderChapterCount: Int { latestRegularChapter + latestExtraChapter }
   var searchTitle: String { BookhouseChapterTitle.searchTitle(title) }
+  // Longer queries can return no results even when matching publications exist.
+  var catalogKeywords: String { String(searchTitle.prefix(7)) }
   func sliderPosition(for chapter: Int) -> Int {
     BookhouseChapterTitle.isExtra(chapter) ? latestRegularChapter + BookhouseChapterTitle.localNumber(chapter) : chapter
   }
@@ -127,8 +129,8 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
     position > latestRegularChapter ? BookhouseChapterTitle.extraOffset + position - latestRegularChapter : position
   }
   @discardableResult mutating func migrateCatalog() -> Bool {
-    guard catalogVersion != 2 else { return false }
-    catalogVersion = 2
+    guard catalogVersion != 3 else { return false }
+    catalogVersion = 3
     // Recheck old, possibly seed-only catalogs without discarding reading state.
     checkedAt = nil; attemptedAt = nil
     return true
@@ -202,22 +204,34 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
       adoptLiteraryAuthor(snapshot.author)
     }
     if authorSource != .title { authorID = snapshot.authorID }
-    merge(entries, checkedAt: checkedAt)
+    merge(entries, checkedAt: checkedAt, searchResults: true)
   }
   func matches(_ entry: ForumEntry) -> Bool {
     guard matchesTitle(entry.title), BookhouseSitePolicy.threadKey(entry.url) != nil else { return false }
-    if authorSource == .title { return true }
-    guard BookhouseChapterTitle.normalized(entry.authorName ?? "") == BookhouseChapterTitle.normalized(author) else { return false }
-    if let authorID, let id = entry.authorID { return authorID == id }
+    return matchesAuthor(title: entry.title, postingAuthor: entry.authorName ?? "", accountID: entry.authorID)
+  }
+  func matchesCatalogResult(_ entry: ForumEntry) -> Bool {
+    // Only use this for results of this book's validated catalog search.
+    guard BookhouseChapterTitle(entry.title) != nil, BookhouseSitePolicy.threadKey(entry.url) != nil else { return false }
+    return matchesAuthor(title: entry.title, postingAuthor: entry.authorName ?? "", accountID: entry.authorID)
+  }
+  private func matchesAuthor(title: String, postingAuthor: String, accountID: String?) -> Bool {
+    if authorSource == .title {
+      let name = BookhouseTitlePresentation(title: title, postingAuthor: "").literaryAuthor
+      return name.map { BookhouseChapterTitle.normalized($0) == BookhouseChapterTitle.normalized(author) } ?? false
+    }
+    guard BookhouseChapterTitle.normalized(postingAuthor) == BookhouseChapterTitle.normalized(author) else { return false }
+    if let authorID, let accountID { return authorID == accountID }
     return true
   }
   func accepts(_ page: ForumPage) -> Bool {
     guard page.kind == .posts, let post = page.posts.first,
-          chapters.contains(where: { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(page.url) }),
-          matchesTitle(page.title) else { return false }
-    if authorSource == .title { return true }
-    guard BookhouseChapterTitle.normalized(post.author) == BookhouseChapterTitle.normalized(author) else { return false }
-    return authorID == nil || post.authorID == authorID
+          let chapter = chapters.first(where: { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(page.url) }),
+          let source = BookhouseChapterTitle(chapter.title), let actual = BookhouseChapterTitle(page.title),
+          BookhouseChapterTitle.normalized(source.book) == BookhouseChapterTitle.normalized(actual.book),
+          source.first == actual.first, source.last == actual.last else { return false }
+    return matchesAuthor(title: page.title, postingAuthor: post.author, accountID: post.authorID) &&
+      (authorSource == .title || authorID == nil || post.authorID == authorID)
   }
   func chapter(containing number: Int, excluding url: URL? = nil, preferLastPart: Bool = false) -> BookhouseChapter? {
     // Prefer the narrowest publication when chapter bundles overlap.
@@ -246,9 +260,9 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
     }
     return nil
   }
-  mutating func merge(_ entries: [ForumEntry], checkedAt: Date) {
+  mutating func merge(_ entries: [ForumEntry], checkedAt: Date, searchResults: Bool = false) {
     var collected = Dictionary(chapters.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    for entry in entries where matches(entry) {
+    for entry in entries where searchResults ? matchesCatalogResult(entry) : matches(entry) {
       guard let parsed = BookhouseChapterTitle(entry.title), let url = BookhouseSitePolicy.threadRoot(entry.url) else { continue }
       collected[url.absoluteString] = BookhouseChapter(url: url, title: entry.title, first: parsed.first, last: parsed.last)
     }
@@ -298,7 +312,15 @@ struct BookhouseChapterAnchors {
 
 extension LibraryDocument {
   var readingBooks: [BookhouseFollowedBook] { followedBooks.values.sorted { $0.followedAt > $1.followedAt } }
-  func followedBook(for entry: ForumEntry) -> BookhouseFollowedBook? { readingBooks.first { $0.matches(entry) } }
+  func followedBook(for entry: ForumEntry) -> BookhouseFollowedBook? {
+    readingBooks.first { book in
+      if book.matches(entry) { return true }
+      guard book.matchesCatalogResult(entry), let title = BookhouseChapterTitle(entry.title) else { return false }
+      return book.chapters.contains { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(entry.url) } ||
+        BookhouseChapterTitle.normalized(String(BookhouseChapterTitle.searchTitle(title.book).prefix(7))) ==
+          BookhouseChapterTitle.normalized(book.catalogKeywords)
+    }
+  }
   func followedBook(at url: URL) -> BookhouseFollowedBook? {
     guard let key = BookhouseSitePolicy.threadKey(url) else { return nil }
     return readingBooks.first { book in book.chapters.contains { BookhouseSitePolicy.threadKey($0.url) == key } }

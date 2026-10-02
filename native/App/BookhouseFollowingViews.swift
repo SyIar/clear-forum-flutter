@@ -63,9 +63,6 @@ struct BookhouseFollowingSection: View {
               LibraryRefreshIndicator(phase: library.bookRefreshPhases[book.id], showsChevron: true)
             }.contentShape(Rectangle())
           }.buttonStyle(.plain)
-          if let error = library.bookErrors[book.id] {
-            Text(error).appFont(.caption).foregroundStyle(.secondary)
-          }
         }.modifier(ForumRefreshFeedback(phase: library.bookRefreshPhases[book.id]))
           .contextMenu {
             Button(AppText.text("Cache next five chapters"), forumSymbol: "arrow.down.to.line") { offline.download(book, session: session) }.disabled(offline.busy)
@@ -80,14 +77,7 @@ struct BookhouseFollowingSection: View {
       }
       if let error = offline.error { Text(error).appFont(.caption).foregroundStyle(.secondary) }
     } header: {
-      HStack {
-        Text(AppText.text("My followed books"))
-        Spacer()
-        Button { Task { await library.refreshBooks(session: session, manual: true) } } label: {
-          Image(forumSymbol: "arrow.clockwise", size: 17).frame(width: 32, height: 32)
-        }.buttonStyle(.borderless).disabled(library.document.readingBooks.isEmpty || library.bookRefreshPhases.values.contains(.checking))
-          .accessibilityLabel(AppText.text("Check new chapters"))
-      }
+      Text(AppText.text("My followed books"))
     }
     .task(id: scenePhase) {
       if scenePhase == .active { await library.refreshBooks(session: session) }

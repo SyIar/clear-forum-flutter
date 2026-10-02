@@ -15,13 +15,61 @@ public struct ForumEdgeBlur: View {
   public var body: some View {
     Group {
       if !reduceTransparency, Self.supportsVariableBlur {
-        VariableBlurView(maxBlurRadius: 14,
-          direction: bottom ? .blurredBottomClearTop : .blurredTopClearBottom)
+        FeatheredEdgeBlur(bottom: bottom)
       } else {
         LinearGradient(colors: bottom ? [.clear, .black.opacity(0.55)] : [.black.opacity(0.45), .clear],
                        startPoint: .top, endPoint: .bottom)
       }
     }.allowsHitTesting(false).accessibilityHidden(true)
+  }
+}
+
+// Mask a containing view, not UIVisualEffectView itself, so backdrop sampling
+// remains live. The alpha fade also covers systems that restore a uniform blur.
+private struct FeatheredEdgeBlur: UIViewRepresentable {
+  let bottom: Bool
+  func makeUIView(context: Context) -> EdgeBlurContainer { EdgeBlurContainer(bottom: bottom) }
+  func updateUIView(_ view: EdgeBlurContainer, context: Context) { view.setDirection(bottom: bottom) }
+}
+
+private final class EdgeBlurContainer: UIView {
+  private var bottom: Bool
+  private var blur: VariableBlurUIView
+  private let fade = CAGradientLayer()
+  init(bottom: Bool) {
+    self.bottom = bottom
+    blur = VariableBlurUIView(maxBlurRadius: 14, direction: bottom ? .blurredBottomClearTop : .blurredTopClearBottom)
+    super.init(frame: .zero)
+    isUserInteractionEnabled = false
+    backgroundColor = .clear
+    addSubview(blur)
+    fade.startPoint = CGPoint(x: 0.5, y: 0)
+    fade.endPoint = CGPoint(x: 0.5, y: 1)
+    layer.mask = fade
+    configureFade()
+  }
+  required init?(coder: NSCoder) { return nil }
+  func setDirection(bottom: Bool) {
+    guard self.bottom != bottom else { return }
+    self.bottom = bottom
+    blur.removeFromSuperview()
+    blur = VariableBlurUIView(maxBlurRadius: 14, direction: bottom ? .blurredBottomClearTop : .blurredTopClearBottom)
+    addSubview(blur)
+    configureFade()
+    setNeedsLayout()
+  }
+  private func configureFade() {
+    let colors = [UIColor.clear.cgColor, UIColor.black.cgColor, UIColor.black.cgColor]
+    fade.colors = bottom ? colors : Array(colors.reversed())
+    fade.locations = bottom ? [0, 0.8, 1] : [0, 0.2, 1]
+  }
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    blur.frame = bounds
+    fade.frame = bounds
+    CATransaction.commit()
   }
 }
 
