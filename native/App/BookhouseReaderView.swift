@@ -70,7 +70,7 @@ struct BookhouseReaderView: View {
       .forumSheet(isPresented: $selectingChapter) {
         if let book {
           BookhouseChapterPicker(book: book, currentChapter: readingWindow.paragraph(id: visibleID)?.chapter ?? book.position?.chapter ?? book.chapters.first?.first ?? 1,
-            select: { openChapter($0, number: $1) }, library: library, selectCached: openCachedMatch)
+            session: session, select: { openChapter($0, number: $1) }, library: library, selectCached: openCachedMatch)
         }
       }
       .forumSheet(isPresented: $showingSettings) { ReadingSettingsView() }
@@ -78,14 +78,14 @@ struct BookhouseReaderView: View {
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
       .task { if page == nil { pendingCachedMatch = initialCachedMatch; await load(initialURL) } }
-      .onAppear { readerVisible = true; prefetchNextChapter() }
+      .onAppear { readerVisible = true; if let book { offline.resume(book, session: session) }; prefetchNextChapter() }
       .onDisappear {
         readerVisible = false
         savePosition(); progressSave?.cancel(); operation?.cancel(); cancelAdjacent(); bottomPanel = nil
       }
       .onChange(of: scenePhase) { _, phase in
         if phase != .active { savePosition(); chapterPrefetch.cancel() }
-        else { prefetchNextChapter() }
+        else { if let book { offline.resume(book, session: session) }; prefetchNextChapter() }
       }
       .onChange(of: session.generation) { _, _ in chapterPrefetch.cancel() }
       .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in

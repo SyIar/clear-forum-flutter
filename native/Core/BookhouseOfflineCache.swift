@@ -50,28 +50,36 @@ final class BookhouseOfflineCache {
     entries[index].accessed = Date(); try save()
     return value
   }
-  func store(_ page: ForumPage, book: BookhouseFollowedBook) throws {
+  func store(_ page: ForumPage, book: BookhouseFollowedBook, preservingBookID: String? = nil) throws {
     guard page.kind == .posts, book.accepts(page) else { throw ReaderFailure.unsupported }
     let data = try JSONEncoder().encode(page)
-    guard data.count <= limit else { throw ReaderFailure.storage }
+    guard data.count <= limit else { throw BookhouseOfflineFailure.capacity }
     let record = Entry(id: UUID(), bookID: book.id, url: page.url, bytes: data.count, accessed: Date())
     try data.write(to: file(record.id), options: .atomic)
     let old = entries
     entries.removeAll { $0.bookID == book.id && BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(page.url) }
     entries.append(record)
-    do { try trim() } catch { entries = old; try? FileManager.default.removeItem(at: file(record.id)); throw error }
+    do { try trim(preservingBookID: preservingBookID) } catch { entries = old; try? FileManager.default.removeItem(at: file(record.id)); throw error }
     for removed in old where !entries.contains(where: { $0.id == removed.id }) { try? FileManager.default.removeItem(at: file(removed.id)) }
   }
-  func setLimit(_ bytes: Int) throws { limit = max(1, bytes); try trim() }
+  func setLimit(_ bytes: Int, preservingBookID: String? = nil) throws {
+    let previous = limit; limit = max(1, bytes)
+    do { try trim(preservingBookID: preservingBookID) } catch { limit = previous; throw error }
+  }
   func clear() throws {
     let old = entries; entries = []
     do { try save() } catch { entries = old; throw error }
     for entry in old { try? FileManager.default.removeItem(at: file(entry.id)) }
   }
-  private func trim() throws {
+  private func trim(preservingBookID: String? = nil) throws {
     let old = entries
     entries.sort { $0.accessed < $1.accessed }
-    while bytes > limit || entries.count > 2000 { entries.removeFirst() }
+    while bytes > limit || entries.count > 2000 {
+      guard let index = entries.firstIndex(where: { $0.bookID != preservingBookID }) else {
+        entries = old; throw BookhouseOfflineFailure.capacity
+      }
+      entries.remove(at: index)
+    }
     do { try save() } catch { entries = old; throw error }
     for removed in old where !entries.contains(where: { $0.id == removed.id }) { try? FileManager.default.removeItem(at: file(removed.id)) }
   }

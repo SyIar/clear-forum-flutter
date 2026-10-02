@@ -487,6 +487,9 @@
 "Update status and filters" = "\U66F4\U65B0\U72B6\U6001\U4E0E\U7B5B\U9009";
 "No update checks yet" = "\U5C1A\U672A\U68C0\U67E5\U66F4\U65B0";
 "Jump to chapter" = "\U8DF3\U8F6C\U7AE0\U8282";
+"Cache all chapters" = "\U7F13\U5B58\U5168\U90E8\U7AE0\U8282";
+"Caching %@/%@" = "\U7F13\U5B58 %@/%@";
+"The offline cache is full. Increase its limit in reading settings, then resume caching." = "\U7F13\U5B58\U7A7A\U95F4\U5DF2\U6EE1\UFF0C\U8BF7\U5728\U9605\U8BFB\U8BBE\U7F6E\U4E2D\U63D0\U9AD8\U5BB9\U91CF\U4E0A\U9650\UFF0C\U518D\U7EE7\U7EED\U7F13\U5B58\U3002";
 "Chapter %@ of %@" = "\U7B2C %@ \U7AE0 / \U5171 %@ \U7AE0";
 "Could not cache this chapter. Reading can continue." = "\U6B64\U7AE0\U8282\U6682\U672A\U7F13\U5B58\UFF0C\U4E0D\U5F71\U54CD\U7EE7\U7EED\U9605\U8BFB\U3002";
 "Search the cached text of all followed books. Chapters you read are cached automatically." = "\U641C\U7D22\U6240\U6709\U8FFD\U8BFB\U4E66\U7C4D\U7684\U5DF2\U7F13\U5B58\U6B63\U6587\U3002\U8BFB\U8FC7\U7684\U7AE0\U8282\U4F1A\U81EA\U52A8\U7F13\U5B58\U3002";

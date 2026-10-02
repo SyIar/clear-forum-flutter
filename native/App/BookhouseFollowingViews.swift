@@ -89,6 +89,7 @@ struct BookhouseFollowingSection: View {
 struct BookhouseChapterPicker: View {
   let book: BookhouseFollowedBook
   let currentChapter: Int
+  let session: ForumSession
   let select: (BookhouseChapter, Int) -> Void
   @ObservedObject var library: LibraryStore
   let selectCached: (BookhouseOfflineMatch) -> Void
@@ -122,6 +123,9 @@ struct BookhouseChapterPicker: View {
               .accessibilityValue(AppText.format("Chapter %@ of %@", String(selectedChapter), String(totalChapters)))
           }.padding(.vertical, 6)
           if let error { Text(error).appFont(.caption).foregroundStyle(.secondary) }
+          if offline.failedBooks.contains(book.id), let message = offline.error {
+            Text(message).appFont(.caption).foregroundStyle(.secondary)
+          }
         }
         Section {
           ForEach(book.chapters) { chapter in
@@ -146,7 +150,14 @@ struct BookhouseChapterPicker: View {
               .accessibilityLabel(AppText.text("Search cached text"))
           }
           ToolbarItem(placement: .topBarTrailing) {
-            Button { dismiss() } label: { ForumToolbarIcon("xmark") }.accessibilityLabel(AppText.text("Close"))
+            Button { offline.downloadAll(book, session: session) } label: {
+              HStack(spacing: 6) {
+                if offline.caching(book.id), let plan = offline.plan(for: book.id) {
+                  ProgressView().controlSize(.mini)
+                  Text(AppText.format("Caching %@/%@", String(plan.completed), String(plan.targets.count)))
+                } else { Text(AppText.text("Cache all chapters")) }
+              }.appFont(.caption).monospacedDigit()
+            }.buttonStyle(.borderless).disabled(offline.caching(book.id) || book.chapters.isEmpty)
           }
         }
     }.onAppear { selectedChapter = min(totalChapters, max(1, currentChapter)) }

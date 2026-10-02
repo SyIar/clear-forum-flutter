@@ -35,7 +35,7 @@ struct ForumLiteApp: App {
         }
         .forumSheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
         .onChange(of: scenePhase, initial: true) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.cancel() }
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.pause() }
           else if value == .active { downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded() }
         }
     }
