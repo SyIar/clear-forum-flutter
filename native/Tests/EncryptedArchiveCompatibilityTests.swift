@@ -47,7 +47,10 @@ final class EncryptedArchiveCompatibilityTests: XCTestCase {
       var data = fixture
       if damaged {
         let directory = try XCTUnwrap(data.range(of: Data([0x50, 0x4b, 0x01, 0x02])))
-        data[directory.lowerBound - 1] ^= 1
+        // This fixture also uses data descriptors. Change the AES trailer,
+        // not the redundant size stored after the encrypted payload.
+        let descriptor = try XCTUnwrap(data.range(of: Data([0x50, 0x4b, 0x07, 0x08]), options: .backwards, in: 0..<directory.lowerBound))
+        data[descriptor.lowerBound - 1] ^= 1
       }
       try data.write(to: root.appendingPathComponent("Sample.zip"))
       let catalog = LocalFileCatalog(root: root)
