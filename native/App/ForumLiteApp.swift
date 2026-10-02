@@ -511,7 +511,8 @@ struct HomeView: View {
       }
       Button { path.append(.reader(entry.url)) } label: {
         HStack(spacing: 10) {
-          if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
+          if session.site == .bookhouse { Image(forumSymbol: "book").foregroundStyle(.blue) }
+          else if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
           else { Image(forumSymbol: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 8) {
