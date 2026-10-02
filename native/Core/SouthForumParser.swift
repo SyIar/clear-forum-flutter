@@ -44,6 +44,7 @@ struct SouthForumParser {
     let thread = SouthSitePolicy.isThread(url)
     let topicAuthorID = SouthSitePolicy.topicAuthorID(url)
     var posts: [ForumPost] = []
+    var originalPosterID: String?
     if thread {
       var seen = Set<String>()
       for body in bodies {
@@ -55,11 +56,15 @@ struct SouthForumParser {
         let identity = postAuthor(container, page: url)
         let date = postDate(container)
         let floor = floorNumber(container, body: body)
-        let blocks = try SouthBodyParser().parseBody(postContent(body), page: url)
+        let filter = authorFilter(container, page: url, authorID: identity.id)
+        if floor == 0 || filter?.isOriginalPoster == true {
+          originalPosterID = originalPosterID ?? identity.id
+        }
+        let blocks = try postContents(body).flatMap { try SouthBodyParser().parseBody($0, page: url) }
         guard !blocks.isEmpty else { continue }
         posts.append(ForumPost(id: id, author: identity.name.isEmpty ? AppText.text("Member") : identity.name, date: date,
                               number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar, avatarOriginal: identity.original,
-                              authorFilterURL: authorFilter(container, page: url, authorID: identity.id)))
+                              authorFilterURL: filter?.url))
       }
       guard !posts.isEmpty else { throw ReaderFailure.unsupported }
     }
@@ -124,7 +129,7 @@ struct SouthForumParser {
     return ForumPage(url: url, title: title.isEmpty ? AppText.text("Forum") : title, kind: kind, entries: entries, posts: posts,
                      previous: previous, next: next, pageNumber: number, loggedIn: loggedIn,
                      lastPage: last, maximumPostNumber: maximum, breadcrumbs: breadcrumbs,
-                     tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url))
+                     tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url), originalPosterID: originalPosterID)
   }
 
   // Do not borrow a last-reply timestamp for the thread's creation time.
@@ -219,6 +224,27 @@ struct SouthForumParser {
     guard identified.count == 1, identified.first === body else { return body }
     return wrapper
   }
+  private func postContents(_ body: Element) -> [Element] {
+    let content = postContent(body)
+    // A PHPWind post spans two table rows. The second content region can hold
+    // file attachments even while read_<id> contains a purchase gate or is empty.
+    let owner = body.parents().first { $0.hasClass("js-post") } ??
+      body.parents().first { $0.tagName() == "table" || $0.tagName() == "article" || $0.hasClass("read_t") }
+    guard let owner else { return [content] }
+    let bodies = links(owner, "[id^=read_]").filter { match($0.id(), #"^read_(tpc|[0-9]+)$"#) != nil }
+    guard bodies.count == 1, bodies.first === body else { return [content] }
+    var seen = Set(links(content, "[id^=att_]").map { $0.id() })
+    var result = [content]
+    for attachment in links(owner, ".tpc_content [id^=att_]") {
+      guard match(attachment.id(), #"^att_([0-9]+)$"#) != nil,
+            !attachment.parents().contains(where: {
+              $0 === content || $0.id().hasPrefix("att_") || $0.tagName() == "blockquote" ||
+                $0.hasClass("blockquote") || $0.hasClass("tipad") || $0.hasClass("signature")
+            }), seen.insert(attachment.id()).inserted else { continue }
+      result.append(attachment)
+    }
+    return result
+  }
   private func postAuthor(_ container: Element, page: URL) -> (name: String, id: String?, avatar: URL?, original: URL?) {
     let root = first(container, "th.r_two,td.r_two,.post-author,.author-info") ?? container
     let profiles = links(root, "a[href*=u.php]").filter { profileID($0, page: page) != nil }
@@ -246,14 +272,16 @@ struct SouthForumParser {
     }
     return match(url.query ?? "", #"(?:^|-)uid-([0-9]+)(?:-|\.html$)"#)
   }
-  private func authorFilter(_ container: Element, page: URL, authorID: String?) -> URL? {
+  private func authorFilter(_ container: Element, page: URL, authorID: String?) -> (url: URL, isOriginalPoster: Bool)? {
     for anchor in links(container, ".tiptop a[href]") {
       // Quotes and body markup cannot supply a post-header action.
       guard !anchor.parents().contains(where: { $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") || $0.tagName() == "blockquote" }),
             let link = target(anchor, page: page), let uid = SouthSitePolicy.authorID(link),
             SouthSitePolicy.threadKey(link) == SouthSitePolicy.threadKey(page),
             authorID == nil || uid == authorID else { continue }
-      return SouthSitePolicy.pageURL(link, number: 1)
+      guard let target = SouthSitePolicy.pageURL(link, number: 1) else { continue }
+      let label = text(anchor).replacingOccurrences(of: " ", with: "").uppercased()
+      return (target, label == "\u{53EA}\u{770B}GF")
     }
     return nil
   }

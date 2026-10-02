@@ -16,6 +16,9 @@ struct ReaderView: View {
   @State private var forceNextLoad = false
   @State private var visibleID: String?
   @State private var pendingScrollAnchor: String?
+  @State private var returnPoint: ReadingReturnPoint?
+  @State private var pendingReturnAnchor: String?
+  @State private var unreadAfter: Int?
   @State private var isVisible = false
   @State private var loadedGeneration = -1
   @State private var selectingPage = false
@@ -66,6 +69,8 @@ struct ReaderView: View {
     self.library = library
     self.session = session
     self.home = home
+    let key = SitePolicy.threadKey(initialURL)
+    _unreadAfter = State(initialValue: key.flatMap { library.document.threads[$0]?.displayedReadMaximum(for: session.site) })
   }
   var body: some View {
     ScrollViewReader { proxy in
@@ -107,9 +112,17 @@ struct ReaderView: View {
                 SouthPollCard(poll: poll, busy: loading || purchasing) { openBrowser(page.url) }.id("poll")
               }
               ForEach(visible.posts) { post in
+                if let unreadAfter, post.id == visible.posts.first(where: { (Int($0.number.filter(\.isNumber)) ?? -1) > unreadAfter })?.id {
+                  HStack {
+                    Rectangle().fill(.blue.opacity(0.2)).frame(height: 1)
+                    Text(AppText.text("New since your last visit")).appFont(.caption2).foregroundStyle(.secondary).fixedSize()
+                    Rectangle().fill(.blue.opacity(0.2)).frame(height: 1)
+                  }.padding(.vertical, 6)
+                }
                 PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { imageSheet = ImageViewerPresentation(source: $0) }, purchase: buy,
                          purchasing: purchasing || loading,
                          authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false,
+                         isOriginalPoster: library.document.isOriginalPoster(post, in: page),
                          openAvatar: session.site == .south ? { openAvatar(post) } : nil,
                          selectText: session.site == .south ? { textSelection = PostTextSelection(text: PostTextExport.text(in: post.blocks)) } : nil).id(post.id)
               }
@@ -235,7 +248,8 @@ struct ReaderView: View {
         guard error == nil else { return }
         // A fresh entry starts at its title. Only an explicit fragment or a
         // refresh has a requested anchor; cached visibility must not skip it.
-        let anchor = force ? previousID ?? "top" : current.fragment ?? "top"
+        let anchor = pendingReturnAnchor ?? (force ? previousID ?? "top" : current.fragment ?? "top")
+        if pendingReturnAnchor != nil { pendingReturnAnchor = nil; returnPoint = nil }
         let visible = page.map { library.document.visibleContent(in: $0) }
         if let first = pinnedThreads.first, anchor == "south-pinned-more" || pinnedThreads.contains(where: { $0.id == anchor }) {
           visibleID = first.id; proxy.scrollTo(first.id, anchor: .top)
@@ -259,13 +273,13 @@ struct ReaderView: View {
       .onChange(of: canRecordReading) { _, value in if value { recordVisibleProgress() } }
       .onChange(of: visibleID) { old, value in
         guard !loading, error == nil else { return }
-        if let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
+        if returnPoint == nil, let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
         if let active = readingPages.page(containing: value) {
           if SitePolicy.pageCacheKey(active.url) != SitePolicy.pageCacheKey(current) {
             page = active; url = active.url
-            library.remember(active, session: session, checkMaximum: false)
+            if returnPoint == nil { library.remember(active, session: session, checkMaximum: false) }
           }
-          session.pages.savePosition(value, for: active.url)
+          if returnPoint == nil { session.pages.savePosition(value, for: active.url) }
         }
       }
       .onChange(of: session.generation) { _, generation in
@@ -352,7 +366,7 @@ struct ReaderView: View {
     }
   }
   private func savePosition() {
-    guard loadedGeneration == session.generation, let page else { return }
+    guard returnPoint == nil, loadedGeneration == session.generation, let page else { return }
     readingPages.pages.forEach { session.pages.store($0) }
     session.pages.store(page)
     session.pages.savePosition(visibleID, for: page.url)
@@ -388,6 +402,14 @@ struct ReaderView: View {
       }
       .padding(.bottom, 12)
       .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    } else if let point = returnPoint {
+      ReturnToReadingButton(restoreDisabled: loading || purchasing, restore: {
+        if readingPages.page(containing: point.anchor) != nil || point.anchor == "top" && SitePolicy.pageCacheKey(point.url) == SitePolicy.pageCacheKey(current) {
+          proxy.scrollTo(point.anchor, anchor: .top); returnPoint = nil
+        } else {
+          go(to: point.url, returnAnchor: point.anchor)
+        }
+      }, dismiss: { returnPoint = nil; savePosition() })
     }
   }
   private func setBottomPanel(_ panel: ReaderBottomPanel?) {
@@ -399,8 +421,10 @@ struct ReaderView: View {
     presentation = .browser(target)
   }
   private func reload() { guard !purchasing else { return }; setBottomPanel(nil); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
-  private func go(to target: URL) {
-    guard !purchasing, session.site.accepts(target), SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+  private func go(to target: URL, returnAnchor: String? = nil) {
+    guard !purchasing, session.site.accepts(target), returnAnchor != nil || SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+    pendingReturnAnchor = returnAnchor
+    rememberReturnPoint()
     setBottomPanel(nil)
     savePosition()
     cancelAdjacent()
@@ -417,6 +441,7 @@ struct ReaderView: View {
   private func play(_ block: BodyBlock) {
     guard let url = block.url, MediaPolicy.allowed(url) else { return }
     if HostedFilePolicy.provider(url) != nil { hostedFiles = HostedFilesDestination(url: url); return }
+    VideoOrigins.register(url, title: page?.title ?? AppText.text("Video"), page: page?.url ?? initialURL, thumbnail: block.poster)
     media = .video(url, block.direct, session.site.base)
   }
   private func buy(_ offer: SouthPurchaseOffer) {
@@ -469,7 +494,7 @@ struct ReaderView: View {
     defer { if requestID == expected { loading = false } }
     if !force, let cached = session.pages.value(for: current) {
       page = cached.page; readingPages.reset(cached.page); url = cached.page.url; loadedGeneration = epoch
-      library.remember(cached.page, session: session, checkMaximum: false)
+      if returnPoint == nil { library.remember(cached.page, session: session, checkMaximum: false) }
       startPurchase()
       return cached.visibleID
     }
@@ -478,7 +503,8 @@ struct ReaderView: View {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       posters.cancel()
       loadedGeneration = epoch
-      page = parsed; readingPages.reset(parsed); url = parsed.url; library.remember(parsed, session: session)
+      page = parsed; readingPages.reset(parsed); url = parsed.url
+      if returnPoint == nil { library.remember(parsed, session: session) }
       startPurchase()
     } catch {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
@@ -581,6 +607,7 @@ struct ReaderView: View {
   }
   private func jumpToBoundary(bottom: Bool, proxy: ScrollViewProxy) {
     guard let page else { return }
+    rememberReturnPoint()
     let visible = library.document.visibleContent(in: page)
     let candidates = page.kind == .posts ? visible.posts.map(\.id) : visible.entries.map(\.id)
     let ids = candidates.filter { id in
@@ -589,6 +616,11 @@ struct ReaderView: View {
     let atFirstLoadedPage = readingPages.pages.first.map { SitePolicy.pageCacheKey($0.url) == SitePolicy.pageCacheKey(page.url) } ?? true
     let target = bottom ? ids.last ?? "top" : atFirstLoadedPage ? "top" : ids.first ?? "top"
     proxy.scrollTo(target, anchor: bottom ? .bottom : .top)
+  }
+  private func rememberReturnPoint() {
+    guard returnPoint == nil, let visibleID else { return }
+    savePosition()
+    returnPoint = ReadingReturnPoint(url: readingPages.page(containing: visibleID)?.url ?? current, anchor: visibleID)
   }
   private func cancelAdjacent() {
     scrollTracking.trigger.endDrag()

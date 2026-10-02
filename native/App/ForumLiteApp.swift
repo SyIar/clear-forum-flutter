@@ -4,6 +4,7 @@ import TiebaFeature
 
 @main
 struct ForumLiteApp: App {
+  @UIApplicationDelegateAdaptor(FileBackgroundDelegate.self) private var backgroundDelegate
   init() { ForumDesignSystem.configure(localize: AppText.text) }
   @StateObject private var wallpaper = DailyWallpaperStore()
   @StateObject private var downloads = VideoDownloadManager.shared
@@ -33,9 +34,9 @@ struct ForumLiteApp: App {
           FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)
         }
         .forumSheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
-        .onChange(of: scenePhase) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
-          else if value == .active { downloads.foregrounded() }
+        .onChange(of: scenePhase, initial: true) { _, value in
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.pause() }
+          else if value == .active { downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded() }
         }
     }
   }
@@ -53,13 +54,15 @@ struct ForumLiteApp: App {
                 ForumSearchView { path.append(.reader($0)) }
               case .book(let id):
                 if let book = bookhouseLibrary.document.followedBooks[id] {
-                  BookhouseReaderView(initialURL: book.resumeURL, navigate: { path.append(.reader($0)) },
-                    home: { path = [.home(.bookhouse)] }, search: { path.append(.search(.bookhouse)) }, followedBookID: id)
+                  bookReader(book.resumeURL, id: id)
+                }
+              case .cachedBook(let match):
+                if bookhouseLibrary.document.followedBooks[match.bookID] != nil {
+                  bookReader(match.url, id: match.bookID, match: match)
                 }
               case .reader(let url):
                 if site == .bookhouse {
-                  BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) }, home: { path = [.home(site)] },
-                    search: { path.append(.search(site)) }, followedBookID: bookhouseLibrary.document.followedBook(at: url)?.id)
+                  bookReader(url, id: bookhouseLibrary.document.followedBook(at: url)?.id)
                 } else {
                   ReaderView(initialURL: url, library: library(for: site), session: session(for: site), home: { path = [.home(site)] })
                 }
@@ -78,6 +81,11 @@ struct ForumLiteApp: App {
   private func session(for site: ForumSite) -> ForumSession {
     site == .bookhouse ? bookhouseSession : site == .simp ? simpSession : southSession
   }
+  private func bookReader(_ url: URL, id: String?, match: BookhouseOfflineMatch? = nil) -> some View {
+    BookhouseReaderView(initialURL: url, navigate: { path.append(.reader($0)) },
+      home: { path = [.home(.bookhouse)] }, search: { path.append(.search(.bookhouse)) }, followedBookID: id,
+      initialCachedMatch: match, openCachedBook: { path.append(.cachedBook($0)) })
+  }
 }
 
 enum ForumDestination: Hashable {
@@ -85,11 +93,12 @@ enum ForumDestination: Hashable {
   case search(ForumSite)
   case reader(URL)
   case book(String)
+  case cachedBook(BookhouseOfflineMatch)
   var site: ForumSite {
     switch self {
     case .home(let site), .search(let site): return site
     case .reader(let url): return ForumSite(url: url) ?? .simp
-    case .book: return .bookhouse
+    case .book, .cachedBook: return .bookhouse
     }
   }
 }
@@ -124,6 +133,8 @@ final class LibraryStore: ObservableObject {
   private var authorTokens: [String: UUID] = [:]
   @Published var bookRefreshPhases: [String: ForumRefreshPhase] = [:]
   @Published var bookErrors: [String: String] = [:]
+  @Published var checkProgress = LibraryCheckProgress()
+  @Published var onlyUpdates = false
   var bookTasks: [String: Task<Void, Never>] = [:]
   init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
@@ -144,6 +155,7 @@ final class LibraryStore: ObservableObject {
     change {
       $0.remember(SavedPage(url: page.url, title: page.title))
       $0.capturePresentation(page)
+      $0.recordLatestPage(page)
       if let key = SitePolicy.threadKey(page.url),
          let entry = directoryEntries.first(where: { SitePolicy.threadKey($0.url) == key }) {
         $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : [],
@@ -165,9 +177,13 @@ final class LibraryStore: ObservableObject {
     visitTokens[key] = token
     visitTasks[key] = Task { [weak self] in
       do {
-        let maximum = try await session.maximumPostNumber(from: page)
+        let latest = try await session.latestThreadPage(from: page)
+        guard let maximum = latest.maximumPostNumber else { throw ReaderFailure.unsupported }
         guard let self, !Task.isCancelled, self.visitTokens[key] == token else { return }
-        self.change { $0.threads[key, default: ThreadReadState()].opened(maximum: maximum) }
+        self.change {
+          $0.recordLatestPage(latest)
+          $0.threads[key, default: ThreadReadState()].opened(maximum: maximum)
+        }
         self.threadRefreshPhases[key] = .checked
         self.visitTasks[key] = nil
       } catch {
@@ -184,6 +200,11 @@ final class LibraryStore: ObservableObject {
     change { $0 = next }
   }
   func refresh(session: ForumSession, manual: Bool = true) async {
+    if site == .bookhouse {
+      guard ready else { return }
+      await refreshBooks(session: session, manual: manual)
+      return
+    }
     guard site.supportsThreadUpdates, session.site == site, ready, !refreshing else { return }
     let targets = document.trackedThreads.filter { url in
       guard let key = SitePolicy.threadKey(url) else { return false }
@@ -194,12 +215,14 @@ final class LibraryStore: ObservableObject {
       LibraryRefreshPolicy.isDue(checkedAt: $0.checkedAt, attemptedAt: $0.attemptedAt, manual: manual)
     }
     guard document.hasRefreshTargets else { refreshMessage = nil; return }
-    guard !targets.isEmpty || !authors.isEmpty else { refreshMessage = nil; return }
+    guard !targets.isEmpty || !authors.isEmpty else { refreshMessage = nil; if manual { checkProgress = LibraryCheckProgress(skippedFresh: true) }; return }
     refreshing = true
-    defer { refreshing = false }
+    checkProgress = LibraryCheckProgress(running: true, total: targets.count + authors.count)
+    defer { refreshing = false; checkProgress.running = false; checkProgress.currentTitle = nil; checkProgress.finishedAt = Date() }
     var checked = 0
     var failed = 0
     for (index, url) in targets.enumerated() {
+      defer { checkProgress.completed += 1 }
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       guard let key = SitePolicy.threadKey(url) else { continue }
       if let visit = visitTasks[key] { await visit.value }
@@ -209,6 +232,7 @@ final class LibraryStore: ObservableObject {
       guard LibraryRefreshPolicy.isDue(checkedAt: state?.checkedAt, attemptedAt: state?.attemptedAt, manual: manual) else { continue }
       change { $0.threads[key, default: ThreadReadState()].attemptedAt = Date() }
       threadRefreshPhases[key] = .checking
+      checkProgress.currentTitle = (document.bookmarks + document.recent).first { SitePolicy.threadKey($0.url) == key }?.title
       defer { if threadRefreshPhases[key] == .checking { threadRefreshPhases.removeValue(forKey: key) } }
       let token = visitTokens[key]
       let previousMaximum = document.threads[key]?.latestMaximum ?? document.threads[key]?.seenMaximum
@@ -216,19 +240,25 @@ final class LibraryStore: ObservableObject {
       do {
         let page = try await session.load(url)
         guard !Task.isCancelled else { return }
-        change { $0.capturePresentation(page) }
-        let maximum = try await session.maximumPostNumber(from: page)
+        change { $0.capturePresentation(page); $0.recordLatestPage(page) }
+        let latest = try await session.latestThreadPage(from: page)
+        guard let maximum = latest.maximumPostNumber else { throw ReaderFailure.unsupported }
         guard !Task.isCancelled else { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.
         guard visitTokens[key] == token, visitTasks[key] == nil else { continue }
         let checkedAt = Date()
-        change { $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt) }
+        change {
+          $0.recordLatestPage(latest)
+          $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt)
+        }
         guard document.threads[key]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
         threadRefreshPhases[key] = previousMaximum.map { maximum > $0 } == true ? .updated : .checked
+        if threadRefreshPhases[key] == .updated { checkProgress.updated += 1 }
         checked += 1
       } catch {
         if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         threadRefreshPhases[key] = .failed
+        checkProgress.failed += 1
         if let failure = error as? ReaderFailure, [.login, .verification, .rateLimit].contains(failure) {
           refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
@@ -238,18 +268,21 @@ final class LibraryStore: ObservableObject {
     }
     var authorsChecked = 0
     for author in authors {
+      defer { checkProgress.completed += 1 }
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       refreshMessage = AppText.format("Checking topics by %@...", String(describing: author.name))
+      checkProgress.currentTitle = author.name
       if let failure = await refreshAuthor(author.id, session: session, manual: manual) {
+        checkProgress.failed += 1
         failed += 1
         if [.login, .verification, .rateLimit].contains(failure) {
           refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
         }
-      } else { authorsChecked += 1 }
+      } else { authorsChecked += 1; if authorRefreshPhases[author.id] == .updated { checkProgress.updated += 1 } }
     }
     let summary = authorsChecked == 0 ? AppText.format("Checked %@ threads.", String(describing: checked)) : AppText.format("Checked %@ threads and %@ followed authors.", String(describing: checked), String(describing: authorsChecked))
-    refreshMessage = failed == 0 ? summary : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: failed))
+    refreshMessage = failed == 0 ? nil : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: failed))
   }
   func follow(_ post: ForumPost, session: ForumSession) {
     guard session.site == site, site == .south, let id = post.authorID else { return }
@@ -358,8 +391,8 @@ struct HomeView: View {
   @State private var checkedUpdatesOnLaunch = false
   @State private var showingBlockedAuthors = false
   @State private var browserPresentation: ReaderPresentation?
-  private var visibleBookmarks: [SavedPage] { library.document.bookmarks.filter { !library.document.hidesSavedPage($0) } }
-  private var visibleRecent: [SavedPage] { library.document.recent.filter { !library.document.hidesSavedPage($0) } }
+  private var visibleBookmarks: [SavedPage] { library.document.bookmarks.filter { !library.document.hidesSavedPage($0) && (!library.onlyUpdates || hasUpdates($0)) } }
+  private var visibleRecent: [SavedPage] { library.document.recent.filter { !library.document.hidesSavedPage($0) && (!library.onlyUpdates || hasUpdates($0)) } }
   var body: some View {
       List {
         Section {
@@ -383,7 +416,7 @@ struct HomeView: View {
         Section {
           if visibleBookmarks.isEmpty { Text(AppText.text("No bookmarks")).foregroundStyle(.secondary) }
           ForEach(visibleBookmarks) { entry in
-            savedRow(entry)
+            savedRow(entry, isBookmark: true)
               .swipeActions { Button(AppText.text("Remove"), role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         } header: {
@@ -402,9 +435,6 @@ struct HomeView: View {
         }
         if session.site == .south {
           SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
-        }
-        if let message = library.refreshMessage {
-          Section { Text(message).appFont(.caption).foregroundStyle(.secondary) }
         }
       }
       .navigationTitle(session.site == .bookhouse ? AppText.text("Forbidden Library") : session.site.host)
@@ -428,17 +458,8 @@ struct HomeView: View {
         }
       }
       .safeAreaInset(edge: .bottom, alignment: .trailing) {
-        if session.site.supportsThreadUpdates {
-        Button { Task { await library.refresh(session: session) } } label: {
-          Group {
-            if library.refreshing { ProgressView() }
-            else { Image(forumSymbol: "arrow.clockwise", size: 20).font(.title3.weight(.semibold)) }
-          }.frame(width: 52, height: 52)
-        }.buttonStyle(.glass).buttonBorderShape(.circle)
-          .disabled(library.refreshing || !library.document.hasRefreshTargets)
-          .accessibilityLabel(AppText.text("Refresh thread and author updates"))
+        LibraryUpdateButton(library: library) { Task { await library.refresh(session: session) } }
           .padding(.trailing, 16).padding(.bottom, 8)
-        }
       }
       .modifier(LibraryUpdateRefresh(library: library, session: session))
       .task {
@@ -472,7 +493,14 @@ struct HomeView: View {
           ForumDialogAction(AppText.text("OK"), role: .cancel) { library.error = nil }
         ] }, message: { library.error ?? "" })
   }
-  private func savedRow(_ entry: SavedPage) -> some View {
+  private func hasUpdates(_ entry: SavedPage) -> Bool {
+    if session.site == .bookhouse {
+      return library.document.readingBooks.contains { book in book.updated && book.chapters.contains { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(entry.url) } }
+    }
+    return SitePolicy.threadKey(entry.url).flatMap { library.document.threads[$0]?.updated } == true
+  }
+  private func savedRow(_ entry: SavedPage, isBookmark: Bool = false) -> some View {
+    let destination = isBookmark ? library.document.bookmarkDestination(for: entry) : entry.url
     let key = SitePolicy.threadKey(entry.url)
     let presentation = key.flatMap { library.document.presentations[$0] }
     let state = library.site.supportsThreadUpdates ? key.flatMap { library.document.threads[$0] } : nil
@@ -481,9 +509,13 @@ struct HomeView: View {
       if let tags = presentation?.tags, !tags.isEmpty {
         ForumTagStrip(tags: tags) { path.append(.reader($0)) }
       }
-      Button { path.append(.reader(entry.url)) } label: {
+      Button {
+        let target = isBookmark ? library.document.bookmarkDestination(for: entry) : entry.url
+        path.append(.reader(target))
+      } label: {
         HStack(spacing: 10) {
-          if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
+          if session.site == .bookhouse { Image(forumSymbol: "book").foregroundStyle(.blue) }
+          else if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
           else { Image(forumSymbol: key == nil ? "folder" : "text.bubble").foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 8) {
@@ -494,7 +526,7 @@ struct HomeView: View {
                   .fixedSize()
               }
             }
-            if let subtitle = library.document.subtitle(for: entry), !subtitle.isEmpty {
+            if let subtitle = library.document.subtitle(for: SavedPage(url: destination, title: entry.title)), !subtitle.isEmpty {
               Text(subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             if let state {
@@ -506,7 +538,7 @@ struct HomeView: View {
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
-          LibraryRefreshIndicator(phase: refreshPhase, showsChevron: true)
+          LibraryRefreshIndicator(phase: session.site == .simp ? nil : refreshPhase, showsChevron: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
@@ -519,11 +551,7 @@ private struct LibraryUpdateRefresh: ViewModifier {
   let library: LibraryStore
   let session: ForumSession
   func body(content: Content) -> some View {
-    if session.site.supportsThreadUpdates {
-      content.refreshable { await library.refresh(session: session) }
-    } else {
-      content
-    }
+    content.refreshable { await library.refresh(session: session) }
   }
 }
 

@@ -1,0 +1,11 @@
+# ArchiveSupport
+
+This small Objective-C bridge uses the minizip-ng streaming engine bundled with pinned [ZipArchive 2.6.0](https://github.com/ZipArchive/ZipArchive/tree/2.6.0) (commit `df35718ea19a94e015b91dc4881dee028ce4cdba`). The public high-level SSZipArchive delegate can stop between files, but does not support cancellation inside a large file. The bridge reads 256 KiB chunks so Forum Lite retains byte progress, cancellation, expanded-size limits, path validation, and staged publication.
+
+The package's umbrella header exposes the file-info structures but not its exported minizip C functions. `MinizipCompatibility.h` declares the small subset used here from `mz_compat.h`, `mz_zip.h`, and `mz_strm.h`. The `mz_stream` layout is a public two-pointer structure; no private ZIP handle layout is accessed. Changing the pinned engine version requires checking those signatures and the stream layout. This is not an Apple private API.
+
+The bridge independently checks the decoded length and CRC for plain, ZipCrypto, and AES AE-1 entries. For WinZip AES it explicitly closes and validates the cryptographic stream before the compatibility entry-close destroys it. The upstream compatibility close alone does not propagate AES authentication-trailer verification. The regression test corrupts that trailer while leaving otherwise plausible plaintext intact. AES AE-2 uses this authentication check instead of a CRC, as its CRC may be zero. All entries, including empty encrypted files/directories, are processed.
+
+Supported: ordinary single-volume ZIP/ZIP64, Store/Deflate, traditional ZipCrypto and WinZip AES. Passwords use UTF-8, preserve whitespace, are never logged or persisted, and are supplied only to the running worker. This is not a password recovery tool. Different passwords for different entries in one ZIP are not supported as an interactive per-entry workflow; a failed attempt publishes no output. Non-UTF-8 filenames without the UTF-8 flag fall back to ZIP's CP437 encoding. Symlinks, special files, invalid paths, and incomplete enumeration are rejected by the bridge/extractor.
+
+The app bundles ZipArchive's MIT license and minizip's zlib license. ZIPFoundation remains a test-only dependency for independent plain ZIP/ZIP64 fixtures.

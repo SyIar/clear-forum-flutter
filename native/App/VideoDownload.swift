@@ -15,15 +15,22 @@ final class VideoDownload: ObservableObject, Identifiable {
   let id: UUID
   let source: URL
   let created: Date
+  let origin: VideoOrigin?
+  var displayName: String {
+    if let title = origin?.title, !title.isEmpty { return title }
+    let name = source.lastPathComponent.removingPercentEncoding ?? source.lastPathComponent
+    return ["mp4", "mov", "m4v", "webm"].contains(source.pathExtension.lowercased()) ? name : AppText.text("Video")
+  }
   private(set) var context: VideoDownloadContext?
   private var generation = 0
   private var transfer: MediaFileTransfer?
   private var resolver: TurboResolver?
   private var work: Task<Void, Never>?
   private var resumeData: Data?
-  init(source: URL) { self.source = source; id = UUID(); created = Date() }
+  init(source: URL) { self.source = source; id = UUID(); created = Date(); origin = VideoOrigins.get(source) }
   init(record: VideoDownloadRecord) {
     id = record.id; source = record.source; created = record.created; context = record.context
+    origin = record.origin
     received = record.received; expected = record.expected
     progress = expected > 0 ? min(1, Double(received) / Double(expected)) : nil
     exportFile = VideoDownloadStore.localFile(record.localFilename, id: id)
@@ -47,7 +54,7 @@ final class VideoDownload: ObservableObject, Identifiable {
   var record: VideoDownloadRecord {
     VideoDownloadRecord(id: id, source: source, created: created, phase: phase,
       context: phase == .saved || phase == .cancelled ? nil : context,
-      received: received, expected: expected, localFilename: exportFile?.lastPathComponent)
+      received: received, expected: expected, localFilename: exportFile?.lastPathComponent, origin: origin)
   }
 
   func start(url: URL, cookies: [HTTPCookie], turboID: String?, referer: URL, direct: Bool = false) {
@@ -146,7 +153,7 @@ final class VideoDownload: ObservableObject, Identifiable {
             guard let self, self.generation == epoch else { return }
             if success {
               self.phase = .saved; self.message = AppText.text("Saved to Photos"); self.progress = 1
-              self.removeFile(); self.setResumeData(nil); self.context = nil; self.changed()
+              self.setResumeData(nil); self.context = nil; self.changed()
               UINotificationFeedbackGenerator().notificationOccurred(.success)
             } else { self.fail(AppText.text("Photos could not import this format. Save the downloaded file to Files.")) }
             self.work = nil
@@ -181,6 +188,7 @@ final class VideoDownload: ObservableObject, Identifiable {
   private func removeFile() {
     if let exportFile { VideoDownloadStore.removeFile(exportFile); self.exportFile = nil }
   }
+  func removeExportCopy() { removeFile() }
   func discard() { cancel(); setResumeData(nil); removeFile() }
   private func changed(persist: Bool = true) { VideoDownloadManager.shared.changed(persist: persist) }
 }
