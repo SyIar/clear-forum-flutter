@@ -54,8 +54,16 @@ enum HostedTransfer {
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
+        let attachment = SouthAttachment(url: entry.pageURL)
+        let authorize: (() async -> [HTTPCookie])? = attachment == nil ? nil : { await SouthAttachmentAccess.cookies(for: entry.pageURL) }
         let transfer = GofileFileTransfer(name: entry.name, expectedBytes: entry.size, mime: entry.mime, cookies: [],
-          userAgent: HostedFileClient.userAgent, limit: limit, checkpointID: checkpointID, prepare: { try await client.resolve(entry) },
+          userAgent: attachment == nil ? HostedFileClient.userAgent : SouthAttachmentAccess.session.browserUserAgent,
+          limit: limit, checkpointID: checkpointID, authorize: authorize, prepare: {
+            if let attachment {
+              return HostedFileRequest(url: entry.pageURL, referer: attachment.page, name: entry.name, mime: entry.mime)
+            }
+            return try await client.resolve(entry)
+          },
           activity: activity, progress: progress, completion: { continuation.resume(with: $0) })
         active = transfer; transfer.start(entry.pageURL)
       }

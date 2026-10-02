@@ -30,11 +30,16 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private var task: URLSessionDownloadTask?
   private var redirects = 0
   private let prepare: (() async throws -> HostedFileRequest)?
+  private let authorize: (() async -> [HTTPCookie])?
+  // Authenticated forum requests use foreground sessions so every redirect can
+  // be checked and receive freshly scoped cookies. Resume data is still kept.
+  private var usesBackgroundSession: Bool { checkpointID != nil && authorize == nil }
   private var preparing: Task<Void, Never>?
   private var hosted: HostedFileRequest?
   private var fileSize: Int64? { hosted?.size ?? expectedBytes }
   init(name: String, expectedBytes: Int64?, mime: String, cookies: [HTTPCookie], userAgent: String,
-       limit: Int64 = GofilePolicy.fileLimit, checkpointID: UUID? = nil, prepare: (() async throws -> HostedFileRequest)? = nil,
+       limit: Int64 = GofilePolicy.fileLimit, checkpointID: UUID? = nil,
+       authorize: (() async -> [HTTPCookie])? = nil, prepare: (() async throws -> HostedFileRequest)? = nil,
        activity: @escaping (FileTransferActivity) -> Void = { _ in },
        progress: @escaping (Double?) -> Void,
        completion: @escaping (Result<URL, Error>) -> Void) {
@@ -42,6 +47,7 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     self.cookies = cookies; self.userAgent = userAgent; self.limit = limit
     self.progress = progress; self.completion = completion
     self.prepare = prepare
+    self.authorize = authorize
     self.activity = activity
     self.checkpointID = checkpointID
   }
@@ -70,9 +76,10 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   }
   private func prepareAndBegin(_ url: URL) {
     if let checkpointID, let saved = try? FileDownloadStore.load(FileTransferCheckpoint.self, name: checkpointID.uuidString),
-       saved.hosted?.accepts(saved.url) ?? GofilePolicy.fileURL(saved.url) {
+       saved.hosted?.accepts(saved.url) ?? GofilePolicy.fileURL(saved.url),
+       authorize == nil || saved.hosted?.url == url {
       checkpoint = saved; hosted = saved.hosted; cookies = saved.cookies.compactMap(\.cookie); userAgent = saved.userAgent
-      begin(saved.url); return
+      if authorize == nil { begin(saved.url); return }
     }
     guard let prepare else { begin(url); return }
     activity(.resolving)
@@ -80,6 +87,16 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       guard let self else { return }
       do {
         let resolved = try await prepare()
+        if let authorize {
+          let fresh = await authorize()
+          // Opaque resume data embeds request headers. Never reuse it after
+          // logout/account changes; start this attachment with the new login.
+          if HTTPCookie.requestHeaderFields(with: fresh) != HTTPCookie.requestHeaderFields(with: self.cookies) {
+            self.checkpoint?.data = nil
+          }
+          self.cookies = fresh
+          self.checkpoint?.cookies = fresh.map(VideoDownloadCookie.init)
+        }
         try Task.checkCancellation()
         guard self.completion != nil else { return }
         self.hosted = resolved
@@ -98,16 +115,18 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       fail(AppText.text("There is not enough free space for this file.")); return
     }
     let configuration: URLSessionConfiguration
-    if let checkpointID {
+    if let checkpointID, usesBackgroundSession {
       configuration = .background(withIdentifier: FileBackgroundEvents.identifier(checkpointID))
       configuration.sessionSendsLaunchEvents = true; configuration.isDiscretionary = false
+    } else { configuration = .ephemeral }
+    if let checkpointID {
       if checkpoint == nil { checkpoint = FileTransferCheckpoint(url: url, hosted: hosted, cookies: cookies.map(VideoDownloadCookie.init), userAgent: userAgent) }
       do { try FileDownloadStore.save(checkpoint, name: checkpointID.uuidString) }
       catch { finish(.failure(error)); return }
-    } else { configuration = .ephemeral }
+    }
     // Background redirects are handled by the system. Let its cookie jar apply
     // domain/path rules instead of forwarding a hand-built Cookie header.
-    let systemCookies = checkpointID != nil && hosted == nil
+    let systemCookies = usesBackgroundSession && hosted == nil
     configuration.httpCookieStorage = systemCookies ? HTTPCookieStorage.shared : nil
     configuration.httpShouldSetCookies = systemCookies
     if systemCookies {
@@ -130,8 +149,11 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   }
   private func request(_ url: URL) -> URLRequest {
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-    request.httpShouldHandleCookies = checkpointID != nil && hosted == nil
-    for (key, value) in HTTPCookie.requestHeaderFields(with: hosted == nil && checkpointID == nil ? cookies.filter { MediaPolicy.cookieMatches($0, url) } : []) {
+    request.httpShouldHandleCookies = usesBackgroundSession && hosted == nil
+    let scoped: [HTTPCookie]
+    if authorize != nil { scoped = cookies.filter { SouthSitePolicy.matches($0, url: url) } }
+    else { scoped = hosted == nil && checkpointID == nil ? cookies.filter { MediaPolicy.cookieMatches($0, url) } : [] }
+    for (key, value) in HTTPCookie.requestHeaderFields(with: scoped) {
       request.setValue(value, forHTTPHeaderField: key)
     }
     request.setValue(userAgent, forHTTPHeaderField: "User-Agent")

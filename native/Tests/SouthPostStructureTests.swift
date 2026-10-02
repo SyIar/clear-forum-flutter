@@ -169,4 +169,81 @@ final class SouthPostStructureTests: XCTestCase {
     XCTAssertEqual(text.components(separatedBy: label).count - 1, 2)
     XCTAssertTrue(text.contains("Download file"))
   }
+
+  private func fileAttachment(_ id: Int, postID: String = "9001", query: Bool = false) -> String {
+    let address = query ? "job.php?action=download&amp;pid=\(postID)&amp;tid=20&amp;aid=\(id)" :
+      "job.php?action-download-pid-\(postID)-tid-20-aid-\(id).html"
+    return """
+      <div style="margin:5px 0" class="f12" id="att_\(id)">
+        \u{9644}\u{4ef6}\u{ff1a} <img src="images/colorImagination/file/zip.gif" align="absmiddle">
+        <a id="fg_\(id)" href="\(address)" target="_blank"><font color="red">Collection-\(id).zip</font></a>
+        (1762 K) \u{4e0b}\u{8f7d}\u{6b21}\u{6570}:320
+      </div>
+      """
+  }
+  private func footer(_ html: String, index: Int = 1, content: String? = nil) -> String {
+    let key = index == 0 ? "tpc" : String(9000 + index)
+    return post(index, content: content).replacingOccurrences(of: "<div id=\"w_\(key)\" class=\"c\"></div>",
+      with: html + "<div id='w_\(key)' class='c'></div>")
+  }
+  func testSecondRowFileAttachmentBelongsToOriginalPost() throws {
+    let result = try parse(post(0) + footer(fileAttachment(81)) + post(2))
+    XCTAssertEqual(result.posts.count, 3)
+    let value = result.posts[1]
+    XCTAssertEqual(value.id, "post_9001")
+    XCTAssertEqual(value.number, "#1")
+    XCTAssertEqual(value.authorID, "101")
+    XCTAssertEqual(value.blocks.map(\.kind), [.paragraph, .link, .paragraph])
+    XCTAssertEqual(value.blocks[1].label, "Collection-81.zip")
+    XCTAssertEqual(value.blocks[1].url?.absoluteString, "https://south-plus.net/job.php?action-download-pid-9001-tid-20-aid-81.html")
+    XCTAssertEqual(value.blocks[2].runs.map(\.text).joined(), "(1762 K) \u{4e0b}\u{8f7d}\u{6b21}\u{6570}:320")
+    XCTAssertEqual(result.posts[0].blocks.count, 1)
+    XCTAssertEqual(result.posts[2].blocks.count, 1)
+    XCTAssertFalse(PostTextExport.text(in: value.blocks).contains("signature"))
+  }
+  func testAttachmentOnlySecondRowDoesNotBecomeAnEmptyCard() throws {
+    let value = try XCTUnwrap(parse(footer(fileAttachment(81), content: "")).posts.first)
+    XCTAssertEqual(value.number, "#1")
+    XCTAssertEqual(value.blocks.map(\.kind), [.link, .paragraph])
+  }
+  func testPurchaseGateAndSecondRowFileBothRemainPresent() throws {
+    let gate = """
+      <h6 class="quote jumbotron"><span class="s3">\u{6b64}\u{5e16}\u{552e}\u{4ef7} 0 SP\u{5e01}</span>
+      <input type="button" onclick="location.href='job.php?action=buytopic&amp;tid=20&amp;pid=9001&amp;verify=synthetic'"></h6>
+      """
+    let result = try parse(footer(fileAttachment(81), content: gate))
+    XCTAssertEqual(result.purchaseOffers.count, 1)
+    XCTAssertEqual(result.posts.first?.blocks.map(\.kind), [.purchase, .link, .paragraph])
+    XCTAssertEqual(result.posts.first?.blocks[1].url?.path, "/job.php")
+  }
+  func testFileAttachmentsInsideBodyAndFooterKeepOrderWithoutDuplicates() throws {
+    let html = footer(fileAttachment(81) + fileAttachment(82, query: true), content: fileAttachment(81))
+    let blocks = try XCTUnwrap(parse(html).posts.first).blocks
+    XCTAssertEqual(blocks.filter { $0.kind == .link }.map(\.label), ["Collection-81.zip", "Collection-82.zip"])
+    XCTAssertEqual(blocks.filter { $0.kind == .link }.last?.url?.query, "action=download&pid=9001&tid=20&aid=82")
+    XCTAssertFalse(blocks.contains { $0.kind == .image })
+  }
+  func testFooterImageStillWorksWithoutCapturingSignatureOrQuotedAttachments() throws {
+    let html = footer("<div id='att_81'><img src='/attachment/sample.jpeg'></div>" +
+      "<blockquote>\(fileAttachment(82))</blockquote><div class='signature'>\(fileAttachment(83))</div>")
+    let blocks = try XCTUnwrap(parse(html).posts.first).blocks
+    XCTAssertEqual(blocks.map(\.kind), [.paragraph, .image])
+    XCTAssertEqual(blocks.last?.url?.path, "/attachment/sample.jpeg")
+  }
+  func testSharedTableCannotAssignFooterAttachmentsToMultipleBodies() throws {
+    let html = """
+      <table class="js-post"><tr><td><div class="tpc_content"><div id="read_9001">First</div>
+      <div id="read_9002">Second</div></div></td></tr><tr><td><div class="tpc_content">
+      \(fileAttachment(81))</div></td></tr></table>
+      """
+    let result = try parse(html)
+    XCTAssertEqual(result.posts.count, 2)
+    XCTAssertEqual(result.posts.map { $0.blocks.flatMap(\.runs).map(\.text).joined() }, ["First", "Second"])
+  }
+  func testFileDecorationRuleDoesNotConsumeUnrelatedLinks() throws {
+    let html = fileAttachment(81).replacingOccurrences(of: "action-download-", with: "action-other-")
+    let blocks = try XCTUnwrap(parse(post(1, content: html)).posts.first).blocks
+    XCTAssertTrue(blocks.contains { $0.kind == .image })
+    XCTAssertTrue(blocks.flatMap(\.runs).contains { $0.url?.query?.contains("action-other-") == true })
+  }
 }

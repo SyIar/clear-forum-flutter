@@ -270,7 +270,11 @@ struct RichBodyView: View {
         }
       }
     case .link:
-      if let url = block.url { CompactLink(url: url, label: block.label, navigate: navigate) }
+      if let url = block.url {
+        if session.site == .south, SouthAttachment(url: url) != nil {
+          SouthAttachmentDownload(url: url, name: block.label)
+        } else { CompactLink(url: url, label: block.label, navigate: navigate) }
+      }
     case .media:
       MediaRow(block: block, posters: posters, play: play)
     case .quote:

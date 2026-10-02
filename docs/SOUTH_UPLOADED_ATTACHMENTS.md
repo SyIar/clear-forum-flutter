@@ -59,3 +59,35 @@ The three uploaded images in the supplied HTML were independently checked on the
 local machine to be outside `read_*` and inside attachment/content wrappers.
 Device acceptance: refresh the affected thread and confirm all three attachment
 images display; use the image-count diagnostics if any request still fails.
+
+## Second-row files and download management (2026-10-02)
+
+PHPWind can put `att_<aid>` in a second `.tpc_content` table row while the first
+row's `read_<pid>` contains only a purchase gate. Collect these attachment blocks
+from the same single-post table, excluding signatures, quotes and action bars.
+Deduplicate attachment IDs and keep the original floor and author. The small
+`zip.gif` is decoration; show the actual filename plus the site's size/count.
+
+Attachment cards enqueue into the existing serial file-download manager. Closing
+the reader leaves the task running, and completed files are installed in Documents
+under File Downloads. Clicking a saved filename previews it; the action supports
+export. Both PHPWind URL forms identify the same queued item.
+
+The attachment transfer uses South's isolated persistent WebKit profile and its
+desktop browser identity. Only the explicit `job.php` download action is accepted.
+Redirects stay on South's attachment endpoints, with cookies filtered again for
+each destination. Login/purchase/error pages are rejected as files, with a route
+back to the source thread in South's session-aware site browser. No purchase or
+permission bypass is performed by the downloader.
+
+These authenticated transfers use a foreground URLSession to validate every
+redirect. Leaving a page or switching modules does not stop them; backgrounding
+the app pauses them and foregrounding resumes them. Queues and supported resume
+data persist across relaunches. A changed login discards old resume headers and
+restarts the file. Other file hosts retain their existing background sessions.
+
+Synthetic tests cover second-row ownership, empty bodies, purchase gates,
+duplicate files, metadata, URL identity, redirect/cookie isolation, queue
+serialization, and HTML response rejection. The supplied raw HTML and account
+tokens are not stored in the repository. Actual attachment downloading and
+background/foreground recovery still require an on-device check.

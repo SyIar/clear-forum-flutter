@@ -41,6 +41,7 @@ struct HostedFileRequest: Codable {
   var size: Int64?
   var mime = ""
   func accepts(_ target: URL) -> Bool {
+    if let attachment = SouthAttachment(url: url) { return attachment.accepts(target) }
     guard HostedFilePolicy.publicHTTPS(target),
           !["maint.mp4", "maintenance-vid.mp4"].contains(target.lastPathComponent.lowercased()) else { return false }
     if target.host?.lowercased() == url.host?.lowercased() { return true }
@@ -115,6 +116,7 @@ enum HostedFilePolicy {
     return nil
   }
   static func key(_ url: URL) -> String {
+    if let attachment = SouthAttachment(url: url) { return attachment.key }
     guard let provider = provider(url) else { return url.absoluteString }
     if provider == .fileditch { return provider.rawValue + ":" + url.path }
     return provider.rawValue + ":" + url.path.split(separator: "/").joined(separator: "/")

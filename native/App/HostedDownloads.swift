@@ -59,13 +59,13 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   private var resumeOnForeground = false
   func backgrounded() {
     guard running else { return }
-    if activity != .downloading && activity != .saving { pause() }
+    if SouthAttachment(url: listing.url) != nil || (activity != .downloading && activity != .saving) { pause() }
     resumeOnForeground = true
     persist?()
   }
   func foregrounded() { if resumeOnForeground && canResume { resumeOnForeground = false; resume() } }
   func reserveRecovery() {
-    if resumeOnForeground, activity == .downloading || activity == .saving, let transferID {
+    if SouthAttachment(url: listing.url) == nil, resumeOnForeground, activity == .downloading || activity == .saving, let transferID {
       GofileFileTransfer.reserveRecovery(transferID)
     }
   }
@@ -75,7 +75,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   func isCurrent(_ entry: HostedFileEntry) -> Bool { plan?.pending.first?.entry.id == entry.id }
   let listing: HostedFileListing
   var sourceKey: String { HostedFilePolicy.key(listing.url) }
-  var provider: String { HostedFilePolicy.provider(listing.url)?.title ?? AppText.text("Files") }
+  var provider: String { SouthAttachment(url: listing.url) != nil ? "South" : HostedFilePolicy.provider(listing.url)?.title ?? AppText.text("Files") }
   @Published private(set) var phase = Phase.idle
   @Published private(set) var current = ""
   @Published private(set) var progress: Double?
@@ -111,7 +111,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   }
   init(listing: HostedFileListing) { id = UUID(); created = Date(); self.listing = listing }
   init(record: HostedBatchRecord) throws {
-    guard HostedFilePolicy.provider(record.listing.url) != nil,
+    guard HostedFilePolicy.provider(record.listing.url) != nil || SouthAttachment(url: record.listing.url) != nil,
           record.plan?.pending.allSatisfy({ DownloadQueuePolicy.safePath($0.path) }) != false else { throw ReaderFailure.storage }
     id = record.id; created = record.created; listing = record.listing; plan = record.plan
     phase = [.finished, .cancelled].contains(record.phase) ? record.phase : .paused
@@ -189,7 +189,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
           let listing = try await client.listing(item.entry.pageURL, expandAlbum: false)
           try Task.checkCancellation()
           try plan?.expand(listing)
-        } else if TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
+        } else if SouthAttachment(url: item.entry.pageURL) == nil, TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
           skipped.append(Skipped(name: current, reason: AppText.text("Use Copy magnet in the file list."))); plan?.advance()
         } else {
           let file = try await HostedTransfer.run(item.entry, client: client, checkpointID: item.id, activity: { [weak self] value in
@@ -246,6 +246,7 @@ struct HostedBatchView: View {
   @State private var export: GofileLocalFile?
   @State private var preview: GofileLocalFile?
   @State private var website: URL?
+  @State private var southBrowser: ReaderPresentation?
   var body: some View {
     List {
       Section {
@@ -269,7 +270,14 @@ struct HostedBatchView: View {
             Button(AppText.text("Skip this item"), forumSymbol: "forward.end", action: batch.skip).disabled(batch.pending == 0)
           }
         }
-        if batch.issue != nil { Button(AppText.text("Open website"), forumSymbol: "safari") { website = batch.listing.url } }
+        if batch.issue != nil {
+          Button(AppText.text("Open website"), forumSymbol: "safari") {
+            if let attachment = SouthAttachment(url: batch.listing.url) {
+              SouthAttachmentAccess.session.beginBrowsing()
+              southBrowser = .browser(attachment.page)
+            } else { website = batch.listing.url }
+          }
+        }
       }
       if let directory = batch.directory {
         Section {
@@ -307,6 +315,9 @@ struct HostedBatchView: View {
     }.navigationTitle(AppText.text("Downloads")).navigationBarTitleDisplayMode(.inline).toolbarRole(.editor)
       .sheet(item: $export) { GofileExport(file: $0.url) }
       .navigationDestination(item: $preview) { LocalFilePreview(file: $0.url) }
+      .sheet(item: $southBrowser, onDismiss: { SouthAttachmentAccess.session.endBrowsing() }) { presentation in
+        ReaderController(presentation: presentation, session: SouthAttachmentAccess.session) { _ in southBrowser = nil }
+      }
       .background { ExternalBrowserPresenter(url: $website, useFileBrowser: false).frame(width: 0, height: 0) }
   }
 }

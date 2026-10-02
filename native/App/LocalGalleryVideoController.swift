@@ -32,6 +32,7 @@ final class LocalGalleryVideoController: UIViewController {
   private var position: Double
   private var duration: Double = 0
   private var seekToken = UUID()
+  private var scrub = VideoScrubState()
   var savePosition: ((Double) -> Void)?
   var toggleChrome: (() -> Void)?
   var scrubbingChanged: ((Bool) -> Void)?
@@ -80,6 +81,7 @@ final class LocalGalleryVideoController: UIViewController {
       Task { @MainActor [weak self] in
         guard let self else { return }
         self.seekToken = UUID(); self.resumeAfterSeek = false; self.scrubbing = false
+        self.scrub.cancel(); self.player.currentItem?.cancelPendingSeeks()
         self.scrubbingChanged?(false); self.player.pause()
       }
     }
@@ -169,6 +171,7 @@ final class LocalGalleryVideoController: UIViewController {
   }
   @objc private func togglePlayback() {
     seekToken = UUID(); scrubbing = false; scrubbingChanged?(false)
+    scrub.cancel(); player.currentItem?.cancelPendingSeeks()
     if player.timeControlStatus != .paused { player.pause() }
     else if duration > 0, player.currentTime().seconds >= duration - 0.2 {
       player.seek(to: .zero); player.play()
@@ -176,38 +179,55 @@ final class LocalGalleryVideoController: UIViewController {
   }
   @objc private func toggleFullscreen() { toggleChrome?() }
   @objc private func beginSeek() {
+    guard active, prepared, duration > 0 else { return }
+    if !scrubbing { resumeAfterSeek = player.timeControlStatus != .paused }
     seekToken = UUID()
+    player.currentItem?.cancelPendingSeeks(); scrub.begin()
     scrubbing = true; scrubbingChanged?(true)
-    resumeAfterSeek = player.timeControlStatus != .paused; player.pause()
+    player.pause()
   }
   @objc private func changeSeek() {
     time.text = "\(clock(Double(slider.value) * duration)) / \(clock(duration))"
     slider.accessibilityValue = time.text
     // VoiceOver changes the slider without a touch-down sequence.
-    if !slider.isTracking && !scrubbing { finishSeek(resume: player.timeControlStatus != .paused) }
+    if !slider.isTracking && !scrubbing {
+      beginSeek(); endSeek()
+    } else if let request = scrub.update(seekTarget) { seekFrame(request) }
   }
-  @objc private func endSeek() { scrubbingChanged?(false); finishSeek(resume: resumeAfterSeek) }
-  private func finishSeek(resume: Bool) {
-    guard active, duration > 0 else { scrubbing = false; return }
-    let token = UUID(); seekToken = token
+  @objc private func endSeek() {
+    scrubbingChanged?(false)
+    if let request = scrub.end(seekTarget) { seekFrame(request) }
+  }
+  private var seekTarget: Double { min(max(0, duration - 1.0 / 600), max(0, Double(slider.value) * duration)) }
+  private func seekFrame(_ request: VideoScrubState.Request) {
+    guard active, duration > 0 else { return }
+    let token = seekToken
     let item = player.currentItem
-    let target = Double(slider.value) * duration
-    player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak item] _ in
+    player.seek(to: CMTime(seconds: request.seconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak item] finished in
       Task { @MainActor [weak self, weak item] in
         guard let self, self.active, self.player.currentItem === item, self.seekToken == token else { return }
-        self.scrubbing = false
-        if resume, UIApplication.shared.applicationState == .active { self.player.play() }
+        switch self.scrub.complete(request, succeeded: finished) {
+        case .next(let next): self.seekFrame(next)
+        case .finished:
+          self.scrubbing = false
+          if self.resumeAfterSeek, UIApplication.shared.applicationState == .active { self.player.play() }
+        case .failed:
+          self.scrubbing = false; self.scrubbingChanged?(false)
+        case .ignored, .waiting: break
+        }
       }
     }
   }
   private func failed() {
     seekToken = UUID(); scrubbing = false; scrubbingChanged?(false)
+    scrub.cancel(); player.currentItem?.cancelPendingSeeks()
     spinner.stopAnimating(); player.pause(); play.isEnabled = false; slider.isEnabled = false
     error.text = AppText.text("This video or audio cannot be played by the built-in player. Its format may be unsupported or the file may be incomplete. You can share or export it.")
     error.isHidden = false
   }
   private func stop() {
     seekToken = UUID()
+    scrub.cancel(); player.currentItem?.cancelPendingSeeks()
     let seconds = player.currentTime().seconds
     if seconds.isFinite { position = seconds; savePosition?(seconds) }
     player.pause(); status = nil; playbackStatus = nil; scrubbing = false

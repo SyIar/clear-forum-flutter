@@ -1,5 +1,24 @@
 # Video player controls
 
+## Local gallery live scrubbing (2026-10-02)
+
+The downloaded-file viewer updates the AVPlayer picture while the progress
+slider is dragged. Playback pauses during dragging; after the final frame is
+resolved, it resumes only if it was playing before the drag. Seeking remains
+exclusive to the slider, preserving horizontal gallery paging and downward
+dismissal on the canvas.
+
+Use one outstanding seek and retain only the latest requested time, following
+[Apple QA1820](https://developer.apple.com/library/archive/qa/qa1820/_index.html).
+This avoids repeated cancellation and a backlog of obsolete seeks. Exact seeks
+show the requested frame; decoding speed still depends on the video format and
+keyframe spacing. There is no generated thumbnail strip or network prefetch.
+
+Core tests cover coalescing, release ordering, duplicate targets, accessibility
+changes, invalidation and failed callbacks. Switching files, closing the viewer,
+or backgrounding invalidates pending callbacks, so they cannot resume a hidden
+player. Actual frame latency and gesture feel require device testing.
+
 ## Layout
 
 - Keep the NavigationStack system back button and interactive return gesture.

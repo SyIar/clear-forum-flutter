@@ -55,7 +55,7 @@ struct SouthForumParser {
         let identity = postAuthor(container, page: url)
         let date = postDate(container)
         let floor = floorNumber(container, body: body)
-        let blocks = try SouthBodyParser().parseBody(postContent(body), page: url)
+        let blocks = try postContents(body).flatMap { try SouthBodyParser().parseBody($0, page: url) }
         guard !blocks.isEmpty else { continue }
         posts.append(ForumPost(id: id, author: identity.name.isEmpty ? AppText.text("Member") : identity.name, date: date,
                               number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar, avatarOriginal: identity.original,
@@ -218,6 +218,27 @@ struct SouthForumParser {
     }
     guard identified.count == 1, identified.first === body else { return body }
     return wrapper
+  }
+  private func postContents(_ body: Element) -> [Element] {
+    let content = postContent(body)
+    // A PHPWind post spans two table rows. The second content region can hold
+    // file attachments even while read_<id> contains a purchase gate or is empty.
+    let owner = body.parents().first { $0.hasClass("js-post") } ??
+      body.parents().first { $0.tagName() == "table" || $0.tagName() == "article" || $0.hasClass("read_t") }
+    guard let owner else { return [content] }
+    let bodies = links(owner, "[id^=read_]").filter { match($0.id(), #"^read_(tpc|[0-9]+)$"#) != nil }
+    guard bodies.count == 1, bodies.first === body else { return [content] }
+    var seen = Set(links(content, "[id^=att_]").map { $0.id() })
+    var result = [content]
+    for attachment in links(owner, ".tpc_content [id^=att_]") {
+      guard match(attachment.id(), #"^att_([0-9]+)$"#) != nil,
+            !attachment.parents().contains(where: {
+              $0 === content || $0.id().hasPrefix("att_") || $0.tagName() == "blockquote" ||
+                $0.hasClass("blockquote") || $0.hasClass("tipad") || $0.hasClass("signature")
+            }), seen.insert(attachment.id()).inserted else { continue }
+      result.append(attachment)
+    }
+    return result
   }
   private func postAuthor(_ container: Element, page: URL) -> (name: String, id: String?, avatar: URL?, original: URL?) {
     let root = first(container, "th.r_two,td.r_two,.post-author,.author-info") ?? container

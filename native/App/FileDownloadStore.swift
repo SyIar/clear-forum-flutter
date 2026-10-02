@@ -56,7 +56,7 @@ enum FileDownloadStore {
 struct FileTransferCheckpoint: Codable {
   let url: URL
   let hosted: HostedFileRequest?
-  let cookies: [VideoDownloadCookie]
+  var cookies: [VideoDownloadCookie]
   let userAgent: String
   var data: Data?
 }
