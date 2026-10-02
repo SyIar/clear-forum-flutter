@@ -44,6 +44,7 @@ struct SouthForumParser {
     let thread = SouthSitePolicy.isThread(url)
     let topicAuthorID = SouthSitePolicy.topicAuthorID(url)
     var posts: [ForumPost] = []
+    var originalPosterID: String?
     if thread {
       var seen = Set<String>()
       for body in bodies {
@@ -55,11 +56,15 @@ struct SouthForumParser {
         let identity = postAuthor(container, page: url)
         let date = postDate(container)
         let floor = floorNumber(container, body: body)
+        let filter = authorFilter(container, page: url, authorID: identity.id)
+        if floor == 0 || filter?.isOriginalPoster == true {
+          originalPosterID = originalPosterID ?? identity.id
+        }
         let blocks = try postContents(body).flatMap { try SouthBodyParser().parseBody($0, page: url) }
         guard !blocks.isEmpty else { continue }
         posts.append(ForumPost(id: id, author: identity.name.isEmpty ? AppText.text("Member") : identity.name, date: date,
                               number: floor.map { "#\($0)" } ?? "", blocks: blocks, authorID: identity.id, avatar: identity.avatar, avatarOriginal: identity.original,
-                              authorFilterURL: authorFilter(container, page: url, authorID: identity.id)))
+                              authorFilterURL: filter?.url))
       }
       guard !posts.isEmpty else { throw ReaderFailure.unsupported }
     }
@@ -124,7 +129,7 @@ struct SouthForumParser {
     return ForumPage(url: url, title: title.isEmpty ? AppText.text("Forum") : title, kind: kind, entries: entries, posts: posts,
                      previous: previous, next: next, pageNumber: number, loggedIn: loggedIn,
                      lastPage: last, maximumPostNumber: maximum, breadcrumbs: breadcrumbs,
-                     tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url))
+                     tags: tags(heading, page: url), totalPages: knownCount, poll: SouthPollParser.parse(doc, page: url), originalPosterID: originalPosterID)
   }
 
   // Do not borrow a last-reply timestamp for the thread's creation time.
@@ -267,14 +272,16 @@ struct SouthForumParser {
     }
     return match(url.query ?? "", #"(?:^|-)uid-([0-9]+)(?:-|\.html$)"#)
   }
-  private func authorFilter(_ container: Element, page: URL, authorID: String?) -> URL? {
+  private func authorFilter(_ container: Element, page: URL, authorID: String?) -> (url: URL, isOriginalPoster: Bool)? {
     for anchor in links(container, ".tiptop a[href]") {
       // Quotes and body markup cannot supply a post-header action.
       guard !anchor.parents().contains(where: { $0.hasClass("tpc_content") || $0.hasAttr("data-post-body") || $0.tagName() == "blockquote" }),
             let link = target(anchor, page: page), let uid = SouthSitePolicy.authorID(link),
             SouthSitePolicy.threadKey(link) == SouthSitePolicy.threadKey(page),
             authorID == nil || uid == authorID else { continue }
-      return SouthSitePolicy.pageURL(link, number: 1)
+      guard let target = SouthSitePolicy.pageURL(link, number: 1) else { continue }
+      let label = text(anchor).replacingOccurrences(of: " ", with: "").uppercased()
+      return (target, label == "\u{53EA}\u{770B}GF")
     }
     return nil
   }

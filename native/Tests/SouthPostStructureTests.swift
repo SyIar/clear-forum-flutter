@@ -61,6 +61,50 @@ final class SouthPostStructureTests: XCTestCase {
     XCTAssertEqual(values[1].authorID, "102")
     XCTAssertEqual(values[1].author, "User 2")
   }
+  func testOriginalPosterMatchesLaterRepliesByIDNotDisplayName() throws {
+    let sameName = post(1).replacingOccurrences(of: "User 1", with: "User 0")
+    let ownerReply = post(2).replacingOccurrences(of: "uid-102", with: "uid-100")
+    let result = try parse(post(0) + sameName + ownerReply)
+    let library = LibraryDocument(site: .south)
+    XCTAssertEqual(result.originalPosterID, "100")
+    XCTAssertEqual(result.posts.map { library.isOriginalPoster($0, in: result) }, [true, false, true])
+    XCTAssertFalse(LibraryDocument(site: .simp).isOriginalPoster(result.posts[0], in: result))
+  }
+  func testVerifiedGFHeaderIdentifiesOwnerWhenOpeningLaterPagesDirectly() throws {
+    let source = post(8).replacingOccurrences(of: "Only this author", with: "\u{53EA}\u{770B}GF")
+    let later = URL(string: "https://south-plus.net/read.php?tid=20&page=2")!
+    let parsed = try ForumParser().parse(source, url: later)
+    XCTAssertEqual(parsed.originalPosterID, "108")
+    XCTAssertTrue(LibraryDocument(site: .south).isOriginalPoster(parsed.posts[0], in: parsed))
+    let restored = try JSONDecoder().decode(ForumPage.self, from: JSONEncoder().encode(parsed))
+    XCTAssertEqual(restored.originalPosterID, "108")
+    for destination in ["read.php?tid-99-uid-108.html", "read.php?tid-20-uid-999.html",
+                        "https://example.com/read.php?tid-20-uid-108.html"] {
+      let invalid = source.replacingOccurrences(of: "read.php?tid-20-uid-108.html", with: destination)
+      XCTAssertNil(try ForumParser().parse(invalid, url: later).originalPosterID)
+    }
+    let quoted = "<blockquote><div class='tiptop'><a href='read.php?tid-20-uid-108.html'>\u{53EA}\u{770B}GF</a></div></blockquote>Reply"
+    XCTAssertNil(try parse(post(8, content: quoted)).originalPosterID)
+    let filtered = URL(string: "https://south-plus.net/read.php?tid-20-uid-108.html")!
+    XCTAssertNil(try ForumParser().parse(post(8), url: filtered).originalPosterID)
+  }
+  func testLegacyCachedPageAndKnownOwnerRemainUsableWithoutNewMetadata() throws {
+    let page = try parse(post(0))
+    var raw = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(page)) as? [String: Any])
+    raw.removeValue(forKey: "originalPosterID")
+    let legacy = try JSONDecoder().decode(ForumPage.self, from: JSONSerialization.data(withJSONObject: raw))
+    XCTAssertNil(legacy.originalPosterID)
+    var library = LibraryDocument(site: .south)
+    XCTAssertTrue(library.isOriginalPoster(legacy.posts[0], in: legacy))
+    library.capturePresentation(legacy)
+    let later = try parse(post(8).replacingOccurrences(of: "uid-108", with: "uid-100"))
+    XCTAssertNil(later.originalPosterID)
+    XCTAssertTrue(library.isOriginalPoster(later.posts[0], in: later))
+    var unknown = later.posts[0]; unknown.authorID = nil
+    XCTAssertFalse(library.isOriginalPoster(unknown, in: later))
+    var otherThread = later; otherThread.url = URL(string: "https://south-plus.net/read.php?tid=99")!
+    XCTAssertFalse(library.isOriginalPoster(later.posts[0], in: otherThread))
+  }
   func testQuotedProfilesAndDatesNeverReplacePostMetadata() throws {
     let body = """
       <blockquote><a href="u.php?uid=999"><strong>Quoted member</strong></a><time>2001-01-01</time></blockquote>

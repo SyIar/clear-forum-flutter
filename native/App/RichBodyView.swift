@@ -120,6 +120,7 @@ struct PostCard: View {
   let purchase: (SouthPurchaseOffer) -> Void
   let purchasing: Bool
   var authorFilterActive = false
+  var isOriginalPoster = false
   var openAvatar: (() -> Void)?
   var selectText: (() -> Void)?
   var body: some View {
@@ -127,7 +128,10 @@ struct PostCard: View {
       HStack(spacing: ForumDesignSystem.spacing.md) {
         PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
-          Text(post.author).forumFont(.subheadline, weight: .bold)
+          HStack(spacing: 4) {
+            Text(post.author).forumFont(.subheadline, weight: .bold)
+            if isOriginalPoster { ForumOriginalPosterBadge(label: AppText.text("Original poster")) }
+          }
           if openAvatar == nil, post.authorID != nil || !post.date.isEmpty {
             HStack(spacing: 6) {
               if let id = post.authorID { Text(AppText.format("UID %@", String(describing: id))) }

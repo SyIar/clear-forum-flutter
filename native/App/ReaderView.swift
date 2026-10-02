@@ -122,6 +122,7 @@ struct ReaderView: View {
                 PostCard(post: post, posters: posters, navigate: navigate, play: play, openImage: { imageSheet = ImageViewerPresentation(source: $0) }, purchase: buy,
                          purchasing: purchasing || loading,
                          authorFilterActive: post.authorFilterURL.map { SouthSitePolicy.authorID($0) == SouthSitePolicy.authorID(page.url) } ?? false,
+                         isOriginalPoster: library.document.isOriginalPoster(post, in: page),
                          openAvatar: session.site == .south ? { openAvatar(post) } : nil,
                          selectText: session.site == .south ? { textSelection = PostTextSelection(text: PostTextExport.text(in: post.blocks)) } : nil).id(post.id)
               }

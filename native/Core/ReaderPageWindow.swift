@@ -138,6 +138,7 @@ struct ReaderPageWindow {
     combined.posts = pages.flatMap(\.posts).filter { posts.insert($0.id).inserted }
     combined.entries = pages.flatMap(\.entries).filter { entries.insert(SitePolicy.pageCacheKey($0.url)).inserted }
     combined.poll = pages.compactMap(\.poll).first
+    combined.originalPosterID = pages.compactMap(\.originalPosterID).first ?? active.originalPosterID
     combined.totalPages = pages.map(\.pageCount).max()
     return combined
   }

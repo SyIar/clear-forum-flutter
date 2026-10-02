@@ -86,6 +86,7 @@ struct ForumPage: Codable {
   var totalPages: Int?
   var thumbnail: URL?
   var poll: SouthPoll?
+  var originalPosterID: String?
   var pageCount: Int {
     min(99_999, [pageNumber, totalPages ?? 1, lastPage.map(SitePolicy.pageNumber) ?? 1, next.map(SitePolicy.pageNumber) ?? 1].max() ?? 1)
   }

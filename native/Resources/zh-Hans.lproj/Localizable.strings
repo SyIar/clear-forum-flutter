@@ -545,4 +545,5 @@
 "The password is incorrect or the encrypted data is damaged. Check the password and try again." = "\U5BC6\U7801\U4E0D\U6B63\U786E\U6216\U52A0\U5BC6\U6570\U636E\U5DF2\U635F\U574F\UFF0C\U8BF7\U6838\U5BF9\U5BC6\U7801\U540E\U91CD\U8BD5\U3002";
 "Cannot extract this ZIP. It may be damaged or use an unsupported format. You can export it to another app." = "\U65E0\U6CD5\U89E3\U538B\U6B64 ZIP\UFF0C\U53EF\U80FD\U5DF2\U635F\U574F\U6216\U683C\U5F0F\U4E0D\U53D7\U652F\U6301\U3002\U53EF\U5BFC\U51FA\U5230\U5176\U4ED6\U5E94\U7528\U5904\U7406\U3002";
 "ZIP password" = "\U538B\U7F29\U5305\U5BC6\U7801";
+"Original poster" = "\U697C\U4E3B";
 "The password is used only for this extraction and is not saved." = "\U5BC6\U7801\U4EC5\U7528\U4E8E\U672C\U6B21\U89E3\U538B\UFF0C\U4E0D\U4F1A\U4FDD\U5B58\U3002";

@@ -60,7 +60,7 @@ struct ThreadView: View {
             if previousMaximum > 0, post.id == result.items.first(where: { $0.floor > previousMaximum })?.id {
               HStack { Divider(); Text(tr("newSinceVisit")).appFont(.caption).foregroundStyle(.secondary); Divider() }
             }
-            PostCard(post: post, forum: result.forum ?? Forum(), reader: reader) { target in reply = target }
+            PostCard(post: post, forum: result.forum ?? Forum(), reader: reader, originalPosterID: result.thread?.author.id) { target in reply = target }
               .id(post.id).background(GeometryReader { geometry in Color.clear.preference(key: PostPosition.self, value: [post.id: geometry.frame(in: .named("posts")).maxY]) })
           }
           LoadState(loading: loading, error: error, empty: result.items.isEmpty) { request = UUID() }
@@ -155,6 +155,7 @@ struct PostCard: View {
   let post: Post
   let forum: Forum
   var reader = false
+  var originalPosterID: String?
   let reply: (ReplyContext) -> Void
   @EnvironmentObject private var app: AppState
   @EnvironmentObject private var settings: Preferences
@@ -174,7 +175,10 @@ struct PostCard: View {
         HStack(alignment: .center, spacing: 8) {
           NavigationLink(value: Route.user(post.author.id)) { Avatar(user: post.author) }
           VStack(alignment: .leading, spacing: 2) {
-            NavigationLink(post.author.name.isEmpty ? tr("unknownUser") : post.author.name, value: Route.user(post.author.id)).tiebaFont(.subheadline, weight: .semibold).foregroundStyle(.primary)
+            HStack(spacing: 4) {
+              NavigationLink(post.author.name.isEmpty ? tr("unknownUser") : post.author.name, value: Route.user(post.author.id)).tiebaFont(.subheadline, weight: .semibold).foregroundStyle(.primary)
+              if post.isOriginalPoster(originalPosterID) { ForumOriginalPosterBadge(label: tr("originalPoster")) }
+            }
             if settings.flag("showBothUsernameAndNickname") && !post.author.username.isEmpty && post.author.username != post.author.name { Text(post.author.username).tiebaFont(.caption2).foregroundStyle(.secondary) }
             if post.author.level > 0 { Text("Lv.\(post.author.level)").appFont(.caption2).foregroundStyle(.secondary) }
           }
@@ -195,8 +199,7 @@ struct PostCard: View {
             VStack(alignment: .leading, spacing: 6) {
               ForEach(replies) { item in
                 Button { nested = true } label: {
-                  (Text((item.author.name.isEmpty ? tr("unknownUser") : item.author.name) + ": ").font(Font(MixedScriptFont.font(size: captionSize * settings.fontScale, bold: true))).foregroundColor(settings.accent)
-                   + Text(item.plainText).foregroundColor(Color(uiColor: .label)))
+                  replyPreview(item)
                     .tiebaFont(.caption).lineLimit(3).multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain)
@@ -217,12 +220,20 @@ struct PostCard: View {
           if let date = post.time { Text(date, style: .relative).appFont(.caption2).foregroundStyle(.secondary) }
         }.appFont(.caption).buttonStyle(.plain).foregroundStyle(Color(uiColor: .secondaryLabel)).padding(.top, 2)
       }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: max(8, settings.number("radius"))))
-        .sheet(isPresented: $nested) { NavigationStack { FloorView(thread: post.threadID, post: post.id, forum: forum).toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("close")) { nested = false } } } } }
+        .sheet(isPresented: $nested) { NavigationStack { FloorView(thread: post.threadID, post: post.id, forum: forum, originalPosterID: originalPosterID).toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("close")) { nested = false } } } } }
         .sheet(item: Binding(get: { actionURL.map(URLItem.init) }, set: { actionURL = $0?.url })) { item in BaiduBrowser(session: app.session, url: item.url) { result in actionURL = nil; if case .failure(let error) = result { app.error = error.localizedDescription } }.ignoresSafeArea() }
         .forumConfirmation(tr("deleteConfirm"), isPresented: $removing, actions: { [
           ForumDialogAction(tr("deletePost"), role: .destructive) { perform { try await app.api.removeOwnContent(forum: forum, thread: post.threadID, post: post.id, nested: !post.parentID.isEmpty) } }
         ] })
     }
+  }
+  private func replyPreview(_ item: Post) -> Text {
+    let name = Text(item.author.name.isEmpty ? tr("unknownUser") : item.author.name)
+      .font(Font(MixedScriptFont.font(size: captionSize * settings.fontScale, bold: true))).foregroundColor(settings.accent)
+    let badge = item.isOriginalPoster(originalPosterID)
+      ? Text(" ") + Text(Image(forumSymbol: "person", size: captionSize * settings.fontScale)).foregroundColor(.blue)
+      : Text("")
+    return name + badge + Text(": " + item.plainText).foregroundColor(Color(uiColor: .label))
   }
   private func perform(_ body: @escaping () async throws -> Void) { app.requireLogin { Task { @MainActor in busy = true; defer { busy = false }; do { try await body() } catch { app.error = error.localizedDescription } } } }
 }
@@ -231,6 +242,7 @@ struct FloorView: View {
   let thread: String
   let post: String
   let forum: Forum
+  var originalPosterID: String?
   @EnvironmentObject private var app: AppState
   @State private var result = PageResult<Post>()
   @State private var page = 1
@@ -239,7 +251,7 @@ struct FloorView: View {
   @State private var request = UUID()
   @State private var reply: ReplyContext?
   var body: some View {
-    ScrollView { LazyVStack(spacing: 10) { ForEach(result.items) { PostCard(post: $0, forum: forum) { reply = $0 } }; LoadState(loading: loading, error: error, empty: result.items.isEmpty) { request = UUID() } }.padding(10) }
+    ScrollView { LazyVStack(spacing: 10) { ForEach(result.items) { PostCard(post: $0, forum: forum, originalPosterID: originalPosterID ?? result.thread?.author.id) { reply = $0 } }; LoadState(loading: loading, error: error, empty: result.items.isEmpty) { request = UUID() } }.padding(10) }
       .background(Color(uiColor: .systemGroupedBackground)).navigationTitle(tr("floorReplies"))
       .toolbar { Pagination(page: page, more: result.hasMore, loading: loading, previous: { page -= 1; request = UUID() }, refresh: { request = UUID() }, next: { page += 1; request = UUID() }) }
       .task(id: request) { loading = true; error = nil; defer { loading = false }; do { result = try await app.api.floor(threadID: thread, postID: post, forumID: forum.id, page: page) } catch { self.error = error.localizedDescription } }

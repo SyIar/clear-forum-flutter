@@ -160,7 +160,8 @@ struct LibraryDocument: Codable {
     if page.kind == .posts {
       let owner = site == .bookhouse ? page.posts.first : site == .south ? page.posts.first(where: { $0.number == "#0" }) : nil
       mergePresentation(ThreadPresentation(thumbnail: page.thumbnail, tags: page.tags,
-                                           authorID: owner?.authorID, authorName: owner?.authorID == nil ? nil : owner?.author), for: page.url)
+                                           authorID: site == .south ? page.originalPosterID ?? owner?.authorID : owner?.authorID,
+                                           authorName: owner?.authorID == nil ? nil : owner?.author), for: page.url)
     }
     for entry in page.entries {
       mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: entry.tags,
