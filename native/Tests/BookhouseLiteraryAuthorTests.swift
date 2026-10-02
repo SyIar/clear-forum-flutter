@@ -3,8 +3,8 @@ import XCTest
 @testable import ForumCore
 
 final class BookhouseLiteraryAuthorTests: XCTestCase {
-  private func entry(_ id: String, chapter: String, writer: String = "Novel Writer", uploader: String? = "Uploader A", book: String = "Novel") -> ForumEntry {
-    ForumEntry(title: "\u{3010}\(book)\u{3011}(\(chapter)) \u{4F5C}\u{8005}:\(writer)",
+  private func entry(_ id: String, chapter: String, writer: String = "Novel Writer", uploader: String? = "Uploader A", book: String = "Novel", title: String? = nil) -> ForumEntry {
+    ForumEntry(title: title ?? "\u{3010}\(book)\u{3011}(\(chapter)) \u{4F5C}\u{8005}:\(writer)",
       url: BookhouseSitePolicy.thread(id)!, authorID: id, authorName: uploader)
   }
   private func page(_ entry: ForumEntry) -> ForumPage {
@@ -21,13 +21,11 @@ final class BookhouseLiteraryAuthorTests: XCTestCase {
     let otherUploader = entry("200", chapter: "28", uploader: "Uploader B")
     XCTAssertTrue(book.matches(otherUploader))
     XCTAssertTrue(book.matches(entry("300", chapter: "29", uploader: nil)))
-    var tagged = entry("350", chapter: "29", uploader: "Uploader C")
-    tagged.title += "\u{300E}Category\u{300F}"
+    let tagged = entry("350", chapter: "29", writer: "Novel Writer\u{300E}Category\u{300F}", uploader: "Uploader C")
     XCTAssertTrue(book.matches(tagged))
     XCTAssertFalse(book.matches(entry("400", chapter: "30", writer: "Other writer")))
     XCTAssertFalse(book.matches(entry("500", chapter: "30", book: "Novel sequel")))
-    var undeclared = entry("600", chapter: "30", uploader: "Novel Writer")
-    undeclared.title = "\u{3010}Novel\u{3011}(30)"
+    let undeclared = entry("600", chapter: "30", uploader: "Novel Writer", title: "\u{3010}Novel\u{3011}(30)")
     XCTAssertFalse(book.matches(undeclared))
     XCTAssertFalse(book.accepts(page(otherUploader)))
     book.merge([otherUploader], checkedAt: Date())
@@ -112,7 +110,7 @@ final class BookhouseLiteraryAuthorTests: XCTestCase {
   }
 
   func testLegacyBookWithoutDeclaredAuthorKeepsAccountAndRefreshDates() throws {
-    var source = entry("1", chapter: "27"); source.title = "\u{3010}Novel\u{3011}(27)"
+    let source = entry("1", chapter: "27", title: "\u{3010}Novel\u{3011}(27)")
     var book = try XCTUnwrap(BookhouseFollowedBook(entry: source))
     book.authorSource = nil; book.checkedAt = Date(); book.attemptedAt = Date()
     book.record(url: book.seed, chapter: 27, paragraph: 7)
@@ -126,7 +124,7 @@ final class BookhouseLiteraryAuthorTests: XCTestCase {
   }
 
   func testRefreshCanPromoteAuthorWhileKeepingNewerReadingPosition() throws {
-    var seed = entry("1", chapter: "27"); seed.title = "\u{3010}Novel\u{3011}(27)"
+    let seed = entry("1", chapter: "27", title: "\u{3010}Novel\u{3011}(27)")
     var current = try XCTUnwrap(BookhouseFollowedBook(entry: seed))
     var snapshot = current
     XCTAssertEqual(snapshot.authorSource, .postingAccount)
