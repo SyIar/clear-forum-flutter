@@ -27,6 +27,22 @@ final class BookhouseOfflineCache {
     }
   }
   func contains(_ url: URL, bookID: String) -> Bool { entry(url, bookID: bookID) != nil }
+  func searchDocuments(books: [BookhouseFollowedBook]) -> [BookhouseOfflineSearch.Document] {
+    let byID = Dictionary(books.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    return entries.compactMap { entry -> BookhouseOfflineSearch.Document? in
+      guard let book = byID[entry.bookID], let chapter = book.chapters.first(where: {
+        BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(entry.url)
+      }) else { return nil }
+      return BookhouseOfflineSearch.Document(book: book, chapter: chapter, file: file(entry.id))
+    }.sorted {
+      if $0.book.id != $1.book.id {
+        return $0.book.followedAt == $1.book.followedAt ? $0.book.id < $1.book.id : $0.book.followedAt > $1.book.followedAt
+      }
+      if $0.chapter.first != $1.chapter.first { return $0.chapter.first < $1.chapter.first }
+      if $0.chapter.part != $1.chapter.part { return ($0.chapter.part?.rawValue ?? 0) < ($1.chapter.part?.rawValue ?? 0) }
+      return $0.chapter.id < $1.chapter.id
+    }
+  }
   func page(_ url: URL, book: BookhouseFollowedBook) throws -> ForumPage? {
     guard let index = entry(url, bookID: book.id) else { return nil }
     let value = try JSONDecoder().decode(ForumPage.self, from: Data(contentsOf: file(entries[index].id)))

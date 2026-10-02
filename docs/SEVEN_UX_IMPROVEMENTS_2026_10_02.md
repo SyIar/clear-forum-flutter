@@ -8,7 +8,14 @@
 4. Forum and novel readers offer Return to reading after explicit jumps, without immediately replacing the saved anchor. Forums show a new-content divider based on the previous maximum visible floor. Tieba also retains its maximum read floor when returning to earlier pages.
 5. Novel reading settings provide text size, line spacing, paragraph spacing, side margins, and System/Paper/Night backgrounds. App controls keep the system font; these preferences affect novel content only.
 6. Home update checks show counts, results, last-check time, and an explicit fresh-skip state. Updates only filters existing rows without reordering them. The existing hourly policy stays intact. An inset animated side rail replaces the broad overlay over row text.
-7. Followed novels support caching the current publication and next five chapter numbers, including split publications. Catalog rows mark offline content. Offline text persists across launches with 50/100/250 MB limits, least-recently-read eviction, and a clear-cache control separate from reading progress. Existing continuous chapter reading and 90% prefetch remain available.
+7. Followed novels automatically cache a publication when its body becomes visible. The next five chapter numbers, including split publications, can also be cached explicitly. Catalog rows mark offline content. Offline text persists across launches with 50/100/250 MB limits, least-recently-read eviction, and a clear-cache control separate from reading progress. Existing continuous chapter reading and 90% prefetch remain available.
+
+## Follow-up interaction changes
+
+- Simp home keeps update information in a small popover anchored to the existing lower-right control. Opening it never starts a check. It shows progress, the current title, results, last successful check, and the updates-only filter. Its Refresh action retries eligible failures and stale items while skipping successes less than one hour old. Automatic checks retain the same hourly policy.
+- Read caching only applies to followed books. Visibility, rather than fetching or speculative preloading, triggers the cache. Saving a publication does not mark its other chapters read. Cache failures do not interrupt reading.
+- A search icon at the chapter catalog's upper left opens global offline body-text search across all currently followed books. Searches scan immutable cache snapshots on a cancellable background task, with a 300 ms debounce and a 200-result limit. They do not fetch pages, touch cache recency, or change reading progress. Results identify the book, publication, chapter and matching paragraph. Selecting a result uses the cached publication and its paragraph anchor; same-book jumps retain the return-to-reading action, and another book opens a new reader. Evicted or invalid cache files are skipped with a visible notice.
+- Search regression cases cover relaunch, multiple books, styled runs, Unicode matching, bundled chapter anchors, result limits, author validation, corrupt files and eviction during a search.
 
 ## Storage and operating limits
 

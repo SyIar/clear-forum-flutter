@@ -1,6 +1,6 @@
 import Foundation
 
-enum BookhouseChapterPart: Int, Comparable {
+enum BookhouseChapterPart: Int, Comparable, Sendable {
   case upper = 1, middle, lower
   init?(_ text: String) {
     switch text {
@@ -62,7 +62,7 @@ struct BookhouseChapterTitle: Equatable {
   }
 }
 
-struct BookhouseChapter: Codable, Identifiable, Equatable {
+struct BookhouseChapter: Codable, Identifiable, Equatable, Sendable {
   var id: String { url.absoluteString }
   let url: URL
   let title: String
@@ -80,13 +80,13 @@ struct BookhouseChapter: Codable, Identifiable, Equatable {
       first: try values.decode(Int.self, forKey: .first), last: try values.decode(Int.self, forKey: .last))
   }
 }
-struct BookhouseReadingPosition: Codable, Equatable {
+struct BookhouseReadingPosition: Codable, Equatable, Sendable {
   let url: URL
   let chapter: Int
   let paragraph: Int
 }
-enum BookhouseAuthorSource: String, Codable { case title, postingAccount }
-struct BookhouseFollowedBook: Codable, Identifiable, Equatable {
+enum BookhouseAuthorSource: String, Codable, Sendable { case title, postingAccount }
+struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
   let id: String
   let title: String
   var author: String

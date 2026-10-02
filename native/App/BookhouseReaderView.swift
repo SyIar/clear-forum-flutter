@@ -7,6 +7,8 @@ struct BookhouseReaderView: View {
   let home: () -> Void
   let search: () -> Void
   var followedBookID: String? = nil
+  var initialCachedMatch: BookhouseOfflineMatch? = nil
+  var openCachedBook: (BookhouseOfflineMatch) -> Void = { _ in }
   @EnvironmentObject private var session: ForumSession
   @EnvironmentObject private var library: LibraryStore
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,6 +52,8 @@ struct BookhouseReaderView: View {
   @State private var showingSettings = false
   @State private var returnPoint: ReadingReturnPoint?
   @State private var pendingReturnAnchor: String?
+  @State private var pendingCachedMatch: BookhouseOfflineMatch?
+  @State private var capturedReadPages = Set<String>()
   private var current: URL { page?.url ?? initialURL }
   private var blocks: [BodyBlock] { page?.posts.first?.blocks ?? [] }
   private var book: BookhouseFollowedBook? { followedBookID.flatMap { library.document.followedBooks[$0] } }
@@ -64,13 +68,15 @@ struct BookhouseReaderView: View {
         if let page { PageSelector(page: page) { if let target = page.url(forPage: $0) { startLoad(target) } } }
       }
       .forumSheet(isPresented: $selectingChapter) {
-        if let book { BookhouseChapterPicker(book: book) { openChapter($0, number: $1) } }
+        if let book {
+          BookhouseChapterPicker(book: book, select: { openChapter($0, number: $1) }, library: library, selectCached: openCachedMatch)
+        }
       }
       .forumSheet(isPresented: $showingSettings) { ReadingSettingsView() }
       .environment(\.readingAppearance, settings.value.normalized)
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
-      .task { if page == nil { await load(initialURL) } }
+      .task { if page == nil { pendingCachedMatch = initialCachedMatch; await load(initialURL) } }
       .onAppear { readerVisible = true; prefetchNextChapter() }
       .onDisappear {
         readerVisible = false
@@ -113,7 +119,7 @@ struct BookhouseReaderView: View {
     VStack(alignment: .leading, spacing: 12) {
       Text(message).foregroundStyle(.secondary)
       HStack {
-        Button(AppText.text("Retry")) { startLoad(failedTarget ?? current, refresh: true) }.buttonStyle(.glass)
+        Button(AppText.text("Retry")) { startLoad(failedTarget ?? current, refresh: true, cachedMatch: pendingCachedMatch) }.buttonStyle(.glass)
         Button(AppText.text("Site browser")) { external = failedTarget ?? current }.buttonStyle(.glass)
       }
     }.padding(.vertical, 20)
@@ -315,8 +321,10 @@ struct BookhouseReaderView: View {
     if BookhouseSitePolicy.readable(url) { navigate(url) }
     else { external = url }
   }
-  private func startLoad(_ url: URL, refresh: Bool = false, append: Bool = false, returnAnchor: String? = nil) {
+  private func startLoad(_ url: URL, refresh: Bool = false, append: Bool = false, returnAnchor: String? = nil, cachedMatch: BookhouseOfflineMatch? = nil) {
     pendingReturnAnchor = returnAnchor
+    pendingCachedMatch = cachedMatch
+    if refresh, let key = BookhouseSitePolicy.threadKey(url) { capturedReadPages.remove(key) }
     savePosition()
     progressSave?.cancel()
     cancelAdjacent()
@@ -331,7 +339,13 @@ struct BookhouseReaderView: View {
     do {
       let snapshot = refresh ? nil : session.pages.value(for: url)
       let loaded: ForumPage
-      if let snapshot { loaded = snapshot.page }
+      if let match = pendingCachedMatch {
+        guard let book, book.id == match.bookID, let cached = offline.page(url, book: book) else {
+          throw MediaFileError(message: AppText.text("This cached chapter is no longer available. Search again or reopen it from the catalog."))
+        }
+        loaded = cached; session.pages.store(cached)
+      }
+      else if let snapshot { loaded = snapshot.page }
       else if !refresh, let book, let saved = offline.page(url, book: book) { loaded = saved; session.pages.store(saved) }
       else { loaded = try await session.load(url, cacheResult: true) }
       guard !Task.isCancelled, requestID == token else { return }
@@ -352,7 +366,9 @@ struct BookhouseReaderView: View {
           let parsed = BookhouseChapterAnchors(blocks: loaded.posts.first?.blocks ?? [], chapter: publication)
           guard readingWindow.reset(loaded, book: book) else { throw ReaderFailure.unsupported }
           var paragraph = 0
-          if let number = pendingChapter {
+          if let match = pendingCachedMatch {
+            paragraph = min(max(0, match.paragraph), max(0, (loaded.posts.first?.blocks.count ?? 1) - 1))
+          } else if let number = pendingChapter {
             if let found = parsed.paragraph(for: number) { paragraph = found }
             else {
               if number != publication.first { chapterNotice = AppText.text("This post has no recognizable heading for the requested chapter. Showing the publication from its beginning.") }
@@ -362,6 +378,7 @@ struct BookhouseReaderView: View {
           }
           visibleID = BookhouseReadingParagraph.id(url: publication.url, index: paragraph)
           pendingChapter = nil
+          pendingCachedMatch = nil
         }
         if let anchor = pendingReturnAnchor { visibleID = anchor; pendingReturnAnchor = nil; returnPoint = nil }
         latestVisibleIDs = []; restoring = true
@@ -398,6 +415,10 @@ struct BookhouseReaderView: View {
     prefetchNextChapter()
     let candidates = book == nil ? orderedIDs : readingWindow.paragraphs.map(\.id)
     if let first = candidates.first(where: { ids.contains($0) }) {
+      if let book, let readPage = readingWindow.page(containing: first), let key = BookhouseSitePolicy.threadKey(readPage.url),
+         capturedReadPages.insert(key).inserted {
+        offline.captureRead(readPage, book: book)
+      }
       guard first != visibleID else { return }
       visibleID = first
       if let active = readingWindow.page(containing: first), active.url != page?.url {
@@ -414,8 +435,16 @@ struct BookhouseReaderView: View {
   private func openChapter(_ chapter: BookhouseChapter, number: Int) {
     guard !loading else { return }
     rememberReturnPoint()
+    pendingCachedMatch = nil
     pendingChapter = number
     startLoad(chapter.url)
+  }
+  private func openCachedMatch(_ match: BookhouseOfflineMatch) {
+    guard !loading else { return }
+    if match.bookID != followedBookID { savePosition(); openCachedBook(match); return }
+    rememberReturnPoint()
+    pendingChapter = nil
+    startLoad(match.url, cachedMatch: match)
   }
   private func rememberReturnPoint() {
     guard returnPoint == nil, let anchor = visibleID else { return }

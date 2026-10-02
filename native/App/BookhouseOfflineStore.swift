@@ -25,6 +25,19 @@ final class BookhouseOfflineStore: ObservableObject {
     } catch { self.error = AppText.text("Could not open the offline chapter cache.") }
   }
   func contains(_ url: URL, bookID: String) -> Bool { cache?.contains(url, bookID: bookID) == true }
+  func captureRead(_ page: ForumPage, book: BookhouseFollowedBook) {
+    guard let cache else { return }
+    do { try cache.store(page, book: book); bytes = cache.bytes }
+    catch { self.error = AppText.text("Could not cache this chapter. Reading can continue.") }
+  }
+  func search(_ query: String, books: [BookhouseFollowedBook]) async throws -> BookhouseOfflineSearch.Result {
+    guard let cache else { throw MediaFileError(message: AppText.text("Could not open the offline chapter cache.")) }
+    let documents = cache.searchDocuments(books: books)
+    let worker = Task.detached(priority: .userInitiated) { try BookhouseOfflineSearch.search(query, documents: documents) }
+    return try await withTaskCancellationHandler {
+      try await worker.value
+    } onCancel: { worker.cancel() }
+  }
   func page(_ url: URL, book: BookhouseFollowedBook) -> ForumPage? {
     do { return try cache?.page(url, book: book) }
     catch { self.error = AppText.text("Could not read this offline chapter. Refresh to load it again."); return nil }

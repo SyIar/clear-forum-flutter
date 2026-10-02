@@ -89,6 +89,8 @@ struct BookhouseFollowingSection: View {
 struct BookhouseChapterPicker: View {
   let book: BookhouseFollowedBook
   let select: (BookhouseChapter, Int) -> Void
+  @ObservedObject var library: LibraryStore
+  let selectCached: (BookhouseOfflineMatch) -> Void
   @Environment(\.dismiss) private var nativeDismiss
   @Environment(\.forumDismiss) private var forumDismiss
   @State private var number = ""
@@ -120,6 +122,12 @@ struct BookhouseChapterPicker: View {
         }
       }.navigationTitle(AppText.text("Chapters")).navigationBarTitleDisplayMode(.inline)
         .toolbar {
+          ToolbarItem(placement: .topBarLeading) {
+            NavigationLink {
+              BookhouseOfflineSearchView(library: library) { match in dismiss(); selectCached(match) }
+            } label: { ForumToolbarIcon("magnifyingglass") }
+              .accessibilityLabel(AppText.text("Search cached text"))
+          }
           ToolbarItem(placement: .topBarTrailing) {
             Button { dismiss() } label: { ForumToolbarIcon("xmark") }.accessibilityLabel(AppText.text("Close"))
           }

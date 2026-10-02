@@ -48,7 +48,7 @@ struct ReadingSettingsView: View {
           Button(AppText.text("Reset reading appearance")) { settings.value = ReadingAppearance() }
         }
         Section(AppText.text("Offline chapters")) {
-          Text(AppText.text("Cache the next five chapters from a book's menu in My reading. Only chapter text is kept offline; images still need a connection."))
+          Text(AppText.text("Read chapters of followed books are cached automatically. Search all cached text from the chapter catalog. You can also cache the next five chapters from My reading. Images still need a connection."))
             .appFont(.caption).foregroundStyle(.secondary)
           Picker(AppText.text("Cache limit"), selection: Binding(get: { offline.limitMB }, set: { offline.setLimit($0) })) {
             ForEach([50, 100, 250], id: \.self) { Text("\($0) MB").tag($0) }
