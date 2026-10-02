@@ -10,12 +10,12 @@ static BOOL Fail(NSError **error, NSInteger code) {
 }
 
 @interface FLZipEntry ()
-@property(nonatomic, readwrite) NSString *path;
+@property(nonatomic, copy, readwrite) NSString *path;
 @property(nonatomic, readwrite) uint64_t size;
 @property(nonatomic, readwrite) BOOL directory;
 @property(nonatomic, readwrite) BOOL encrypted;
 @property(nonatomic, readwrite) BOOL unsafe;
-@property(nonatomic, readwrite) NSDate *modified;
+@property(nonatomic, strong, readwrite) NSDate *modified;
 @end
 @implementation FLZipEntry
 @end

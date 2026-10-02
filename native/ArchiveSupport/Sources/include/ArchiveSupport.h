@@ -4,12 +4,12 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString *const FLZipErrorDomain;
 
 @interface FLZipEntry : NSObject
-@property(nonatomic, readonly) NSString *path;
+@property(nonatomic, copy, readonly) NSString *path;
 @property(nonatomic, readonly) uint64_t size;
 @property(nonatomic, readonly) BOOL directory;
 @property(nonatomic, readonly) BOOL encrypted;
 @property(nonatomic, readonly) BOOL unsafe;
-@property(nonatomic, readonly, nullable) NSDate *modified;
+@property(nonatomic, strong, readonly, nullable) NSDate *modified;
 @end
 
 /// Single-worker streaming reader. No passwords are retained after openEntry.
