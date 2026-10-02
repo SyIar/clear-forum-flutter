@@ -25,6 +25,7 @@ struct BookhouseReaderView: View {
   @State private var image: ImageViewerPresentation?
   @State private var visibleID: String?
   @State private var restoreID: String?
+  @State private var restoreRequestID = UUID()
   @State private var bottomPanel: ReaderBottomPanel?
   @State private var selectingPage = false
   @State private var operation: Task<Void, Never>?
@@ -141,11 +142,14 @@ struct BookhouseReaderView: View {
         guard !loading, !restoring else { return }
         observeVisiblePosition(ids)
       }
-      .task(id: restoreID) {
+      .task(id: restoreRequestID) {
         guard let value = restoreID else { return }
+        let token = restoreRequestID
         await Task.yield()
+        guard !Task.isCancelled, token == restoreRequestID else { return }
         proxy.scrollTo(value, anchor: .top)
         do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+        guard token == restoreRequestID else { return }
         restoring = false; restoreID = nil
         observeVisiblePosition(latestVisibleIDs)
         trimWindow()
@@ -234,9 +238,9 @@ struct BookhouseReaderView: View {
       .padding(.bottom, 12)
       .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     } else if let point = returnPoint {
-      ReturnToReadingButton(restore: {
+      ReturnToReadingButton(restoreDisabled: loading || restoring, restore: {
         startLoad(point.url, returnAnchor: point.anchor)
-      }, dismiss: { returnPoint = nil; savePosition() }).disabled(loading || restoring)
+      }, dismiss: { returnPoint = nil; savePosition() })
     }
   }
   private func setBottomPanel(_ panel: ReaderBottomPanel?) {
@@ -374,8 +378,8 @@ struct BookhouseReaderView: View {
         pendingCachedMatch = nil
       }
       if let anchor = pendingReturnAnchor { visibleID = anchor; pendingReturnAnchor = nil; returnPoint = nil }
-      latestVisibleIDs = []; restoring = true
-      restoreID = visibleID
+      latestVisibleIDs = []
+      scheduleRestore(visibleID)
       library.remember(loaded, session: session, checkMaximum: false)
     } catch {
       guard !Task.isCancelled, requestID == token else { return }
@@ -443,6 +447,12 @@ struct BookhouseReaderView: View {
     savePosition()
     returnPoint = ReadingReturnPoint(url: readingWindow.paragraph(id: anchor)?.url ?? current, anchor: anchor)
   }
+  private func scheduleRestore(_ anchor: String?) {
+    restoring = anchor != nil
+    restoreID = anchor
+    // Restoring the same paragraph twice must still start a new scroll task.
+    restoreRequestID = UUID()
+  }
   private func prefetchNextChapter() {
     guard readerVisible, scenePhase == .active, let book, !loading, !restoring, error == nil, edgeLoading == nil,
           let target = readingWindow.prefetchTarget(visibleIDs: latestVisibleIDs, book: book),
@@ -505,7 +515,7 @@ struct BookhouseReaderView: View {
     var transaction = Transaction(); transaction.disablesAnimations = true
     withTransaction(transaction) {
       readingWindow = updated; pendingPage = nil; edgeLoading = nil; lastJoinedEdge = edge
-      if edge == .previous { restoring = true; restoreID = anchor }
+      if edge == .previous { scheduleRestore(anchor) }
     }
     trimWindow()
   }
@@ -518,7 +528,7 @@ struct BookhouseReaderView: View {
     var transaction = Transaction(); transaction.disablesAnimations = true
     withTransaction(transaction) {
       readingWindow = updated
-      if first != updated.paragraphs.first?.id, let visibleID { restoring = true; restoreID = visibleID }
+      if first != updated.paragraphs.first?.id, let visibleID { scheduleRestore(visibleID) }
     }
   }
   private func cancelAdjacent() {
@@ -557,7 +567,7 @@ struct BookhouseReaderView: View {
     var transaction = Transaction(); transaction.disablesAnimations = true
     withTransaction(transaction) {
       catalogWindow = updated; pendingPage = nil; edgeLoading = nil
-      if movedStart, let anchor { restoring = true; restoreID = anchor }
+      if movedStart, let anchor { scheduleRestore(anchor) }
     }
   }
 }

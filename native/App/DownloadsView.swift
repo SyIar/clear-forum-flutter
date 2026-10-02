@@ -62,6 +62,11 @@ struct DownloadsView: View {
     NavigationStack {
       List {
         Section {
+          NavigationLink { LocalFilesView() } label: {
+            Label(AppText.text("Local files"), forumSymbol: "folder")
+          }
+        }
+        Section {
           Picker(AppText.text("Download status"), selection: $selected) {
             ForEach(DownloadGroup.allCases) { group in
               Text(AppText.text(group.rawValue) + " (\(tasks.filter { $0.group == group }.count))").tag(group)
@@ -170,7 +175,7 @@ private struct VideoDownloadRow: View {
     }.padding(.vertical, 6)
       .swipeActions { if !download.busy { Button(AppText.text("Remove"), role: .destructive) { manager.remove(download) } } }
       .sheet(item: $export) { GofileExport(file: $0.url) }
-      .navigationDestination(item: $preview) { GofileQuickLook(file: $0.url).navigationTitle(download.displayName) }
+      .navigationDestination(item: $preview) { LocalFilePreview(file: $0.url) }
       .background { ExternalBrowserPresenter(url: $website).frame(width: 0, height: 0) }
       .navigationDestination(item: $reopen) { MediaViewerDestination(item: $0) }
   }

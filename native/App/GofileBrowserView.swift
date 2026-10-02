@@ -99,7 +99,7 @@ struct GofileBrowserView: View {
       if !visible { session.resumeThumbnails() }
     }
     .navigationDestination(item: $session.preview) { file in
-      GofileQuickLook(file: file.url).navigationTitle(AppText.text("Preview")).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
+      LocalFilePreview(file: file.url)
     }
     .navigationDestination(item: $session.video) { source in
       GofileVideoView(source: source).navigationTitle(AppText.text("Video")).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)

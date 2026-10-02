@@ -83,14 +83,19 @@ struct ReaderQuickActions: View {
 }
 
 struct ReturnToReadingButton: View {
+  var restoreDisabled = false
   let restore: () -> Void
   let dismiss: () -> Void
   var body: some View {
     HStack(spacing: 0) {
-      Button(action: restore) { Image(forumSymbol: "arrow.uturn.backward", size: 21).frame(width: 52, height: 44) }
+      Button(action: restore) {
+        Image(forumSymbol: "arrow.uturn.backward", size: 21).frame(width: 52, height: 44).contentShape(Rectangle())
+      }.disabled(restoreDisabled).opacity(restoreDisabled ? 0.4 : 1)
         .accessibilityLabel(AppText.text("Return to reading position"))
       Divider().frame(height: 18)
-      Button(action: dismiss) { Image(forumSymbol: "xmark", size: 14).frame(width: 44, height: 44) }
+      Button(action: dismiss) {
+        Image(forumSymbol: "xmark", size: 14).frame(width: 44, height: 44).contentShape(Rectangle())
+      }
         .accessibilityLabel(AppText.text("Keep this reading position"))
     }.buttonStyle(.plain).foregroundStyle(.blue).padding(4).glassEffect(.regular.interactive(), in: .capsule)
       .padding(.bottom, 12)

@@ -2,6 +2,7 @@ import Foundation
 
 // Queue metadata and opaque resume tokens stay outside the Files-visible directory.
 enum FileDownloadStore {
+  static let didInstallFile = Notification.Name("ForumLocalFilesChanged")
   static func root() throws -> URL {
     let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
     var directory = support.appendingPathComponent("FileDownloadState", isDirectory: true)
@@ -46,6 +47,7 @@ enum FileDownloadStore {
     try save(Receipt(path: path, bytes: bytes), name: id.uuidString + "-receipt")
     try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
     try FileManager.default.moveItem(at: file, to: target)
+    NotificationCenter.default.post(name: didInstallFile, object: nil)
     return target
   }
   static func acknowledge(_ id: UUID) { remove(id.uuidString); remove(id.uuidString + "-receipt") }

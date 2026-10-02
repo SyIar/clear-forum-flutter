@@ -306,7 +306,7 @@ struct HostedBatchView: View {
       if !batch.finished { Section { Button(AppText.text("Stop batch"), forumSymbol: "stop", role: .destructive, action: batch.cancel) } }
     }.navigationTitle(AppText.text("Downloads")).navigationBarTitleDisplayMode(.inline).toolbarRole(.editor)
       .sheet(item: $export) { GofileExport(file: $0.url) }
-      .navigationDestination(item: $preview) { GofileQuickLook(file: $0.url).ignoresSafeArea(.container, edges: .bottom).navigationBarTitleDisplayMode(.inline) }
+      .navigationDestination(item: $preview) { LocalFilePreview(file: $0.url) }
       .background { ExternalBrowserPresenter(url: $website, useFileBrowser: false).frame(width: 0, height: 0) }
   }
 }

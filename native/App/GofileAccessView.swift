@@ -127,7 +127,7 @@ struct GofileBatchView: View {
         }
       }
       .sheet(item: $export) { GofileExport(file: $0.url) }
-      .navigationDestination(item: $preview) { GofileQuickLook(file: $0.url).navigationTitle(AppText.text("Preview")) }
+      .navigationDestination(item: $preview) { LocalFilePreview(file: $0.url) }
   }
   private var title: String {
     switch batch.phase {

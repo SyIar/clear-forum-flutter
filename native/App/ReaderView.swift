@@ -402,13 +402,13 @@ struct ReaderView: View {
       .padding(.bottom, 12)
       .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     } else if let point = returnPoint {
-      ReturnToReadingButton(restore: {
+      ReturnToReadingButton(restoreDisabled: loading || purchasing, restore: {
         if readingPages.page(containing: point.anchor) != nil || point.anchor == "top" && SitePolicy.pageCacheKey(point.url) == SitePolicy.pageCacheKey(current) {
           proxy.scrollTo(point.anchor, anchor: .top); returnPoint = nil
         } else {
           go(to: point.url, returnAnchor: point.anchor)
         }
-      }, dismiss: { returnPoint = nil; savePosition() }).disabled(loading || purchasing)
+      }, dismiss: { returnPoint = nil; savePosition() })
     }
   }
   private func setBottomPanel(_ panel: ReaderBottomPanel?) {
