@@ -42,7 +42,8 @@ struct ForumEntryCard: View {
       if !entry.tags.isEmpty { ForumTagStrip(tags: entry.tags, navigate: navigate) }
       Button { navigate(entry.url) } label: {
         HStack(spacing: 10) {
-          if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
+          if bookTitle != nil { Image(forumSymbol: "book").foregroundStyle(.blue) }
+          else if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
           else { Image(forumSymbol: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             if let tags = bookTitle?.tags, !tags.isEmpty {

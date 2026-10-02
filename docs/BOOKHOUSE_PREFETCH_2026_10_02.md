@@ -7,6 +7,7 @@
 - Preserve catalog ordering, including upper/lower parts and overlapping chapter bundles. There is no speculative request at the final chapter or across a catalog gap.
 - A failed speculative request stays silent and is not repeated on subsequent visibility changes for the same target. The normal edge load can retry and present its usual error if needed.
 - Cancel speculation when jumping, refreshing, leaving the reader, entering the background, changing the browser session, or receiving a memory warning. Replaced or canceled requests cannot publish stale results into the reader.
+- Bookhouse catalog and search-result rows use the open-book `notebook` vector from the existing pinned ChunUI/Pika revision, including featured entries. Other forums keep their existing row icons.
 
 ## Verification
 
