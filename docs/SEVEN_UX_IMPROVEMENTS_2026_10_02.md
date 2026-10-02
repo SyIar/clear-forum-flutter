@@ -17,6 +17,7 @@
 - Read caching only applies to followed books. Visibility, rather than fetching or speculative preloading, triggers the cache. Saving a publication does not mark its other chapters read. Cache failures do not interrupt reading.
 - A search icon at the chapter catalog's upper left opens global offline body-text search across all currently followed books. Searches scan immutable cache snapshots on a cancellable background task, with a 300 ms debounce and a 200-result limit. They do not fetch pages, touch cache recency, or change reading progress. Results identify the book, publication, chapter and matching paragraph. Selecting a result uses the cached publication and its paragraph anchor; same-book jumps retain the return-to-reading action, and another book opens a new reader. Evicted or invalid cache files are skipped with a visible notice.
 - Search regression cases cover relaunch, multiple books, styled runs, Unicode matching, bundled chapter anchors, result limits, author validation, corrupt files and eviction during a search.
+- The chapter catalog replaces numeric input with a normalized progress slider. It starts at the currently visible chapter (chapter 30 of 100 is 30%), previews the target while dragging, and navigates only on release. Missing catalog chapters show a notice instead of skipping silently. A single-chapter book disables scrubbing.
 
 ## Storage and operating limits
 

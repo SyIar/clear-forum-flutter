@@ -88,22 +88,39 @@ struct BookhouseFollowingSection: View {
 
 struct BookhouseChapterPicker: View {
   let book: BookhouseFollowedBook
+  let currentChapter: Int
   let select: (BookhouseChapter, Int) -> Void
   @ObservedObject var library: LibraryStore
   let selectCached: (BookhouseOfflineMatch) -> Void
   @Environment(\.dismiss) private var nativeDismiss
   @Environment(\.forumDismiss) private var forumDismiss
-  @State private var number = ""
+  @State private var selectedChapter = 1
   @State private var error: String?
   @ObservedObject private var offline = BookhouseOfflineStore.shared
+  private var totalChapters: Int { max(1, book.latestChapter) }
+  private var progress: Binding<Double> {
+    Binding(get: { Double(selectedChapter) / Double(totalChapters) }, set: {
+      selectedChapter = min(totalChapters, max(1, Int(($0 * Double(totalChapters)).rounded())))
+      error = nil
+    })
+  }
   var body: some View {
     NavigationStack {
       List {
         Section {
-          HStack {
-            TextField(AppText.text("Chapter number"), text: $number).keyboardType(.numberPad)
-            Button(AppText.text("Go")) { jump() }.buttonStyle(.borderless)
-          }
+          VStack(spacing: 12) {
+            HStack {
+              Text(AppText.format("Chapter %@ of %@", String(selectedChapter), String(totalChapters)))
+              Spacer()
+              Text(Double(selectedChapter) / Double(totalChapters), format: .percent.precision(.fractionLength(0)))
+                .foregroundStyle(.secondary)
+            }.appFont(.subheadline).monospacedDigit()
+            Slider(value: progress, in: 0...1, step: 1 / Double(totalChapters)) { editing in
+              if !editing { jump() }
+            }.disabled(book.chapters.isEmpty || totalChapters <= 1)
+              .accessibilityLabel(AppText.text("Jump to chapter"))
+              .accessibilityValue(AppText.format("Chapter %@ of %@", String(selectedChapter), String(totalChapters)))
+          }.padding(.vertical, 6)
           if let error { Text(error).appFont(.caption).foregroundStyle(.secondary) }
         }
         Section {
@@ -132,15 +149,14 @@ struct BookhouseChapterPicker: View {
             Button { dismiss() } label: { ForumToolbarIcon("xmark") }.accessibilityLabel(AppText.text("Close"))
           }
         }
-    }
+    }.onAppear { selectedChapter = min(totalChapters, max(1, currentChapter)) }
   }
   private func jump() {
-    guard let value = BookhouseChapterTitle.number(number.trimmingCharacters(in: .whitespaces)),
-          let chapter = book.chapter(containing: value) else {
+    guard let chapter = book.chapter(containing: selectedChapter) else {
       error = AppText.text("This chapter is not in the current catalog. Check for updates or choose another chapter.")
       return
     }
-    finish(chapter, value)
+    finish(chapter, selectedChapter)
   }
   private func finish(_ chapter: BookhouseChapter, _ number: Int) { dismiss(); select(chapter, number) }
   private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }

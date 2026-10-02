@@ -69,7 +69,8 @@ struct BookhouseReaderView: View {
       }
       .forumSheet(isPresented: $selectingChapter) {
         if let book {
-          BookhouseChapterPicker(book: book, select: { openChapter($0, number: $1) }, library: library, selectCached: openCachedMatch)
+          BookhouseChapterPicker(book: book, currentChapter: readingWindow.paragraph(id: visibleID)?.chapter ?? book.position?.chapter ?? book.chapters.first?.first ?? 1,
+            select: { openChapter($0, number: $1) }, library: library, selectCached: openCachedMatch)
         }
       }
       .forumSheet(isPresented: $showingSettings) { ReadingSettingsView() }
