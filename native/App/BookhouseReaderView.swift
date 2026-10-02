@@ -32,6 +32,7 @@ struct BookhouseReaderView: View {
   @State private var selectingChapter = false
   @State private var chapterNotice: String?
   @State private var readingWindow = BookhouseReadingWindow()
+  @State private var catalogWindow = ReaderPageWindow()
   @State private var scrollTracking = ReaderScrollTracking()
   @State private var edgeLoading: ReaderEdge?
   @State private var edgeFailure: ReaderEdgeFailure?
@@ -101,7 +102,7 @@ struct BookhouseReaderView: View {
             Text(book?.title ?? page.title).forumFont(.title2, weight: .bold).padding(.top, 8)
             if page.kind == .posts, book != nil { continuousNovel }
             else if page.kind == .posts { novel(page) }
-            else { catalog(page) }
+            else { catalog(catalogWindow.combined(active: page)) }
           }
           if let error { errorPanel(error) }
           if let chapterNotice { Text(chapterNotice).appFont(.caption).foregroundStyle(.secondary) }
@@ -129,7 +130,7 @@ struct BookhouseReaderView: View {
   private var orderedIDs: [String] {
     let contentIDs: [String]
     if page?.kind == .posts { contentIDs = blocks.indices.map { "paragraph-\($0)" } + ["replies"] }
-    else { contentIDs = page?.entries.map(\.id) ?? [] }
+    else { contentIDs = page.map { catalogWindow.combined(active: $0).entries.map(\.id) } ?? [] }
     return ["top"] + contentIDs + ["bottom"]
   }
 
@@ -256,11 +257,8 @@ struct BookhouseReaderView: View {
         .modifier(BookhouseFollowMenu(entry: entry, enabled: BookhouseSitePolicy.route(page.url)?.kind == .search))
     }
     if page.entries.isEmpty { Text(AppText.text("No results")).foregroundStyle(.secondary) }
-    if BookhouseSitePolicy.route(page.url)?.kind != .search, let next = page.next {
-      Button { startLoad(next, append: true) } label: {
-        HStack { Spacer(); Label(AppText.text("Load more novels"), forumSymbol: "chevron.down"); Spacer() }
-      }.buttonStyle(.glass).disabled(loading).padding(.vertical, 8)
-    }
+    ReaderEdgeIndicator(edge: .next, loading: edgeLoading == .next, failure: edgeFailure) { loadAdjacent(.next) }
+      .frame(maxWidth: .infinity).frame(minHeight: edgeLoading == .next || edgeFailure?.edge == .next ? 44 : 0)
   }
 
   @ViewBuilder private func novel(_ page: ForumPage) -> some View {
@@ -322,7 +320,7 @@ struct BookhouseReaderView: View {
     if BookhouseSitePolicy.readable(url) { navigate(url) }
     else { external = url }
   }
-  private func startLoad(_ url: URL, refresh: Bool = false, append: Bool = false, returnAnchor: String? = nil, cachedMatch: BookhouseOfflineMatch? = nil) {
+  private func startLoad(_ url: URL, refresh: Bool = false, returnAnchor: String? = nil, cachedMatch: BookhouseOfflineMatch? = nil) {
     pendingReturnAnchor = returnAnchor
     pendingCachedMatch = cachedMatch
     if refresh, let key = BookhouseSitePolicy.threadKey(url) { capturedReadPages.remove(key) }
@@ -331,9 +329,9 @@ struct BookhouseReaderView: View {
     cancelAdjacent()
     setBottomPanel(nil)
     operation?.cancel()
-    operation = Task { await load(url, refresh: refresh, append: append) }
+    operation = Task { await load(url, refresh: refresh) }
   }
-  @MainActor private func load(_ url: URL, refresh: Bool = false, append: Bool = false) async {
+  @MainActor private func load(_ url: URL, refresh: Bool = false) async {
     let token = UUID(); requestID = token
     loading = true; error = nil; failedTarget = nil
     defer { if requestID == token { loading = false } }
@@ -351,41 +349,34 @@ struct BookhouseReaderView: View {
       else { loaded = try await session.load(url, cacheResult: true) }
       guard !Task.isCancelled, requestID == token else { return }
       if let book, !book.accepts(loaded) { throw BookhouseFollowingFailure.author }
-      if append, var existing = page {
-        var seen = Set(existing.entries.map(\.id))
-        existing.entries += loaded.entries.filter { seen.insert($0.id).inserted }
-        existing.next = loaded.next
-        page = existing
-        session.pages.store(existing)
-      } else {
-        page = loaded
-        repliesLoaded = !loaded.entries.isEmpty && loaded.kind == .posts
-        repliesError = nil
-        visibleID = snapshot?.visibleID ?? "top"
-        chapterNotice = nil
-        if let book, let publication = book.chapters.first(where: { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(loaded.url) }) {
-          let parsed = BookhouseChapterAnchors(blocks: loaded.posts.first?.blocks ?? [], chapter: publication)
-          guard readingWindow.reset(loaded, book: book) else { throw ReaderFailure.unsupported }
-          var paragraph = 0
-          if let match = pendingCachedMatch {
-            paragraph = min(max(0, match.paragraph), max(0, (loaded.posts.first?.blocks.count ?? 1) - 1))
-          } else if let number = pendingChapter {
-            if let found = parsed.paragraph(for: number) { paragraph = found }
-            else {
-              if number != publication.first { chapterNotice = AppText.text("This post has no recognizable heading for the requested chapter. Showing the publication from its beginning.") }
-            }
-          } else if let position = book.position, position.url == publication.url, blocks.indices.contains(position.paragraph) {
-            paragraph = position.paragraph
+      page = loaded
+      catalogWindow.reset(loaded.kind == .threads ? loaded : nil)
+      repliesLoaded = !loaded.entries.isEmpty && loaded.kind == .posts
+      repliesError = nil
+      visibleID = snapshot?.visibleID ?? "top"
+      chapterNotice = nil
+      if let book, let publication = book.chapters.first(where: { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(loaded.url) }) {
+        let parsed = BookhouseChapterAnchors(blocks: loaded.posts.first?.blocks ?? [], chapter: publication)
+        guard readingWindow.reset(loaded, book: book) else { throw ReaderFailure.unsupported }
+        var paragraph = 0
+        if let match = pendingCachedMatch {
+          paragraph = min(max(0, match.paragraph), max(0, (loaded.posts.first?.blocks.count ?? 1) - 1))
+        } else if let number = pendingChapter {
+          if let found = parsed.paragraph(for: number) { paragraph = found }
+          else {
+            if number != publication.first { chapterNotice = AppText.text("This post has no recognizable heading for the requested chapter. Showing the publication from its beginning.") }
           }
-          visibleID = BookhouseReadingParagraph.id(url: publication.url, index: paragraph)
-          pendingChapter = nil
-          pendingCachedMatch = nil
+        } else if let position = book.position, position.url == publication.url, blocks.indices.contains(position.paragraph) {
+          paragraph = position.paragraph
         }
-        if let anchor = pendingReturnAnchor { visibleID = anchor; pendingReturnAnchor = nil; returnPoint = nil }
-        latestVisibleIDs = []; restoring = true
-        restoreID = visibleID
-        library.remember(loaded, session: session, checkMaximum: false)
+        visibleID = BookhouseReadingParagraph.id(url: publication.url, index: paragraph)
+        pendingChapter = nil
+        pendingCachedMatch = nil
       }
+      if let anchor = pendingReturnAnchor { visibleID = anchor; pendingReturnAnchor = nil; returnPoint = nil }
+      latestVisibleIDs = []; restoring = true
+      restoreID = visibleID
+      library.remember(loaded, session: session, checkMaximum: false)
     } catch {
       guard !Task.isCancelled, requestID == token else { return }
       self.error = AppText.error(error)
@@ -422,7 +413,7 @@ struct BookhouseReaderView: View {
       }
       guard first != visibleID else { return }
       visibleID = first
-      if let active = readingWindow.page(containing: first), active.url != page?.url {
+      if let active = book == nil ? catalogWindow.page(containing: first) : readingWindow.page(containing: first), active.url != page?.url {
         page = active
         library.remember(active, session: session, checkMaximum: false)
       }
@@ -465,15 +456,18 @@ struct BookhouseReaderView: View {
     }
   }
   private func checkEdgeDrag(phase: ScrollPhase? = nil) {
-    guard let book, !loading, !restoring, error == nil, edgeLoading == nil else { return }
+    guard !loading, !restoring, error == nil, edgeLoading == nil else { return }
     let pull = scrollTracking.pull, phase = phase ?? scrollPhase
+    let previous = book.map { readingWindow.target(.previous, book: $0) != nil } ?? (catalogWindow.target(.previous) != nil)
+    let next = book.map { readingWindow.target(.next, book: $0) != nil } ?? (catalogWindow.target(.next) != nil)
     if let edge = scrollTracking.trigger.update(topPull: Double(pull.top), remaining: Double(pull.remaining), offset: Double(pull.offset),
       interacting: phase == .interacting, decelerating: phase == .decelerating,
-      previous: readingWindow.target(.previous, book: book) != nil, next: readingWindow.target(.next, book: book) != nil) {
+      previous: previous, next: next) {
       loadAdjacent(edge)
     }
   }
   private func loadAdjacent(_ edge: ReaderEdge) {
+    if book == nil { loadAdjacentCatalog(edge); return }
     guard let book, !loading, edgeLoading == nil, let target = readingWindow.target(edge, book: book) else { return }
     edgeLoading = edge; edgeFailure = nil
     if edge == .previous { chapterPrefetch.cancel() }
@@ -498,6 +492,7 @@ struct BookhouseReaderView: View {
     }
   }
   private func applyAdjacentPage() {
+    if book == nil { applyAdjacentCatalog(); return }
     guard let book, let incoming = pendingPage, let edge = edgeLoading,
           edge == .next || scrollPhase == .idle else { return }
     var updated = readingWindow
@@ -515,7 +510,7 @@ struct BookhouseReaderView: View {
     trimWindow()
   }
   private func trimWindow() {
-    guard scrollPhase == .idle, !restoring else { return }
+    guard book != nil, scrollPhase == .idle, !restoring else { return }
     var updated = readingWindow
     let first = updated.paragraphs.first?.id
     updated.trim(keeping: visibleID, preserving: lastJoinedEdge)
@@ -531,5 +526,38 @@ struct BookhouseReaderView: View {
     scrollTracking.trigger.endDrag()
     edgeRequestID = UUID(); edgeTask?.cancel(); edgeTask = nil
     edgeLoading = nil; pendingPage = nil; edgeFailure = nil
+  }
+  private func loadAdjacentCatalog(_ edge: ReaderEdge) {
+    guard !loading, edgeLoading == nil, let target = catalogWindow.target(edge) else { return }
+    edgeLoading = edge; edgeFailure = nil
+    let token = UUID(); edgeRequestID = token
+    edgeTask = Task { @MainActor in
+      do {
+        let loaded: ForumPage
+        if let snapshot = session.pages.value(for: target) { loaded = snapshot.page }
+        else { loaded = try await session.load(target, cacheResult: true) }
+        guard !Task.isCancelled, edgeRequestID == token else { return }
+        pendingPage = loaded; applyAdjacentCatalog()
+      } catch {
+        guard !Task.isCancelled, edgeRequestID == token else { return }
+        edgeLoading = nil; edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.error(error))
+      }
+    }
+  }
+  private func applyAdjacentCatalog() {
+    guard let incoming = pendingPage, let edge = edgeLoading, scrollPhase == .idle else { return }
+    var updated = catalogWindow
+    guard updated.insert(incoming, at: edge, keeping: current) else {
+      pendingPage = nil; edgeLoading = nil
+      edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.text("Could not join this results page. Try again."))
+      return
+    }
+    let anchor = visibleID
+    let movedStart = updated.pages.first?.url != catalogWindow.pages.first?.url
+    var transaction = Transaction(); transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      catalogWindow = updated; pendingPage = nil; edgeLoading = nil
+      if movedStart, let anchor { restoring = true; restoreID = anchor }
+    }
   }
 }

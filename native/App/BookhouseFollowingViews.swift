@@ -1,6 +1,15 @@
 import ForumUI
 import SwiftUI
 
+private enum BookhouseChapterText {
+  static func status(_ number: Int, latest: Bool) -> String {
+    let key: String
+    if BookhouseChapterTitle.isExtra(number) { key = latest ? "Latest extra %@" : "Reading extra %@" }
+    else { key = latest ? "Latest chapter %@" : "Reading chapter %@" }
+    return AppText.format(key, String(BookhouseChapterTitle.localNumber(number)))
+  }
+}
+
 struct BookhouseFollowMenu: ViewModifier {
   let entry: ForumEntry
   var enabled = true
@@ -45,9 +54,9 @@ struct BookhouseFollowingSection: View {
                   Text(book.author).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 HStack(spacing: 12) {
-                  Text(book.position.map { AppText.format("Reading chapter %@", String($0.chapter)) } ?? AppText.text("Not started"))
+                  Text(book.position.map { BookhouseChapterText.status($0.chapter, latest: false) } ?? AppText.text("Not started"))
                     .foregroundStyle(.secondary)
-                  Text(AppText.format("Latest chapter %@", String(book.latestChapter)))
+                  Text(BookhouseChapterText.status(book.latestChapter, latest: true))
                     .foregroundStyle(book.updated ? .blue : .secondary)
                 }.appFont(.caption).lineLimit(1).minimumScaleFactor(0.85)
               }.frame(maxWidth: .infinity, alignment: .leading)
@@ -98,7 +107,14 @@ struct BookhouseChapterPicker: View {
   @State private var selectedChapter = 1
   @State private var error: String?
   @ObservedObject private var offline = BookhouseOfflineStore.shared
-  private var totalChapters: Int { max(1, book.latestChapter) }
+  private var totalChapters: Int { max(1, book.sliderChapterCount) }
+  private var selectionLabel: String {
+    let number = book.chapterNumber(at: selectedChapter)
+    if BookhouseChapterTitle.isExtra(number) {
+      return AppText.format("Extra %@ of %@", String(BookhouseChapterTitle.localNumber(number)), String(book.latestExtraChapter))
+    }
+    return AppText.format("Chapter %@ of %@", String(number), String(book.latestRegularChapter))
+  }
   private var progress: Binding<Double> {
     Binding(get: { Double(selectedChapter) / Double(totalChapters) }, set: {
       selectedChapter = min(totalChapters, max(1, Int(($0 * Double(totalChapters)).rounded())))
@@ -111,7 +127,7 @@ struct BookhouseChapterPicker: View {
         Section {
           VStack(spacing: 12) {
             HStack {
-              Text(AppText.format("Chapter %@ of %@", String(selectedChapter), String(totalChapters)))
+              Text(selectionLabel)
               Spacer()
               Text(Double(selectedChapter) / Double(totalChapters), format: .percent.precision(.fractionLength(0)))
                 .foregroundStyle(.secondary)
@@ -120,7 +136,7 @@ struct BookhouseChapterPicker: View {
               if !editing { jump() }
             }.disabled(book.chapters.isEmpty || totalChapters <= 1)
               .accessibilityLabel(AppText.text("Jump to chapter"))
-              .accessibilityValue(AppText.format("Chapter %@ of %@", String(selectedChapter), String(totalChapters)))
+              .accessibilityValue(selectionLabel)
           }.padding(.vertical, 6)
           if let error { Text(error).appFont(.caption).foregroundStyle(.secondary) }
           if offline.failedBooks.contains(book.id), let message = offline.error {
@@ -160,14 +176,15 @@ struct BookhouseChapterPicker: View {
             }.buttonStyle(.borderless).disabled(offline.caching(book.id) || book.chapters.isEmpty)
           }
         }
-    }.onAppear { selectedChapter = min(totalChapters, max(1, currentChapter)) }
+    }.onAppear { selectedChapter = min(totalChapters, max(1, book.sliderPosition(for: currentChapter))) }
   }
   private func jump() {
-    guard let chapter = book.chapter(containing: selectedChapter) else {
+    let number = book.chapterNumber(at: selectedChapter)
+    guard let chapter = book.chapter(containing: number) else {
       error = AppText.text("This chapter is not in the current catalog. Check for updates or choose another chapter.")
       return
     }
-    finish(chapter, selectedChapter)
+    finish(chapter, number)
   }
   private func finish(_ chapter: BookhouseChapter, _ number: Int) { dismiss(); select(chapter, number) }
   private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }

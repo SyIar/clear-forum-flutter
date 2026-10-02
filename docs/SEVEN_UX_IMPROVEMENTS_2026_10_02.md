@@ -19,6 +19,7 @@
 - Search regression cases cover relaunch, multiple books, styled runs, Unicode matching, bundled chapter anchors, result limits, author validation, corrupt files and eviction during a search.
 - The chapter catalog replaces numeric input with a normalized progress slider. It starts at the currently visible chapter (chapter 30 of 100 is 30%), previews the target while dragging, and navigates only on release. Missing catalog chapters show a notice instead of skipping silently. A single-chapter book disables scrubbing.
 - The catalog's upper-right action caches all publications in the current chapter catalog; swipe down to dismiss the sheet. A shared serial worker owns these tasks, so dismissing the sheet or leaving the reader does not cancel them. Progress is checkpointed atomically after each successful cache write. Re-entering a book resumes its unfinished task after relaunch, skips existing cache, and reconciles entries cleared while paused. App suspension pauses requests; returning to an open reader resumes them. A full cache pauses the task rather than evicting earlier publications from the book being cached. Increase the cache limit to continue. The action uses the current known catalog and does not itself search for additional chapters.
+- Ordinary Bookhouse listings and search results now use the reader's edge-triggered continuous paging. The Load more novels button is removed. Cursor listings record bounded parent links to reload previously visited pages, while search keeps its original query filters. Both use a five-page window, deduplicate rows, preserve the visible anchor, and keep raw page caches separate from the combined display. Adjacent failures remain at the relevant edge with retry instead of replacing the list.
 
 ## Storage and operating limits
 
@@ -41,3 +42,5 @@
 - Jump to a far forum page or novel chapter, then use Return to reading; verify the original anchor and high-water floor remain intact.
 - Cache a followed novel, disable networking, reopen the app, and read cached chapters. Change appearance and clear only the cache.
 - Refresh two libraries within an hour and use Updates only; check that fresh items are skipped, failed checks remain retryable, and row order stays stable.
+
+- Followed novels recognize numbered extras as a separate chapter section, search the primary title without its parenthetical subtitle, tolerate a missing opening title bracket, and still require the declared literary author. Regular chapters lead into extras in both reading directions; slider progress and labels use human chapter numbers. Existing catalogs are rechecked once without resetting reading progress.

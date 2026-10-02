@@ -14,6 +14,16 @@ enum BookhouseChapterPart: Int, Comparable, Sendable {
 }
 
 struct BookhouseChapterTitle: Equatable {
+  // Stable internal numbers keep extras distinct from regular chapters, even
+  // when the regular catalog grows. Display and slider positions decode them.
+  static let extraOffset = 100_000
+  static func isExtra(_ number: Int) -> Bool { number > extraOffset }
+  static func localNumber(_ number: Int) -> Int { isExtra(number) ? number - extraOffset : number }
+  static func searchTitle(_ title: String) -> String {
+    let text = title.precomposedStringWithCompatibilityMapping
+    let primary = text.prefix { $0 != "(" }.trimmingCharacters(in: .whitespacesAndNewlines)
+    return primary.isEmpty ? title : primary
+  }
   let book: String
   let first: Int
   let last: Int
@@ -48,17 +58,18 @@ struct BookhouseChapterTitle: Equatable {
   static let numberPattern = "[0-9\u{96F6}\u{3007}\u{4E00}\u{4E8C}\u{4E24}\u{4E09}\u{56DB}\u{4E94}\u{516D}\u{4E03}\u{516B}\u{4E5D}\u{5341}\u{767E}\u{5343}\u{4E07}]+"
   init?(_ source: String) {
     let text = source.precomposedStringWithCompatibilityMapping.trimmingCharacters(in: .whitespacesAndNewlines)
-    let pattern = "^[\u{3010}\u{300A}\\[]([^\u{3011}\u{300B}\\]]+)[\u{3011}\u{300B}\\]]\\s*(?:\u{7B2C}|\\()?\\s*(" + Self.numberPattern + ")(?:\\s*[-~\u{2013}\u{2014}\u{81F3}]\\s*(" + Self.numberPattern + "))?\\s*(?:([\u{4E0A}\u{4E2D}\u{4E0B}])\\s*)?(?:\u{7AE0}|\\))(?:\\s*\\(\\s*([\u{4E0A}\u{4E2D}\u{4E0B}])\\s*\\))?"
+    let pattern = "^[\u{3010}\u{300A}\\[]?([^\u{3011}\u{300B}\\]]+)[\u{3011}\u{300B}\\]]\\s*(?:\\(\\s*)?(?:(\u{756A}\u{5916})\\s*)?(?:\u{7B2C}\\s*)?(" + Self.numberPattern + ")(?:\\s*[-~\u{2013}\u{2014}\u{81F3}]\\s*(" + Self.numberPattern + "))?\\s*(?:([\u{4E0A}\u{4E2D}\u{4E0B}])\\s*)?(?:\u{7AE0}|\\))(?:\\s*\\(\\s*([\u{4E0A}\u{4E2D}\u{4E0B}])\\s*\\))?"
     guard let regex = try? NSRegularExpression(pattern: pattern),
           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-          let name = Range(match.range(at: 1), in: text), let start = Range(match.range(at: 2), in: text),
+          let name = Range(match.range(at: 1), in: text), let start = Range(match.range(at: 3), in: text),
           let first = Self.number(String(text[start])) else { return nil }
-    let last = Range(match.range(at: 3), in: text).flatMap { Self.number(String(text[$0])) } ?? first
+    let last = Range(match.range(at: 4), in: text).flatMap { Self.number(String(text[$0])) } ?? first
     let book = String(text[name]).trimmingCharacters(in: .whitespacesAndNewlines)
-    let part = [4, 5].compactMap { Range(match.range(at: $0), in: text).flatMap { BookhouseChapterPart(String(text[$0])) } }.first
+    let part = [5, 6].compactMap { Range(match.range(at: $0), in: text).flatMap { BookhouseChapterPart(String(text[$0])) } }.first
     guard !book.isEmpty, book.count <= 100, first <= last else { return nil }
     guard part == nil || first == last else { return nil }
-    self.book = book; self.first = first; self.last = last; self.part = part
+    let offset = match.range(at: 2).location == NSNotFound ? 0 : Self.extraOffset
+    self.book = book; self.first = first + offset; self.last = last + offset; self.part = part
   }
 }
 
@@ -101,8 +112,32 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
   var checkedAt: Date?
   var attemptedAt: Date?
   var acknowledgedMaximum: Int
+  var acknowledgedRegularMaximum: Int?
+  var maximumReadRegular: Int?
+  var catalogVersion: Int? = 2
   var latestChapter: Int { chapters.map(\.last).max() ?? 0 }
-  var updated: Bool { latestChapter > max(acknowledgedMaximum, maximumRead ?? 0) }
+  var latestRegularChapter: Int { chapters.filter { !BookhouseChapterTitle.isExtra($0.first) }.map(\.last).max() ?? 0 }
+  var latestExtraChapter: Int { chapters.filter { BookhouseChapterTitle.isExtra($0.first) }.map { BookhouseChapterTitle.localNumber($0.last) }.max() ?? 0 }
+  var sliderChapterCount: Int { latestRegularChapter + latestExtraChapter }
+  var searchTitle: String { BookhouseChapterTitle.searchTitle(title) }
+  func sliderPosition(for chapter: Int) -> Int {
+    BookhouseChapterTitle.isExtra(chapter) ? latestRegularChapter + BookhouseChapterTitle.localNumber(chapter) : chapter
+  }
+  func chapterNumber(at position: Int) -> Int {
+    position > latestRegularChapter ? BookhouseChapterTitle.extraOffset + position - latestRegularChapter : position
+  }
+  @discardableResult mutating func migrateCatalog() -> Bool {
+    guard catalogVersion != 2 else { return false }
+    catalogVersion = 2
+    // Recheck old, possibly seed-only catalogs without discarding reading state.
+    checkedAt = nil; attemptedAt = nil
+    return true
+  }
+  var updated: Bool {
+    let regularBaseline = acknowledgedRegularMaximum ?? (BookhouseChapterTitle.isExtra(acknowledgedMaximum) ? 0 : acknowledgedMaximum)
+    let regularRead = maximumReadRegular ?? (BookhouseChapterTitle.isExtra(maximumRead ?? 0) ? 0 : maximumRead ?? 0)
+    return latestChapter > max(acknowledgedMaximum, maximumRead ?? 0) || latestRegularChapter > max(regularBaseline, regularRead)
+  }
   var resumeURL: URL { position?.url ?? seed }
 
   init?(entry: ForumEntry, at date: Date = Date()) {
@@ -116,6 +151,7 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
     authorID = authorSource == .postingAccount ? entry.authorID : nil; followedAt = date; seed = url
     chapters = [BookhouseChapter(url: url, title: entry.title, first: parsed.first, last: parsed.last)]
     acknowledgedMaximum = parsed.last
+    acknowledgedRegularMaximum = BookhouseChapterTitle.isExtra(parsed.first) ? 0 : parsed.last
   }
   @discardableResult mutating func migrateAuthor() -> Bool {
     guard authorSource == nil else { return false }
@@ -133,7 +169,7 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
   }
   private func matchesTitle(_ source: String) -> Bool {
     guard let parsed = BookhouseChapterTitle(source),
-          BookhouseChapterTitle.normalized(parsed.book) == BookhouseChapterTitle.normalized(title) else { return false }
+          BookhouseChapterTitle.normalized(BookhouseChapterTitle.searchTitle(parsed.book)) == BookhouseChapterTitle.normalized(searchTitle) else { return false }
     guard authorSource == .title else { return true }
     let name = BookhouseTitlePresentation(title: source, postingAuthor: "").literaryAuthor
     return name.map { BookhouseChapterTitle.normalized($0) == BookhouseChapterTitle.normalized(author) } ?? false
@@ -194,6 +230,17 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
     }.sorted { $0.part == $1.part ? $0.id < $1.id : $0.part! < $1.part! }
     return edge == .next ? candidates.first : candidates.last
   }
+  func adjacentChapter(to publication: BookhouseChapter, boundary: Int, edge: ReaderEdge) -> BookhouseChapter? {
+    if let part = adjacentPart(to: publication, edge: edge) { return part }
+    if let next = chapter(containing: boundary + (edge == .next ? 1 : -1), excluding: publication.url, preferLastPart: edge == .previous) { return next }
+    if edge == .next, boundary == latestRegularChapter {
+      return chapter(containing: BookhouseChapterTitle.extraOffset + 1)
+    }
+    if edge == .previous, boundary == BookhouseChapterTitle.extraOffset + 1, latestRegularChapter > 0 {
+      return chapter(containing: latestRegularChapter, preferLastPart: true)
+    }
+    return nil
+  }
   mutating func merge(_ entries: [ForumEntry], checkedAt: Date) {
     var collected = Dictionary(chapters.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     for entry in entries where matches(entry) {
@@ -206,7 +253,7 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
       return $0.id < $1.id
     }
     // The initial catalog establishes the update baseline without marking it read.
-    if self.checkedAt == nil { acknowledgedMaximum = latestChapter }
+    if self.checkedAt == nil { acknowledgedMaximum = latestChapter; acknowledgedRegularMaximum = latestRegularChapter }
     self.checkedAt = checkedAt
   }
   mutating func record(url: URL, chapter: Int, paragraph: Int) {
@@ -214,21 +261,26 @@ struct BookhouseFollowedBook: Codable, Identifiable, Equatable, Sendable {
           (item.first...item.last).contains(chapter) else { return }
     position = BookhouseReadingPosition(url: item.url, chapter: chapter, paragraph: paragraph)
     maximumRead = max(maximumRead ?? 0, chapter)
+    if !BookhouseChapterTitle.isExtra(chapter) { maximumReadRegular = max(maximumReadRegular ?? 0, chapter) }
   }
 }
 
 struct BookhouseChapterAnchors {
   let byParagraph: [Int: Int]
   init(blocks: [BodyBlock], chapter: BookhouseChapter) {
-    let pattern = "^\\s*\u{7B2C}\\s*(" + BookhouseChapterTitle.numberPattern + ")\\s*\u{7AE0}(?:\\s|[\u{FF1A}:\u{3001}.]|$)"
+    let extra = BookhouseChapterTitle.isExtra(chapter.first)
+    let prefix = extra ? "(?:\u{756A}\u{5916}\\s*(?:\u{7B2C}\\s*)?|\u{7B2C}\\s*)" : "\u{7B2C}\\s*"
+    let suffix = extra ? "(?:\\s*\u{7AE0})?(?:\\s|[\u{FF1A}:\u{3001}.]|$)" : "\\s*\u{7AE0}(?:\\s|[\u{FF1A}:\u{3001}.]|$)"
+    let pattern = "^\\s*" + prefix + "(" + BookhouseChapterTitle.numberPattern + ")" + suffix
     let regex = try? NSRegularExpression(pattern: pattern)
     var values: [Int: Int] = [:], seen = Set<Int>()
     var last = chapter.first - 1
     for (index, block) in blocks.enumerated() where block.kind == .paragraph {
       let text = block.runs.map(\.text).joined().precomposedStringWithCompatibilityMapping
       guard text.count <= 120, let match = regex?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-            let range = Range(match.range(at: 1), in: text), let number = BookhouseChapterTitle.number(String(text[range])),
-            (chapter.first...chapter.last).contains(number), number >= last, seen.insert(number).inserted else { continue }
+            let range = Range(match.range(at: 1), in: text), let raw = BookhouseChapterTitle.number(String(text[range])) else { continue }
+      let number = raw + (extra ? BookhouseChapterTitle.extraOffset : 0)
+      guard (chapter.first...chapter.last).contains(number), number >= last, seen.insert(number).inserted else { continue }
       values[index] = number; last = number
     }
     byParagraph = values

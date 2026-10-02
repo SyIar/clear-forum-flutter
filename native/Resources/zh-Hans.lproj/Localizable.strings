@@ -488,6 +488,7 @@
 "No update checks yet" = "\U5C1A\U672A\U68C0\U67E5\U66F4\U65B0";
 "Jump to chapter" = "\U8DF3\U8F6C\U7AE0\U8282";
 "Cache all chapters" = "\U7F13\U5B58\U5168\U90E8\U7AE0\U8282";
+"Could not join this results page. Try again." = "\U65E0\U6CD5\U62FC\U63A5\U6B64\U9875\UFF0C\U8BF7\U91CD\U8BD5\U3002";
 "Caching %@/%@" = "\U7F13\U5B58 %@/%@";
 "The offline cache is full. Increase its limit in reading settings, then resume caching." = "\U7F13\U5B58\U7A7A\U95F4\U5DF2\U6EE1\UFF0C\U8BF7\U5728\U9605\U8BFB\U8BBE\U7F6E\U4E2D\U63D0\U9AD8\U5BB9\U91CF\U4E0A\U9650\UFF0C\U518D\U7EE7\U7EED\U7F13\U5B58\U3002";
 "Chapter %@ of %@" = "\U7B2C %@ \U7AE0 / \U5171 %@ \U7AE0";
@@ -501,3 +502,9 @@
 "Search cached text" = "\U641C\U7D22\U5DF2\U7F13\U5B58\U6B63\U6587";
 "This cached chapter is no longer available. Search again or reopen it from the catalog." = "\U6B64\U7AE0\U8282\U7F13\U5B58\U5DF2\U6E05\U7406\UFF0C\U8BF7\U91CD\U65B0\U641C\U7D22\U6216\U4ECE\U76EE\U5F55\U6253\U5F00\U3002";
 "Read chapters of followed books are cached automatically. Search all cached text from the chapter catalog. You can also cache the next five chapters from My reading. Images still need a connection." = "\U8FFD\U8BFB\U4E66\U7C4D\U8BFB\U8FC7\U7684\U7AE0\U8282\U4F1A\U81EA\U52A8\U7F13\U5B58\UFF0C\U53EF\U5728\U7AE0\U8282\U76EE\U5F55\U641C\U7D22\U5168\U90E8\U5DF2\U7F13\U5B58\U6B63\U6587\U3002\U4E5F\U53EF\U5728\U6211\U7684\U8FFD\U8BFB\U4E2D\U9884\U5148\U7F13\U5B58\U540E\U7EED\U4E94\U7AE0\U3002\U56FE\U7247\U4ECD\U9700\U8054\U7F51\U3002";
+
+"Latest extra %@" = "\U66F4\U65B0\U81F3\U756A\U5916 %@";
+
+"Reading extra %@" = "\U8BFB\U5230\U756A\U5916 %@";
+
+"Extra %@ of %@" = "\U756A\U5916 %@ / %@";

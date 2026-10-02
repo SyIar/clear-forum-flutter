@@ -41,7 +41,7 @@ extension LibraryStore {
   func refreshBook(_ id: String, session: ForumSession, manual: Bool = true) async {
     guard site == .bookhouse, session.site == .bookhouse else { return }
     if let task = bookTasks[id] { await task.value; return }
-    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.title),
+    guard let book = document.followedBooks[id], let search = BookhouseSitePolicy.search(book.searchTitle),
           LibraryRefreshPolicy.isDue(checkedAt: book.checkedAt, attemptedAt: book.attemptedAt, manual: manual) else { return }
     change { $0.followedBooks[id]?.attemptedAt = Date() }
     bookRefreshPhases[id] = .checking; bookErrors[id] = nil
