@@ -51,6 +51,15 @@ struct BookhouseReadingWindow {
     return book.chapter(containing: edge == .previous ? boundary.first - 1 : boundary.last + 1,
       excluding: boundary.publication.url, preferLastPart: edge == .previous)
   }
+  func prefetchTarget(visibleIDs: [String], book: BookhouseFollowedBook) -> BookhouseChapter? {
+    guard let last = slices.last, !last.range.isEmpty else { return nil }
+    let visible = Set(visibleIDs)
+    // Measure the final publication only, excluding earlier retained chapters.
+    // Visibility provides reading progress without eagerly laying out the novel.
+    guard let index = last.paragraphs.last(where: { visible.contains($0.id) })?.index,
+          (index - last.range.lowerBound + 1) * 10 >= last.range.count * 9 else { return nil }
+    return target(.next, book: book)
+  }
   @discardableResult mutating func reset(_ page: ForumPage, book: BookhouseFollowedBook) -> Bool {
     guard let slice = slice(page, book: book) else { return false }
     slices = [slice]

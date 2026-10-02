@@ -42,6 +42,7 @@ struct BookhouseReaderView: View {
   @State private var failedTarget: URL?
   @State private var latestVisibleIDs: [String] = []
   @State private var progressSave: Task<Void, Never>?
+  @State private var chapterPrefetch = BookhouseChapterPrefetch()
   private var current: URL { page?.url ?? initialURL }
   private var blocks: [BodyBlock] { page?.posts.first?.blocks ?? [] }
   private var book: BookhouseFollowedBook? { followedBookID.flatMap { library.document.followedBooks[$0] } }
@@ -62,7 +63,14 @@ struct BookhouseReaderView: View {
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
       .task { if page == nil { await load(initialURL) } }
       .onDisappear { savePosition(); progressSave?.cancel(); operation?.cancel(); cancelAdjacent(); bottomPanel = nil }
-      .onChange(of: scenePhase) { _, phase in if phase != .active { savePosition() } }
+      .onChange(of: scenePhase) { _, phase in
+        if phase != .active { savePosition(); chapterPrefetch.cancel() }
+        else { prefetchNextChapter() }
+      }
+      .onChange(of: session.generation) { _, _ in chapterPrefetch.cancel() }
+      .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+        chapterPrefetch.cancel()
+      }
   }
 
   private var readingContent: some View {
@@ -363,6 +371,7 @@ struct BookhouseReaderView: View {
     library.recordBook(id, url: paragraph.url, chapter: paragraph.chapter, paragraph: paragraph.index)
   }
   private func observeVisiblePosition(_ ids: [String]) {
+    prefetchNextChapter()
     let candidates = book == nil ? orderedIDs : readingWindow.paragraphs.map(\.id)
     if let first = candidates.first(where: { ids.contains($0) }) {
       guard first != visibleID else { return }
@@ -383,6 +392,16 @@ struct BookhouseReaderView: View {
     pendingChapter = number
     startLoad(chapter.url)
   }
+  private func prefetchNextChapter() {
+    guard scenePhase == .active, let book, !loading, !restoring, error == nil, edgeLoading == nil,
+          let target = readingWindow.prefetchTarget(visibleIDs: latestVisibleIDs, book: book),
+          session.pages.value(for: target.url) == nil else { return }
+    chapterPrefetch.start(target.url) {
+      let loaded = try await session.load(target.url, cacheResult: true)
+      guard book.accepts(loaded) else { throw BookhouseFollowingFailure.author }
+      return loaded
+    }
+  }
   private func checkEdgeDrag(phase: ScrollPhase? = nil) {
     guard let book, !loading, !restoring, error == nil, edgeLoading == nil else { return }
     let pull = scrollTracking.pull, phase = phase ?? scrollPhase
@@ -395,12 +414,17 @@ struct BookhouseReaderView: View {
   private func loadAdjacent(_ edge: ReaderEdge) {
     guard let book, !loading, edgeLoading == nil, let target = readingWindow.target(edge, book: book) else { return }
     edgeLoading = edge; edgeFailure = nil
+    if edge == .previous { chapterPrefetch.cancel() }
     let token = UUID(); edgeRequestID = token
     edgeTask = Task { @MainActor in
       do {
         let loaded: ForumPage
         if let snapshot = session.pages.value(for: target.url) { loaded = snapshot.page }
-        else { loaded = try await session.load(target.url, cacheResult: true) }
+        else if let prefetched = await chapterPrefetch.take(target.url) { loaded = prefetched }
+        else {
+          try Task.checkCancellation()
+          loaded = try await session.load(target.url, cacheResult: true)
+        }
         guard !Task.isCancelled, edgeRequestID == token else { return }
         pendingPage = loaded
         applyAdjacentPage()
@@ -440,6 +464,7 @@ struct BookhouseReaderView: View {
     }
   }
   private func cancelAdjacent() {
+    chapterPrefetch.cancel()
     scrollTracking.trigger.endDrag()
     edgeRequestID = UUID(); edgeTask?.cancel(); edgeTask = nil
     edgeLoading = nil; pendingPage = nil; edgeFailure = nil
