@@ -24,7 +24,7 @@ enum GofileDownloadSelection {
 struct GofileBatchPlan: Codable {
   struct Item: Identifiable, Codable {
     var id = UUID()
-    let entry: GofileEntry
+    var entry: GofileEntry
     let path: [String]
     var page = 1
   }
@@ -40,6 +40,11 @@ struct GofileBatchPlan: Codable {
     try append(listing.entries, parent: [])
   }
   mutating func advance() { _ = pending.popLast() }
+  mutating func refreshFile(_ entry: GofileEntry) throws {
+    guard let index = pending.indices.last, !pending[index].entry.folder, !entry.folder,
+          pending[index].entry.id == entry.id else { throw GofileFailure.stale }
+    pending[index].entry = entry
+  }
   mutating func expand(_ listing: GofileListing) throws {
     guard let item = next, item.entry.folder else { return }
     let key = "\(listing.id):\(listing.page)"

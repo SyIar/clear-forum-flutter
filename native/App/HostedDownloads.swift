@@ -14,6 +14,7 @@ final class HostedDownloadManager: ObservableObject {
     catch { writable = false; storageError = AppText.text("Download history could not be restored. Existing files were preserved.") }
   }
   private func observe(_ batch: HostedBatchDownload) {
+    batch.reserveRecovery()
     batch.persist = { [weak self] in self?.save() ?? false }
     observations[batch.id] = batch.objectWillChange.throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
       .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -60,8 +61,14 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
     guard running else { return }
     if activity != .downloading && activity != .saving { pause() }
     resumeOnForeground = true
+    persist?()
   }
   func foregrounded() { if resumeOnForeground && canResume { resumeOnForeground = false; resume() } }
+  func reserveRecovery() {
+    if resumeOnForeground, activity == .downloading || activity == .saving, let transferID {
+      GofileFileTransfer.reserveRecovery(transferID)
+    }
+  }
   var transferID: UUID? { plan?.pending.first?.id }
   func contains(_ entry: HostedFileEntry) -> Bool { saved.contains { $0.entryKey == entry.id } || plan?.pending.contains { $0.entry.id == entry.id } == true }
   func file(for entry: HostedFileEntry) -> URL? { saved.first { $0.entryKey == entry.id }?.url }
@@ -115,10 +122,12 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
         Saved(id: item.id, name: item.name, url: try FileDownloadStore.destination(item.name.components(separatedBy: "/"), in: directory), entryKey: item.entryKey)
       }
     }
+    resumeOnForeground = record.phase == .running
+    activity = record.activity ?? .waiting
   }
   var record: HostedBatchRecord {
     HostedBatchRecord(id: id, created: created, listing: listing, phase: phase, current: current, issue: issue,
-      retryAfter: retryAfter, folder: directory?.lastPathComponent, saved: saved, skipped: skipped, plan: plan, progress: progress)
+      retryAfter: retryAfter, folder: directory?.lastPathComponent, saved: saved, skipped: skipped, plan: plan, progress: progress, activity: activity)
   }
   func start() {
     guard phase == .idle else { return }
@@ -148,6 +157,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   }
   func cancel() {
     resumeOnForeground = false
+    if let transferID { GofileFileTransfer.releaseRecovery(transferID) }
     worker?.cancel(); phase = .cancelled; issue = nil; retryAfter = nil
     persist?()
   }
@@ -158,7 +168,12 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
     plan?.advance(); persist?(); resume()
   }
   private func run() async {
-    defer { worker = nil; persist?(); if UIApplication.shared.applicationState == .active { foregrounded() } }
+    let startedTransfer = transferID
+    defer {
+      worker = nil; persist?()
+      if let startedTransfer { FileBackgroundEvents.saved(startedTransfer); GofileFileTransfer.releaseRecovery(startedTransfer) }
+      if UIApplication.shared.applicationState == .active { foregrounded() }
+    }
     while let item = plan?.pending.first, let directory {
       if Task.isCancelled { return }
       current = item.path.joined(separator: "/"); progress = nil
@@ -166,7 +181,8 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
       do {
         if let recovered = try FileDownloadStore.recovered(item.id, path: item.path, directory: directory) {
           saved.append(Saved(name: current, url: recovered, entryKey: item.entry.id)); plan?.advance()
-          if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id); continue
+          if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
+          GofileFileTransfer.releaseRecovery(item.id); continue
         }
         if item.entry.folder {
           activity = .readingFolder
@@ -179,6 +195,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
           let file = try await HostedTransfer.run(item.entry, client: client, checkpointID: item.id, activity: { [weak self] value in
             guard let self, self.running else { return }
             self.activity = value
+            self.persist?()
           }) { [weak self] value in
             guard let self, self.running else { return }
             self.progress = value
@@ -263,9 +280,16 @@ struct HostedBatchView: View {
       if !batch.saved.isEmpty {
         Section(AppText.text("Saved files")) {
           ForEach(batch.saved) { file in
-            Button { preview = GofileLocalFile(url: file.url) } label: {
-              Label(file.name, forumSymbol: "checkmark.circle").foregroundStyle(.primary).lineLimit(2)
-            }.contextMenu { Button(AppText.text("Export file"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: file.url) } }
+            HStack(spacing: 12) {
+              Button { preview = GofileLocalFile(url: file.url) } label: {
+                Label(file.name, forumSymbol: "doc").appFont(.subheadline).foregroundStyle(.primary).lineLimit(2)
+              }.buttonStyle(.plain)
+              Spacer(minLength: 0)
+              ShareLink(item: file.url) { Image(forumSymbol: "square.and.arrow.up").frame(width: 44, height: 44) }
+                .buttonStyle(.borderless).accessibilityLabel(AppText.text("Share"))
+              Button { export = GofileLocalFile(url: file.url) } label: { Image(forumSymbol: "folder").frame(width: 44, height: 44) }
+                .buttonStyle(.borderless).accessibilityLabel(AppText.text("Save to Files"))
+            }
           }
         }
       }

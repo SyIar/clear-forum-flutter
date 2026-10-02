@@ -13,6 +13,13 @@ enum FileBackgroundEvents {
   }
   static func eventsReady(_ id: UUID) { delivered.insert(id); complete(id) }
   static func saved(_ id: UUID) { settled.insert(id); complete(id) }
+  static func cancelOrphan(_ id: UUID) {
+    let session = URLSession(configuration: .background(withIdentifier: identifier(id)))
+    session.getAllTasks { tasks in
+      tasks.forEach { $0.cancel() }; session.finishTasksAndInvalidate()
+      DispatchQueue.main.async { saved(id); eventsReady(id) }
+    }
+  }
   private static func complete(_ id: UUID) {
     guard delivered.contains(id), settled.contains(id), let callback = callbacks.removeValue(forKey: id) else { return }
     delivered.remove(id); settled.remove(id); callback()
@@ -22,8 +29,8 @@ enum FileBackgroundEvents {
 final class FileBackgroundDelegate: NSObject, UIApplicationDelegate {
   func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
     guard let id = FileBackgroundEvents.receive(identifier, completion: completionHandler) else { return }
-    if let batch = HostedDownloadManager.shared.items.first(where: { $0.transferID == id }) { batch.resume() }
-    else if let batch = GofileDownloadManager.shared.items.first(where: { $0.transferID == id }) { batch.resume() }
-    else { FileBackgroundEvents.saved(id); FileBackgroundEvents.eventsReady(id) }
+    if let batch = HostedDownloadManager.shared.items.first(where: { $0.transferID == id }), batch.running || batch.canResume { batch.resume() }
+    else if let batch = GofileDownloadManager.shared.items.first(where: { $0.transferID == id }), batch.running || batch.canResume { batch.resume() }
+    else { FileBackgroundEvents.cancelOrphan(id) }
   }
 }

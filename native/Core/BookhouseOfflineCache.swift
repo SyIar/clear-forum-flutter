@@ -20,6 +20,11 @@ final class BookhouseOfflineCache {
       ? try JSONDecoder().decode([Entry].self, from: Data(contentsOf: index)) : []
     entries = entries.filter { $0.bytes > 0 && BookhouseSitePolicy.threadKey($0.url) != nil && FileManager.default.fileExists(atPath: file($0.id).path) }
     try trim()
+    let retained = Set(entries.map { $0.id.uuidString + ".json" })
+    for candidate in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+      where candidate.pathExtension == "json" && UUID(uuidString: candidate.deletingPathExtension().lastPathComponent) != nil && !retained.contains(candidate.lastPathComponent) {
+      try? FileManager.default.removeItem(at: candidate)
+    }
   }
   func contains(_ url: URL, bookID: String) -> Bool { entry(url, bookID: bookID) != nil }
   func page(_ url: URL, book: BookhouseFollowedBook) throws -> ForumPage? {

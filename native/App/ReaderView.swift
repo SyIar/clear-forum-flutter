@@ -272,13 +272,13 @@ struct ReaderView: View {
       .onChange(of: canRecordReading) { _, value in if value { recordVisibleProgress() } }
       .onChange(of: visibleID) { old, value in
         guard !loading, error == nil else { return }
-        if let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
+        if returnPoint == nil, let previous = readingPages.page(containing: old) { session.pages.savePosition(old, for: previous.url) }
         if let active = readingPages.page(containing: value) {
           if SitePolicy.pageCacheKey(active.url) != SitePolicy.pageCacheKey(current) {
             page = active; url = active.url
-            library.remember(active, session: session, checkMaximum: false)
+            if returnPoint == nil { library.remember(active, session: session, checkMaximum: false) }
           }
-          session.pages.savePosition(value, for: active.url)
+          if returnPoint == nil { session.pages.savePosition(value, for: active.url) }
         }
       }
       .onChange(of: session.generation) { _, generation in
@@ -406,10 +406,9 @@ struct ReaderView: View {
         if readingPages.page(containing: point.anchor) != nil || point.anchor == "top" && SitePolicy.pageCacheKey(point.url) == SitePolicy.pageCacheKey(current) {
           proxy.scrollTo(point.anchor, anchor: .top); returnPoint = nil
         } else {
-          pendingReturnAnchor = point.anchor
-          go(to: point.url)
+          go(to: point.url, returnAnchor: point.anchor)
         }
-      }, dismiss: { returnPoint = nil; savePosition() })
+      }, dismiss: { returnPoint = nil; savePosition() }).disabled(loading || purchasing)
     }
   }
   private func setBottomPanel(_ panel: ReaderBottomPanel?) {
@@ -421,8 +420,9 @@ struct ReaderView: View {
     presentation = .browser(target)
   }
   private func reload() { guard !purchasing else { return }; setBottomPanel(nil); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
-  private func go(to target: URL) {
-    guard !purchasing, session.site.accepts(target), pendingReturnAnchor != nil || SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+  private func go(to target: URL, returnAnchor: String? = nil) {
+    guard !purchasing, session.site.accepts(target), returnAnchor != nil || SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
+    pendingReturnAnchor = returnAnchor
     rememberReturnPoint()
     setBottomPanel(nil)
     savePosition()
@@ -493,7 +493,7 @@ struct ReaderView: View {
     defer { if requestID == expected { loading = false } }
     if !force, let cached = session.pages.value(for: current) {
       page = cached.page; readingPages.reset(cached.page); url = cached.page.url; loadedGeneration = epoch
-      library.remember(cached.page, session: session, checkMaximum: false)
+      if returnPoint == nil { library.remember(cached.page, session: session, checkMaximum: false) }
       startPurchase()
       return cached.visibleID
     }
@@ -502,7 +502,8 @@ struct ReaderView: View {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       posters.cancel()
       loadedGeneration = epoch
-      page = parsed; readingPages.reset(parsed); url = parsed.url; library.remember(parsed, session: session)
+      page = parsed; readingPages.reset(parsed); url = parsed.url
+      if returnPoint == nil { library.remember(parsed, session: session) }
       startPurchase()
     } catch {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }

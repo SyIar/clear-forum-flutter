@@ -35,7 +35,7 @@ struct BookhouseFollowingSection: View {
         Text(AppText.text("Long-press a numbered search result to follow a book."))
           .appFont(.subheadline).foregroundStyle(.secondary)
       }
-      ForEach(library.document.readingBooks) { book in
+      ForEach(library.document.readingBooks.filter { !library.onlyUpdates || $0.updated }) { book in
         VStack(alignment: .leading, spacing: 8) {
           Button { open(book.id) } label: {
             HStack(spacing: 10) {

@@ -7,6 +7,9 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private static var active: GofileFileTransfer?
   private static var cooldown = Date.distantPast
   private static var wake: DispatchWorkItem?
+  private static var recovery = Set<UUID>()
+  static func reserveRecovery(_ id: UUID) { recovery.insert(id) }
+  static func releaseRecovery(_ id: UUID) { recovery.remove(id); startNext() }
   static func slowDown(until date: Date) {
     cooldown = max(cooldown, date)
   }
@@ -56,7 +59,13 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       return
     }
     wake?.cancel(); wake = nil
-    let (transfer, url) = waiting.removeFirst()
+    // Reattach the system's existing transfer before starting newly queued files.
+    let index: Int
+    if !recovery.isEmpty {
+      guard let found = waiting.firstIndex(where: { $0.0.checkpointID.map { recovery.contains($0) } == true }) else { return }
+      index = found
+    } else { index = 0 }
+    let (transfer, url) = waiting.remove(at: index)
     active = transfer; transfer.prepareAndBegin(url)
   }
   private func prepareAndBegin(_ url: URL) {
@@ -96,7 +105,14 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       do { try FileDownloadStore.save(checkpoint, name: checkpointID.uuidString) }
       catch { finish(.failure(error)); return }
     } else { configuration = .ephemeral }
-    configuration.httpCookieStorage = nil; configuration.httpShouldSetCookies = false
+    // Background redirects are handled by the system. Let its cookie jar apply
+    // domain/path rules instead of forwarding a hand-built Cookie header.
+    let systemCookies = checkpointID != nil && hosted == nil
+    configuration.httpCookieStorage = systemCookies ? HTTPCookieStorage.shared : nil
+    configuration.httpShouldSetCookies = systemCookies
+    if systemCookies {
+      for cookie in cookies where MediaPolicy.cookieMatches(cookie, url) { HTTPCookieStorage.shared.setCookie(cookie) }
+    }
     configuration.urlCredentialStorage = nil; configuration.urlCache = nil
     configuration.timeoutIntervalForRequest = 60; configuration.timeoutIntervalForResource = 7200
     session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
@@ -114,8 +130,8 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   }
   private func request(_ url: URL) -> URLRequest {
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-    request.httpShouldHandleCookies = false
-    for (key, value) in HTTPCookie.requestHeaderFields(with: hosted == nil ? cookies.filter { MediaPolicy.cookieMatches($0, url) } : []) {
+    request.httpShouldHandleCookies = checkpointID != nil && hosted == nil
+    for (key, value) in HTTPCookie.requestHeaderFields(with: hosted == nil && checkpointID == nil ? cookies.filter { MediaPolicy.cookieMatches($0, url) } : []) {
       request.setValue(value, forHTTPHeaderField: key)
     }
     request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
@@ -148,8 +164,16 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     preparing?.cancel(); preparing = nil
     if case .failure = result, !cancelling { task?.cancel() }
     session?.finishTasksAndInvalidate(); session = nil; task = nil
+    if checkpointID != nil, hosted == nil {
+      for cookie in cookies {
+        for stored in HTTPCookieStorage.shared.cookies ?? [] where stored.name == cookie.name && stored.domain == cookie.domain && stored.path == cookie.path && stored.value == cookie.value {
+          HTTPCookieStorage.shared.deleteCookie(stored)
+        }
+      }
+    }
     Self.waiting.removeAll { $0.0 === self }
     if Self.active === self { Self.active = nil }
+    if let checkpointID { Self.recovery.remove(checkpointID) }
     completion(result)
     Self.startNext()
   }

@@ -11,7 +11,7 @@ struct SouthFollowingSection: View {
       if library.document.following.isEmpty {
         Text(AppText.text("No followed authors")).appFont(.subheadline).foregroundStyle(.secondary)
       }
-      ForEach(library.document.following) { author in
+      ForEach(library.document.following.filter { author in !library.onlyUpdates || author.topics.contains { library.document.isUnreadSouthThread($0.url) } }) { author in
         VStack(alignment: .leading, spacing: 12) {
           HStack(spacing: 10) {
             Button { openTopics(author) } label: {
@@ -26,7 +26,7 @@ struct SouthFollowingSection: View {
             Button { library.unfollow(author.id) } label: { Image(forumSymbol: "person.badge.minus") }
               .buttonStyle(.borderless).accessibilityLabel(AppText.format("Unfollow %@", String(describing: author.name)))
           }
-          ForEach(author.topics) { topic in
+          ForEach(author.topics.filter { !library.onlyUpdates || library.document.isUnreadSouthThread($0.url) }) { topic in
             Divider()
             Button { open(topic.url) } label: {
               HStack(alignment: .top, spacing: 8) {

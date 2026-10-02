@@ -16,8 +16,14 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
     guard running else { return }
     if activity != .downloading && activity != .saving { pause() }
     resumeOnForeground = true
+    persist?()
   }
   func foregrounded() { if resumeOnForeground && canResume { resumeOnForeground = false; resume() } }
+  func reserveRecovery() {
+    if resumeOnForeground, activity == .downloading || activity == .saving, let transferID {
+      GofileFileTransfer.reserveRecovery(transferID)
+    }
+  }
   var transferID: UUID? { plan?.next?.id }
   func contains(_ entry: GofileEntry) -> Bool { savedFiles[entry.id] != nil || plan?.pending.contains { $0.entry.id == entry.id } == true }
   func isCurrent(_ entry: GofileEntry) -> Bool { plan?.next?.entry.id == entry.id }
@@ -38,7 +44,18 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
   private var plan: GofileBatchPlan?
   @Published private var worker: Task<Void, Never>?
   private var unlocked: GofileListing?
+  private var refreshCurrentFile = false
   var pending: Int { plan?.pending.count ?? 0 }
+  var queued: Int { activity.queuedCount(pending: pending, running: running) }
+  var activityText: String {
+    switch activity {
+    case .waiting: return AppText.text("Queued")
+    case .resolving: return AppText.text("Resolving download address")
+    case .downloading: return AppText.text("Downloading")
+    case .saving: return AppText.text("Saving file")
+    case .readingFolder: return AppText.text("Reading folder")
+    }
+  }
   var running: Bool { phase == .running }
   var canResume: Bool { phase == .paused && worker == nil && plan != nil && directory != nil && gate?.retryDate.map { $0 > Date() } != true }
   init(url: URL, selection: GofileDownloadSelection) {
@@ -58,12 +75,14 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
       savedFiles = try record.saved.mapValues { try FileDownloadStore.destination($0, in: directory) }
     }
     completed = savedFiles.count
+    resumeOnForeground = record.phase == .running
+    activity = record.activity ?? .waiting
   }
   var record: GofileBatchRecord {
     let prefix = directory?.pathComponents.count ?? 0
     return GofileBatchRecord(id: id, created: created, sourceKey: sourceKey, title: title, url: url, phase: phase,
       current: current, issue: issue, gate: gate, folder: directory?.lastPathComponent,
-      saved: savedFiles.mapValues { Array($0.pathComponents.dropFirst(prefix)) }, skipped: skipped, plan: plan, progress: progress)
+      saved: savedFiles.mapValues { Array($0.pathComponents.dropFirst(prefix)) }, skipped: skipped, plan: plan, progress: progress, activity: activity)
   }
 
   func start(_ listing: GofileListing) {
@@ -85,6 +104,7 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
   }
   func resume() {
     guard canResume, plan != nil, directory != nil else { return }
+    refreshCurrentFile = issue != nil || gate != nil
     phase = .running; issue = nil; gate = nil
     worker = Task { [weak self] in
       guard let self else { return }
@@ -100,6 +120,7 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
   }
   func cancel() {
     resumeOnForeground = false
+    if let transferID { GofileFileTransfer.releaseRecovery(transferID) }
     worker?.cancel(); session.stop(); phase = .cancelled; issue = nil; gate = nil
     persist?()
   }
@@ -130,14 +151,20 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
     unlocked = listing; gate = nil; issue = nil; resume()
   }
   private func run() async {
-    defer { worker = nil; persist?(); if UIApplication.shared.applicationState == .active { foregrounded() } }
+    let startedTransfer = transferID
+    defer {
+      worker = nil; persist?()
+      if let startedTransfer { FileBackgroundEvents.saved(startedTransfer); GofileFileTransfer.releaseRecovery(startedTransfer) }
+      if UIApplication.shared.applicationState == .active { foregrounded() }
+    }
     while let item = plan?.next, let directory {
       if Task.isCancelled { return }
       current = item.path.joined(separator: "/"); progress = nil
       do {
         if let recovered = try FileDownloadStore.recovered(item.id, path: item.path, directory: directory) {
           savedFiles[item.entry.id] = recovered; completed += 1; plan?.advance()
-          if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id); continue
+          if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
+          GofileFileTransfer.releaseRecovery(item.id); continue
         }
         if item.entry.folder {
           activity = .readingFolder
@@ -152,8 +179,17 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
           skipped.append(Skipped(path: current, reason: AppText.text("Use Copy magnet in the file list."))); plan?.advance()
           continue
         } else {
-          let file = try await session.transfer(item.entry, checkpointID: item.id,
-            activity: { [weak self] value in self?.activity = value }) { [weak self] value in self?.progress = value }
+          var entry = item.entry
+          if refreshCurrentFile, (try FileDownloadStore.load(FileTransferCheckpoint.self, name: item.id.uuidString)) == nil {
+            activity = .readingFolder
+            let refreshed = try await session.fetch(entry.pageURL)
+            try Task.checkCancellation()
+            guard let fresh = refreshed.entries.first(where: { $0.id == entry.id && !$0.folder }) else { throw GofileFailure.unavailable }
+            try plan?.refreshFile(fresh); entry = fresh; persist?()
+          }
+          refreshCurrentFile = false
+          let file = try await session.transfer(entry, checkpointID: item.id,
+            activity: { [weak self] value in self?.activity = value; self?.persist?() }) { [weak self] value in self?.progress = value }
           defer { GofileFileTransfer.remove(file) }
           try Task.checkCancellation()
           let destination = try FileDownloadStore.install(file, id: item.id, path: item.path, directory: directory)
@@ -169,8 +205,10 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
       catch {
         guard !Task.isCancelled else { return }
         let failure = error as? GofileFailure
-        if [GofileFailure.notFound, .expired, .access, .premium, .unavailable].contains(where: { $0 == failure }) {
+        if [GofileFailure.notFound, .expired, .unavailable].contains(where: { $0 == failure }) {
           skipped.append(Skipped(path: current, reason: AppText.error(error))); plan?.advance()
+          persist?(); FileBackgroundEvents.saved(item.id)
+          if UIApplication.shared.applicationState != .active { phase = pending == 0 ? .finished : .paused; resumeOnForeground = pending > 0; return }
           do { try await Task.sleep(for: .milliseconds(700)) } catch { return }
           continue
         }

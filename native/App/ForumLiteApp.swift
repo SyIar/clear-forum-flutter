@@ -34,7 +34,7 @@ struct ForumLiteApp: App {
           FloatingDownloads(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads)
         }
         .forumSheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
-        .onChange(of: scenePhase) { _, value in
+        .onChange(of: scenePhase, initial: true) { _, value in
           if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.cancel() }
           else if value == .active { downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded() }
         }
@@ -126,6 +126,7 @@ final class LibraryStore: ObservableObject {
   @Published var bookRefreshPhases: [String: ForumRefreshPhase] = [:]
   @Published var bookErrors: [String: String] = [:]
   @Published var checkProgress = LibraryCheckProgress()
+  @Published var onlyUpdates = false
   var bookTasks: [String: Task<Void, Never>] = [:]
   init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
@@ -366,8 +367,8 @@ struct HomeView: View {
   @State private var checkedUpdatesOnLaunch = false
   @State private var showingBlockedAuthors = false
   @State private var browserPresentation: ReaderPresentation?
-  private var visibleBookmarks: [SavedPage] { library.document.bookmarks.filter { !library.document.hidesSavedPage($0) } }
-  private var visibleRecent: [SavedPage] { library.document.recent.filter { !library.document.hidesSavedPage($0) } }
+  private var visibleBookmarks: [SavedPage] { library.document.bookmarks.filter { !library.document.hidesSavedPage($0) && (!library.onlyUpdates || hasUpdates($0)) } }
+  private var visibleRecent: [SavedPage] { library.document.recent.filter { !library.document.hidesSavedPage($0) && (!library.onlyUpdates || hasUpdates($0)) } }
   var body: some View {
       List {
         Section {
@@ -477,6 +478,12 @@ struct HomeView: View {
           ForumDialogAction(AppText.text("Retry")) { library.reload() },
           ForumDialogAction(AppText.text("OK"), role: .cancel) { library.error = nil }
         ] }, message: { library.error ?? "" })
+  }
+  private func hasUpdates(_ entry: SavedPage) -> Bool {
+    if session.site == .bookhouse {
+      return library.document.readingBooks.contains { book in book.updated && book.chapters.contains { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(entry.url) } }
+    }
+    return SitePolicy.threadKey(entry.url).flatMap { library.document.threads[$0]?.updated } == true
   }
   private func savedRow(_ entry: SavedPage) -> some View {
     let key = SitePolicy.threadKey(entry.url)

@@ -227,9 +227,8 @@ struct BookhouseReaderView: View {
       .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     } else if let point = returnPoint {
       ReturnToReadingButton(restore: {
-        pendingReturnAnchor = point.anchor
-        startLoad(point.url)
-      }, dismiss: { returnPoint = nil; savePosition() })
+        startLoad(point.url, returnAnchor: point.anchor)
+      }, dismiss: { returnPoint = nil; savePosition() }).disabled(loading || restoring)
     }
   }
   private func setBottomPanel(_ panel: ReaderBottomPanel?) {
@@ -316,7 +315,8 @@ struct BookhouseReaderView: View {
     if BookhouseSitePolicy.readable(url) { navigate(url) }
     else { external = url }
   }
-  private func startLoad(_ url: URL, refresh: Bool = false, append: Bool = false) {
+  private func startLoad(_ url: URL, refresh: Bool = false, append: Bool = false, returnAnchor: String? = nil) {
+    pendingReturnAnchor = returnAnchor
     savePosition()
     progressSave?.cancel()
     cancelAdjacent()

@@ -40,16 +40,18 @@ struct GofileBatchView: View {
   @ObservedObject var batch: GofileBatchDownload
   @ObservedObject private var session: GofileSession
   @State private var export: GofileLocalFile?
+  @State private var preview: GofileLocalFile?
   init(batch: GofileBatchDownload) { self.batch = batch; self.session = batch.session }
   var body: some View {
     List {
       Section {
         Label(title, forumSymbol: batch.phase == .finished ? "checkmark.circle" : "arrow.down.doc")
           .appFont(.headline)
-        Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.pending)))
+        Text(AppText.format("%@ saved · %@ skipped · %@ queued", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.queued)))
           .appFont(.subheadline).foregroundStyle(.secondary)
         if !batch.current.isEmpty { Text(batch.current).appFont(.subheadline).lineLimit(3) }
         if batch.running {
+          Text(batch.activityText).appFont(.caption).foregroundStyle(.secondary)
           if let progress = batch.progress {
             ProgressView(value: progress)
             Text("\(Int(progress * 100))%").appFont(.caption).monospacedDigit()
@@ -82,6 +84,24 @@ struct GofileBatchView: View {
             .disabled(batch.running)
         }
       }
+      if !batch.savedFiles.isEmpty {
+        Section(AppText.text("Saved files")) {
+          ForEach(batch.savedFiles.keys.sorted(), id: \.self) { key in
+            if let file = batch.savedFiles[key] {
+              HStack(spacing: 12) {
+                Button { preview = GofileLocalFile(url: file) } label: {
+                  Label(file.lastPathComponent, forumSymbol: "doc").appFont(.subheadline).lineLimit(2)
+                }.buttonStyle(.plain)
+                Spacer(minLength: 0)
+                ShareLink(item: file) { Image(forumSymbol: "square.and.arrow.up").frame(width: 44, height: 44) }
+                  .buttonStyle(.borderless).accessibilityLabel(AppText.text("Share"))
+                Button { export = GofileLocalFile(url: file) } label: { Image(forumSymbol: "folder").frame(width: 44, height: 44) }
+                  .buttonStyle(.borderless).accessibilityLabel(AppText.text("Save to Files"))
+              }
+            }
+          }
+        }
+      }
       if !batch.skipped.isEmpty {
         Section(AppText.text("Skipped items")) {
           ForEach(batch.skipped) { item in
@@ -107,6 +127,7 @@ struct GofileBatchView: View {
         }
       }
       .sheet(item: $export) { GofileExport(file: $0.url) }
+      .navigationDestination(item: $preview) { GofileQuickLook(file: $0.url).navigationTitle(AppText.text("Preview")) }
   }
   private var title: String {
     switch batch.phase {

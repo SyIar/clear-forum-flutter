@@ -95,6 +95,9 @@ struct DownloadsView: View {
           }
         }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+      .onAppear {
+        if !tasks.contains(where: { $0.group == .active }) { selected = tasks.contains(where: { $0.group == .attention }) ? .attention : .completed }
+      }
   }
 }
 

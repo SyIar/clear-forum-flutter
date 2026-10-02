@@ -14,6 +14,7 @@ final class GofileDownloadManager: ObservableObject {
     catch { writable = false; storageError = AppText.text("Download history could not be restored. Existing files were preserved.") }
   }
   private func observe(_ batch: GofileBatchDownload) {
+    batch.reserveRecovery()
     batch.persist = { [weak self] in self?.save() ?? false }
     observations[batch.id] = batch.objectWillChange.throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
       .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -70,9 +71,10 @@ struct GofileBatchRow: View {
     NavigationLink { GofileBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
         Label(batch.title, forumSymbol: "folder").appFont(.headline).lineLimit(2)
-        Text(AppText.format("%@ saved · %@ skipped · %@ pending", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.pending)))
+        Text(AppText.format("%@ saved · %@ skipped · %@ queued", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.queued)))
           .appFont(.caption).foregroundStyle(.secondary)
         if batch.running {
+          Text(batch.activityText).appFont(.caption).foregroundStyle(.secondary)
           if let progress = batch.progress { ProgressView(value: progress) }
           else { ProgressView() }
           Text(batch.current).appFont(.caption).foregroundStyle(.secondary).lineLimit(1)

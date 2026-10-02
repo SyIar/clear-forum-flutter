@@ -18,7 +18,7 @@ struct LibraryCheckStatus: View {
   }
   var body: some View {
     let state = library.checkProgress
-    if state.running || recentCheck != nil || library.refreshMessage != nil || state.skippedFresh {
+    if state.running || state.finishedAt != nil || recentCheck != nil || library.refreshMessage != nil || state.skippedFresh {
       VStack(alignment: .leading, spacing: 4) {
         if state.running {
           HStack(spacing: 8) {
@@ -34,6 +34,7 @@ struct LibraryCheckStatus: View {
           HStack(spacing: 4) { Text(AppText.text("Last checked")); Text(date, style: .relative) }
         }
         if let message = library.refreshMessage, !state.running { Text(message).lineLimit(3) }
+        Toggle(AppText.text("Updates only"), isOn: $library.onlyUpdates).toggleStyle(.switch).disabled(state.running)
       }.appFont(.caption).foregroundStyle(.secondary).textCase(nil)
     }
   }

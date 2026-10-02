@@ -72,6 +72,7 @@ struct HostedBatchRecord: Codable {
   let skipped: [HostedBatchDownload.Skipped]
   let plan: HostedBatchPlan?
   let progress: Double?
+  var activity: FileTransferActivity?
 }
 
 struct GofileBatchRecord: Codable {
@@ -89,4 +90,5 @@ struct GofileBatchRecord: Codable {
   let skipped: [GofileBatchDownload.Skipped]
   let plan: GofileBatchPlan?
   let progress: Double?
+  var activity: FileTransferActivity?
 }
