@@ -16,9 +16,16 @@ enum BookhouseChapterPart: Int, Comparable, Sendable {
 struct BookhouseChapterTitle: Equatable {
   // Stable internal numbers keep extras distinct from regular chapters, even
   // when the regular catalog grows. Display and slider positions decode them.
-  static let extraOffset = 100_000
+  static let maximumNumber = 100_000
+  static let extraOffset = maximumNumber
   static func isExtra(_ number: Int) -> Bool { number > extraOffset }
   static func localNumber(_ number: Int) -> Int { isExtra(number) ? number - extraOffset : number }
+  static func validRange(first: Int, last: Int) -> Bool {
+    // Persisted extra chapters use offset numbers; validate their local range
+    // without allowing a publication to span regular and extra chapters.
+    first > 0 && last >= first && isExtra(first) == isExtra(last) &&
+      (1...maximumNumber).contains(localNumber(last))
+  }
   static func searchTitle(_ title: String) -> String {
     let text = title.precomposedStringWithCompatibilityMapping
     let primary = text.prefix { $0 != "(" }.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -34,7 +41,7 @@ struct BookhouseChapterTitle: Equatable {
   }
   static func number(_ text: String) -> Int? {
     let value = text.precomposedStringWithCompatibilityMapping
-    if let number = Int(value), (1...100_000).contains(number) { return number }
+    if let number = Int(value), (1...maximumNumber).contains(number) { return number }
     let digits: [Character: Int] = ["\u{96F6}": 0, "\u{3007}": 0, "\u{4E00}": 1, "\u{4E8C}": 2,
       "\u{4E24}": 2, "\u{4E09}": 3, "\u{56DB}": 4, "\u{4E94}": 5, "\u{516D}": 6,
       "\u{4E03}": 7, "\u{516B}": 8, "\u{4E5D}": 9]
@@ -53,7 +60,7 @@ struct BookhouseChapterTitle: Equatable {
       } else { return nil }
     }
     let result = total + section + digit
-    return (1...100_000).contains(result) ? result : nil
+    return (1...maximumNumber).contains(result) ? result : nil
   }
   static let numberPattern = "[0-9\u{96F6}\u{3007}\u{4E00}\u{4E8C}\u{4E24}\u{4E09}\u{56DB}\u{4E94}\u{516D}\u{4E03}\u{516B}\u{4E5D}\u{5341}\u{767E}\u{5343}\u{4E07}]+"
   init?(_ source: String) {

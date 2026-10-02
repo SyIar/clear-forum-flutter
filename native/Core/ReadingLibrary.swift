@@ -126,7 +126,7 @@ struct LibraryDocument: Codable {
     document.followedBooks = site == .bookhouse ? document.followedBooks.filter { key, book in
       key == book.id && BookhouseSitePolicy.threadKey(book.seed) != nil && !book.title.isEmpty && !book.author.isEmpty &&
       !book.chapters.isEmpty && book.chapters.allSatisfy { BookhouseSitePolicy.threadKey($0.url) != nil &&
-        $0.first > 0 && $0.last >= $0.first && $0.last <= 100_000 }
+        BookhouseChapterTitle.validRange(first: $0.first, last: $0.last) }
     } : [:]
     return document
   }
