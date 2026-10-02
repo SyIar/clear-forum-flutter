@@ -45,6 +45,7 @@ struct ThreadReadState: Codable, Equatable {
   var checkedAt: Date?
   var attemptedAt: Date?
   var viewedMaximum: Int?
+  var latestPageNumber: Int?
   func displayedReadMaximum(for site: ForumSite) -> Int? {
     guard site.supportsThreadUpdates else { return nil }
     return site == .south ? viewedMaximum : seenMaximum
@@ -217,14 +218,44 @@ struct LibraryDocument: Codable {
     guard site.accepts(page.url), let key = SitePolicy.threadKey(page.url) else { return nil }
     return presentations[key]?.authorName
   }
+  // Keep saved row identities and recent reading positions intact. Only Home
+  // bookmark destinations follow newly observed pages of a Simp thread.
+  func bookmarkDestination(for page: SavedPage) -> URL {
+    guard site == .simp, let key = SimpSitePolicy.threadKey(page.url),
+          !hasThreadOrdering(page.url), let latest = threads[key]?.latestPageNumber,
+          latest > SimpSitePolicy.pageNumber(page.url) else { return page.url }
+    return SimpSitePolicy.pageURL(page.url, number: latest) ?? page.url
+  }
+  mutating func recordLatestPage(_ page: ForumPage) {
+    guard site == .simp, page.kind == .posts, !page.posts.isEmpty,
+          let key = SimpSitePolicy.threadKey(page.url), !hasThreadOrdering(page.url),
+          [page.next, page.lastPage].compactMap({ $0 }).allSatisfy({ SimpSitePolicy.threadKey($0) == key }),
+          (1...99_999).contains(page.pageCount),
+          page.pageCount > (threads[key]?.latestPageNumber ?? 1) else { return }
+    // Cached pages and older in-flight checks must never undo a newer page.
+    // Pagination evidence does not mark floors read or extend refresh freshness.
+    threads[key, default: ThreadReadState()].latestPageNumber = page.pageCount
+  }
+  private func hasThreadOrdering(_ url: URL) -> Bool {
+    URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains { $0.name == "order" } == true
+  }
+  private func matchesBookmarkDestination(_ page: SavedPage, url: URL) -> Bool {
+    let destination = bookmarkDestination(for: page)
+    guard destination != page.url, let key = SimpSitePolicy.threadKey(url), !hasThreadOrdering(url),
+          SimpSitePolicy.threadKey(destination) == key else { return false }
+    return SimpSitePolicy.pageNumber(destination) == SimpSitePolicy.pageNumber(url)
+  }
   mutating func toggle(_ page: SavedPage) {
     guard site.accepts(page.url) else { return }
-    if containsBookmark(page.url) {
-      bookmarks.removeAll { SouthSitePolicy.canonicalThreadURL($0.url) == SouthSitePolicy.canonicalThreadURL(page.url) }
-    }
-    else { bookmarks.append(page) }
+    let exact = bookmarks.filter { SouthSitePolicy.canonicalThreadURL($0.url) == SouthSitePolicy.canonicalThreadURL(page.url) }
+    let matches = exact.isEmpty ? bookmarks.filter { matchesBookmarkDestination($0, url: page.url) } : exact
+    let ids = Set(matches.map(\.id))
+    if ids.isEmpty { bookmarks.append(page) }
+    else { bookmarks.removeAll { ids.contains($0.id) } }
   }
   func containsBookmark(_ url: URL) -> Bool {
-    bookmarks.contains { SouthSitePolicy.canonicalThreadURL($0.url) == SouthSitePolicy.canonicalThreadURL(url) }
+    bookmarks.contains {
+      SouthSitePolicy.canonicalThreadURL($0.url) == SouthSitePolicy.canonicalThreadURL(url) || matchesBookmarkDestination($0, url: url)
+    }
   }
 }

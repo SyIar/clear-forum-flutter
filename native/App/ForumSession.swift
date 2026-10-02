@@ -246,7 +246,7 @@ final class ForumSession: ObservableObject {
     if let selected { return try await purchases.buy(selected, page: page, excludingAuthors: blocked, load: read, submit: submit, onUpdate: onUpdate) }
     return try await purchases.unlockFree(in: page, excludingAuthors: blocked, load: read, submit: submit, onUpdate: onUpdate)
   }
-  func maximumPostNumber(from initial: ForumPage) async throws -> Int {
+  func latestThreadPage(from initial: ForumPage) async throws -> ForumPage {
     guard site.accepts(initial.url), let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }
     var page = initial
     let filteredAuthor = SouthSitePolicy.authorID(page.url) != nil
@@ -256,7 +256,7 @@ final class ForumSession: ObservableObject {
     for attempt in 0..<3 {
       try Task.checkCancellation()
       guard site.accepts(page.url), SitePolicy.threadKey(page.url) == key, page.kind == .posts else { throw ReaderFailure.unsupported }
-      if let maximum = page.maximumPostNumber, maximum >= 0 { return maximum }
+      if let maximum = page.maximumPostNumber, maximum >= 0 { return page }
       guard attempt < 2, let last = page.url(forPage: page.pageCount) ?? page.lastPage ?? page.next,
             SitePolicy.threadKey(last) == key, SitePolicy.pageNumber(last) > page.pageNumber else { throw ReaderFailure.unsupported }
       page = try await load(last)

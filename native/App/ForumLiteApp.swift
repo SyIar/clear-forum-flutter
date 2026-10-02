@@ -155,6 +155,7 @@ final class LibraryStore: ObservableObject {
     change {
       $0.remember(SavedPage(url: page.url, title: page.title))
       $0.capturePresentation(page)
+      $0.recordLatestPage(page)
       if let key = SitePolicy.threadKey(page.url),
          let entry = directoryEntries.first(where: { SitePolicy.threadKey($0.url) == key }) {
         $0.mergePresentation(ThreadPresentation(thumbnail: entry.thumbnail, tags: page.tags.isEmpty ? entry.tags : [],
@@ -176,9 +177,13 @@ final class LibraryStore: ObservableObject {
     visitTokens[key] = token
     visitTasks[key] = Task { [weak self] in
       do {
-        let maximum = try await session.maximumPostNumber(from: page)
+        let latest = try await session.latestThreadPage(from: page)
+        guard let maximum = latest.maximumPostNumber else { throw ReaderFailure.unsupported }
         guard let self, !Task.isCancelled, self.visitTokens[key] == token else { return }
-        self.change { $0.threads[key, default: ThreadReadState()].opened(maximum: maximum) }
+        self.change {
+          $0.recordLatestPage(latest)
+          $0.threads[key, default: ThreadReadState()].opened(maximum: maximum)
+        }
         self.threadRefreshPhases[key] = .checked
         self.visitTasks[key] = nil
       } catch {
@@ -235,13 +240,17 @@ final class LibraryStore: ObservableObject {
       do {
         let page = try await session.load(url)
         guard !Task.isCancelled else { return }
-        change { $0.capturePresentation(page) }
-        let maximum = try await session.maximumPostNumber(from: page)
+        change { $0.capturePresentation(page); $0.recordLatestPage(page) }
+        let latest = try await session.latestThreadPage(from: page)
+        guard let maximum = latest.maximumPostNumber else { throw ReaderFailure.unsupported }
         guard !Task.isCancelled else { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         // An in-flight refresh must not overwrite a newer visit or mark a thread read.
         guard visitTokens[key] == token, visitTasks[key] == nil else { continue }
         let checkedAt = Date()
-        change { $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt) }
+        change {
+          $0.recordLatestPage(latest)
+          $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt)
+        }
         guard document.threads[key]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
         threadRefreshPhases[key] = previousMaximum.map { maximum > $0 } == true ? .updated : .checked
         if threadRefreshPhases[key] == .updated { checkProgress.updated += 1 }
@@ -407,7 +416,7 @@ struct HomeView: View {
         Section {
           if visibleBookmarks.isEmpty { Text(AppText.text("No bookmarks")).foregroundStyle(.secondary) }
           ForEach(visibleBookmarks) { entry in
-            savedRow(entry)
+            savedRow(entry, isBookmark: true)
               .swipeActions { Button(AppText.text("Remove"), role: .destructive) { library.toggle(entry.url, title: entry.title) } }
           }
         } header: {
@@ -490,7 +499,8 @@ struct HomeView: View {
     }
     return SitePolicy.threadKey(entry.url).flatMap { library.document.threads[$0]?.updated } == true
   }
-  private func savedRow(_ entry: SavedPage) -> some View {
+  private func savedRow(_ entry: SavedPage, isBookmark: Bool = false) -> some View {
+    let destination = isBookmark ? library.document.bookmarkDestination(for: entry) : entry.url
     let key = SitePolicy.threadKey(entry.url)
     let presentation = key.flatMap { library.document.presentations[$0] }
     let state = library.site.supportsThreadUpdates ? key.flatMap { library.document.threads[$0] } : nil
@@ -499,7 +509,10 @@ struct HomeView: View {
       if let tags = presentation?.tags, !tags.isEmpty {
         ForumTagStrip(tags: tags) { path.append(.reader($0)) }
       }
-      Button { path.append(.reader(entry.url)) } label: {
+      Button {
+        let target = isBookmark ? library.document.bookmarkDestination(for: entry) : entry.url
+        path.append(.reader(target))
+      } label: {
         HStack(spacing: 10) {
           if session.site == .bookhouse { Image(forumSymbol: "book").foregroundStyle(.blue) }
           else if let thumbnail = presentation?.thumbnail { ForumThumbnail(url: thumbnail) }
@@ -513,7 +526,7 @@ struct HomeView: View {
                   .fixedSize()
               }
             }
-            if let subtitle = library.document.subtitle(for: entry), !subtitle.isEmpty {
+            if let subtitle = library.document.subtitle(for: SavedPage(url: destination, title: entry.title)), !subtitle.isEmpty {
               Text(subtitle).forumFont(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             if let state {
