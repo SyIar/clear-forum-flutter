@@ -534,7 +534,7 @@ struct HomeView: View {
               }
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
-          LibraryRefreshIndicator(phase: refreshPhase, showsChevron: true)
+          LibraryRefreshIndicator(phase: session.site == .simp ? nil : refreshPhase, showsChevron: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
