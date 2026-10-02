@@ -30,7 +30,8 @@ final class BookhouseExtraChapterTests: XCTestCase {
     var book = try XCTUnwrap(BookhouseFollowedBook(entry: entry("1", "\u{756A}\u{5916} 7-8")))
     let regular = entry("2", "1-235", name: "Novel")
     let extras = [entry("3", "\u{756A}\u{5916}1-4"), entry("4", "\u{756A}\u{5916}5-6")]
-    var missingBracket = entry("5", "189-192"); missingBracket.title.removeFirst()
+    let complete = entry("5", "189-192")
+    let missingBracket = ForumEntry(title: String(complete.title.dropFirst()), url: complete.url, authorName: complete.authorName)
     book.merge([regular, missingBracket] + extras + [entry("6", "1", name: "Novel fan fiction"), entry("7", "236", author: "Other")], checkedAt: Date())
     XCTAssertEqual(book.chapters.count, 5)
     XCTAssertEqual(book.chapters.last?.first, extra + 7)

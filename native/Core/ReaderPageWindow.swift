@@ -73,6 +73,9 @@ struct ReaderPageWindow {
   }
   func target(_ edge: ReaderEdge) -> URL? {
     guard let boundary = edge == .previous ? pages.first : pages.last else { return nil }
+    // Bookhouse prints a Next link even on its empty terminal search page.
+    // The parser suppresses that link; do not synthesize it from pageCount.
+    if BookhouseSitePolicy.route(boundary.url)?.kind == .search, edge == .next, boundary.next == nil { return nil }
     if let route = BookhouseSitePolicy.route(boundary.url), [.catalog, .cursor].contains(route.kind) {
       let key = BookhouseSitePolicy.pageCacheKey(boundary.url)
       guard boundary.kind == .threads,

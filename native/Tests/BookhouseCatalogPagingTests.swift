@@ -60,5 +60,9 @@ final class BookhouseCatalogPagingTests: XCTestCase {
     XCTAssertTrue(window.insert(result(3, root: root), at: .next, keeping: middle.url))
     XCTAssertEqual(window.combined(active: middle).entries.map(\.title), ["Chapter 1", "Chapter 2", "Chapter 3"])
     XCTAssertNil(window.target(.previous)); XCTAssertNil(window.target(.next))
+    var terminal = result(3, root: root)
+    terminal.entries = []; terminal.totalPages = 4; terminal.next = nil
+    window.reset(terminal)
+    XCTAssertNil(window.target(.next))
   }
 }
