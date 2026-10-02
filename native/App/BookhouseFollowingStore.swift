@@ -6,7 +6,7 @@ extension LibraryStore {
     guard site == .bookhouse, session.site == .bookhouse else { return nil }
     if let existing = document.followedBook(for: entry) { return existing.id }
     guard document.followedBooks.count < 100, let book = BookhouseFollowedBook(entry: entry) else {
-      error = AppText.text("A book needs a numbered chapter title and a posting author to follow.")
+      error = AppText.text("A book needs a numbered chapter title and an author to follow.")
       return nil
     }
     change { $0.followedBooks[book.id] = book }
@@ -45,9 +45,12 @@ extension LibraryStore {
         if self.bookRefreshPhases[id] == .checking { self.bookRefreshPhases[id] = nil }
       }
       do {
-        // Verify the source account against the selected post before indexing.
-        let seed = try await session.load(book.seed)
-        guard book.accepts(seed), let owner = seed.posts.first else { throw BookhouseFollowingFailure.author }
+        var indexedBook = book
+        // Declared literary authors can be indexed even if the original upload disappears.
+        if indexedBook.authorSource != .title {
+          let seed = try await session.load(book.seed)
+          guard indexedBook.verifySeed(seed) else { throw BookhouseFollowingFailure.author }
+        }
         var next: URL? = search
         var visited = Set<String>(), entries: [ForumEntry] = []
         while let url = next {
@@ -55,7 +58,7 @@ extension LibraryStore {
           guard visited.count < 50, BookhouseSitePolicy.pageRoot(url) == BookhouseSitePolicy.pageRoot(search),
                 visited.insert(BookhouseSitePolicy.pageCacheKey(url)).inserted else { throw BookhouseFollowingFailure.catalog }
           let page = try await session.load(url)
-          entries += page.entries.filter(book.matches)
+          entries += page.entries.filter(indexedBook.matches)
           guard entries.count <= 5_000 else { throw BookhouseFollowingFailure.catalog }
           next = page.next
         }
@@ -65,8 +68,7 @@ extension LibraryStore {
         let date = Date()
         self.change {
           // Merge into the latest record so an in-flight check cannot erase reading progress.
-          $0.followedBooks[id]?.authorID = owner.authorID
-          $0.followedBooks[id]?.merge(entries, checkedAt: date)
+          $0.followedBooks[id]?.mergeCatalog(entries, verifiedBy: indexedBook, checkedAt: date)
         }
         guard self.document.followedBooks[id]?.checkedAt == date else { throw ReaderFailure.storage }
         self.bookRefreshPhases[id] = (self.document.followedBooks[id]?.latestChapter ?? 0) > book.latestChapter && book.checkedAt != nil ? .updated : .checked
@@ -85,7 +87,7 @@ enum BookhouseFollowingFailure: Error, LocalizedError {
   case author, catalog
   var errorDescription: String? {
     switch self {
-    case .author: return AppText.text("This post does not match the followed book and posting author.")
+    case .author: return AppText.text("This post does not match the followed book and author.")
     case .catalog: return AppText.text("Could not check every catalog page. Your existing chapters and position are kept.")
     }
   }

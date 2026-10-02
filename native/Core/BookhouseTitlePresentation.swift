@@ -1,9 +1,10 @@
 import Foundation
 
-// Catalog-only presentation; the source title and posting account remain intact.
+// Display metadata also supplies the literary identity used by followed books.
 struct BookhouseTitlePresentation: Equatable {
   let title: String
   let author: String
+  let literaryAuthor: String?
   let tags: [String]
 
   init(title source: String, postingAuthor: String) {
@@ -12,6 +13,7 @@ struct BookhouseTitlePresentation: Equatable {
     let tagPattern = "\u{300E}([^\u{300E}\u{300F}\\r\\n]+)\u{300F}"
     var display = source
     var extractedAuthor = postingAuthor
+    var literaryAuthor: String?
     if let expression = try? NSRegularExpression(pattern: authorPattern),
        let match = expression.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
        let nameRange = Range(match.range(at: 1), in: source),
@@ -19,6 +21,7 @@ struct BookhouseTitlePresentation: Equatable {
       let name = source[nameRange].trimmingCharacters(in: .whitespacesAndNewlines)
       if !name.isEmpty {
         extractedAuthor = name
+        literaryAuthor = name
         display.removeSubrange(clauseRange)
       }
     }
@@ -35,6 +38,7 @@ struct BookhouseTitlePresentation: Equatable {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     self.title = display.isEmpty ? source : display
     self.author = extractedAuthor
+    self.literaryAuthor = literaryAuthor
     self.tags = display.isEmpty ? [] : categories
   }
 }

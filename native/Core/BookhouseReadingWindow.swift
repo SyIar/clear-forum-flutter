@@ -47,8 +47,9 @@ struct BookhouseReadingWindow {
   }
   func target(_ edge: ReaderEdge, book: BookhouseFollowedBook) -> BookhouseChapter? {
     guard let boundary = edge == .previous ? slices.first : slices.last else { return nil }
+    if let part = book.adjacentPart(to: boundary.publication, edge: edge) { return part }
     return book.chapter(containing: edge == .previous ? boundary.first - 1 : boundary.last + 1,
-      excluding: boundary.publication.url)
+      excluding: boundary.publication.url, preferLastPart: edge == .previous)
   }
   @discardableResult mutating func reset(_ page: ForumPage, book: BookhouseFollowedBook) -> Bool {
     guard let slice = slice(page, book: book) else { return false }
@@ -61,7 +62,10 @@ struct BookhouseReadingWindow {
           let incoming = slice(page, book: book), let boundary = edge == .previous ? slices.first : slices.last else { return false }
     var range = incoming.range
     var first = incoming.first, last = incoming.last
-    if edge == .next {
+    let sameChapterPart = incoming.publication.part != nil && boundary.publication.part != nil &&
+      incoming.publication.first == boundary.publication.first && incoming.publication.last == boundary.publication.last
+    // Upper/lower publications share a chapter number, but contain different text.
+    if !sameChapterPart && edge == .next {
       let number = boundary.last + 1
       guard (first...last).contains(number) else { return false }
       if first < number {
@@ -69,7 +73,7 @@ struct BookhouseReadingWindow {
         range = start..<range.upperBound
       }
       first = number
-    } else {
+    } else if !sameChapterPart {
       let number = boundary.first - 1
       guard (first...last).contains(number) else { return false }
       if last > number {

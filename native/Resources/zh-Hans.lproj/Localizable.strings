@@ -440,3 +440,6 @@
 "Download link" = "\U4e0b\U8f7d\U94fe\U63a5";
 "Enter a complete HTTP or HTTPS link." = "\U8bf7\U8f93\U5165\U5b8c\U6574\U7684 HTTP \U6216 HTTPS \U94fe\U63a5\U3002";
 "This link is not supported by the downloader. Use a Gofile, Bunkr, Pixeldrain, Fileditch, or Filester file or folder link." = "\U6682\U4e0d\U652f\U6301\U6b64\U94fe\U63a5\U3002\U8bf7\U8f93\U5165 Gofile\U3001Bunkr\U3001Pixeldrain\U3001Fileditch \U6216 Filester \U7684\U6587\U4ef6\U6216\U6587\U4ef6\U5939\U94fe\U63a5\U3002";
+
+"A book needs a numbered chapter title and an author to follow." = "\U8ffd\U8bfb\U9700\U8981\U53ef\U8bc6\U522b\U7684\U7ae0\U8282\U6807\U9898\U548c\U4f5c\U8005\Uff0c\U6700\U591a\U53ef\U8ffd\U8bfb100\U672c\U3002";
+"This post does not match the followed book and author." = "\U6b64\U5e16\U7684\U4e66\U540d\U6216\U4f5c\U8005\U4e0e\U8ffd\U8bfb\U8bb0\U5f55\U4e0d\U4e00\U81f4\Uff0c\U5df2\U505c\U6b62\U8df3\U8f6c\U3002";

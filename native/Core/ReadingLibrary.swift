@@ -98,6 +98,9 @@ struct LibraryDocument: Codable {
     followedAuthors = try values.decodeIfPresent([String: SouthFollowedAuthor].self, forKey: .followedAuthors) ?? [:]
     readSouthThreads = try values.decodeIfPresent(Set<String>.self, forKey: .readSouthThreads) ?? []
     followedBooks = try values.decodeIfPresent([String: BookhouseFollowedBook].self, forKey: .followedBooks) ?? [:]
+    if site == .bookhouse {
+      for id in Array(followedBooks.keys) { followedBooks[id]?.migrateAuthor() }
+    }
     if site == .south {
       readSouthThreads.formUnion(recent.compactMap { site.accepts($0.url) ? SitePolicy.threadKey($0.url) : nil })
       readSouthThreads.formUnion(threads.filter { $0.value.seenMaximum != nil }.keys)
