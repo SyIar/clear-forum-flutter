@@ -510,6 +510,10 @@
 "Extra %@ of %@" = "\U756A\U5916 %@ / %@";
 
 "Local files" = "\U672C\U5730\U6587\U4EF6";
+"Previous file" = "\U4E0A\U4E00\U4E2A\U6587\U4EF6";
+"Next file" = "\U4E0B\U4E00\U4E2A\U6587\U4EF6";
+"File %@ of %@" = "\U7B2C %@ \U4E2A\U6587\U4EF6\UFF0C\U5171 %@ \U4E2A";
+"Video progress" = "\U64AD\U653E\U8FDB\U5EA6";
 "Find files in this folder" = "\U641C\U7D22\U5F53\U524D\U6587\U4EF6\U5939";
 "Downloaded files and files copied into Forum Lite appear here." = "\U4E0B\U8F7D\U7684\U6587\U4EF6\U548C\U62F7\U8D1D\U5230 Forum Lite \U7684\U6587\U4EF6\U4F1A\U663E\U793A\U5728\U8FD9\U91CC\U3002";
 "This file was moved or is no longer available. Refresh the folder." = "\U6587\U4EF6\U5DF2\U79FB\U52A8\U6216\U4E0D\U53EF\U7528\UFF0C\U8BF7\U5237\U65B0\U6587\U4EF6\U5939\U3002";

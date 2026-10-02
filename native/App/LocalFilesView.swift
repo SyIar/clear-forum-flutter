@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 struct LocalFilesView: View {
   @StateObject private var store: LocalFilesStore
   @State private var search = ""
-  @State private var preview: GofileLocalFile?
+  @State private var gallery: LocalGalleryRequest?
   @Environment(\.scenePhase) private var scenePhase
 
   init(path: [String] = []) { _store = StateObject(wrappedValue: LocalFilesStore(path: path)) }
@@ -34,7 +34,11 @@ struct LocalFilesView: View {
           Button {
             do {
               guard let catalog = store.catalog else { throw LocalFileCatalog.Failure.unavailable }
-              preview = GofileLocalFile(url: try catalog.url(for: entry.path))
+              _ = try catalog.url(for: entry.path)
+              guard let selection = LocalGallerySelection(entries: store.entries, selected: entry.path) else {
+                throw LocalFileCatalog.Failure.unavailable
+              }
+              gallery = LocalGalleryRequest(catalog: catalog, selection: selection)
             } catch { store.error = AppText.text("This file was moved or is no longer available. Refresh the folder.") }
           } label: { row(entry) }.buttonStyle(.plain)
         }
@@ -59,7 +63,7 @@ struct LocalFilesView: View {
         .debounce(for: .milliseconds(250), scheduler: RunLoop.main)) { _ in
           Task { await store.reload() }
         }
-      .navigationDestination(item: $preview) { LocalFilePreview(file: $0.url) }
+      .background { LocalGalleryPresenter(request: $gallery).frame(width: 0, height: 0) }
   }
 
   private func row(_ entry: LocalFileEntry) -> some View {
