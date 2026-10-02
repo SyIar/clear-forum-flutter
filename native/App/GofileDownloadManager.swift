@@ -6,7 +6,23 @@ import Combine
 final class GofileDownloadManager: ObservableObject {
   static let shared = GofileDownloadManager()
   @Published private(set) var items: [GofileBatchDownload] = []
+  @Published private(set) var storageError: String?
+  private var writable = true
   private var observations: [UUID: AnyCancellable] = [:]
+  private init() {
+    do { items = try (FileDownloadStore.load([GofileBatchRecord].self, name: "gofile") ?? []).map(GofileBatchDownload.init(record:)); items.forEach(observe) }
+    catch { writable = false; storageError = AppText.text("Download history could not be restored. Existing files were preserved.") }
+  }
+  private func observe(_ batch: GofileBatchDownload) {
+    batch.persist = { [weak self] in self?.save() ?? false }
+    observations[batch.id] = batch.objectWillChange.throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
+      .sink { [weak self] _ in self?.objectWillChange.send() }
+  }
+  @discardableResult private func save() -> Bool {
+    guard writable else { return false }
+    do { try FileDownloadStore.save(items.map(\.record), name: "gofile"); storageError = nil; return true }
+    catch { storageError = AppText.text("Could not save download history."); return false }
+  }
   var active: [GofileBatchDownload] { items.filter(\.running) }
   var unfinished: [GofileBatchDownload] { items.filter { $0.phase != .finished && $0.phase != .cancelled } }
   var finished: [GofileBatchDownload] { items.filter { $0.phase == .finished || $0.phase == .cancelled } }
@@ -21,15 +37,13 @@ final class GofileDownloadManager: ObservableObject {
   }
 
   func download(for entry: GofileEntry) -> GofileBatchDownload? {
-    items.first { $0.sourceKey == GofileDownloadSelection.file(entry).key && $0.phase != .cancelled }
+    items.first { ($0.contains(entry) || $0.sourceKey == GofileDownloadSelection.file(entry).key) && $0.phase != .cancelled }
   }
 
   private func enqueue(url: URL, selection: GofileDownloadSelection) -> GofileBatchDownload {
     if let existing = items.first(where: { $0.sourceKey == selection.key && $0.phase != .cancelled }) { return existing }
     let batch = GofileBatchDownload(url: url, selection: selection)
-    observations[batch.id] = batch.objectWillChange
-      .throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
-      .sink { [weak self] _ in self?.objectWillChange.send() }
+    observe(batch)
     items.append(batch)
     batch.start(selection.listing)
     return batch
@@ -38,12 +52,14 @@ final class GofileDownloadManager: ObservableObject {
   func pauseAll() { items.forEach { $0.pause() } }
   func resumeAll() { resumable.forEach { $0.resume() } }
   func clearFinished() { finished.forEach(remove) }
-  func backgrounded() { pauseAll() }
+  func backgrounded() { items.forEach { $0.backgrounded() } }
+  func foregrounded() { items.forEach { $0.foregrounded() } }
 
   func remove(_ batch: GofileBatchDownload) {
     guard batch.phase == .finished || batch.phase == .cancelled else { return }
     observations[batch.id] = nil
     items.removeAll { $0.id == batch.id }
+    save()
   }
 }
 

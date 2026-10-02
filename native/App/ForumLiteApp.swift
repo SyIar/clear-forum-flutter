@@ -4,6 +4,7 @@ import TiebaFeature
 
 @main
 struct ForumLiteApp: App {
+  @UIApplicationDelegateAdaptor(FileBackgroundDelegate.self) private var backgroundDelegate
   init() { ForumDesignSystem.configure(localize: AppText.text) }
   @StateObject private var wallpaper = DailyWallpaperStore()
   @StateObject private var downloads = VideoDownloadManager.shared
@@ -34,8 +35,8 @@ struct ForumLiteApp: App {
         }
         .forumSheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
         .onChange(of: scenePhase) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.pauseAll() }
-          else if value == .active { downloads.foregrounded() }
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.cancel() }
+          else if value == .active { downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded() }
         }
     }
   }
@@ -124,6 +125,7 @@ final class LibraryStore: ObservableObject {
   private var authorTokens: [String: UUID] = [:]
   @Published var bookRefreshPhases: [String: ForumRefreshPhase] = [:]
   @Published var bookErrors: [String: String] = [:]
+  @Published var checkProgress = LibraryCheckProgress()
   var bookTasks: [String: Task<Void, Never>] = [:]
   init(site: ForumSite) { self.site = site; document = LibraryDocument(site: site); reload() }
   func reload() {
@@ -194,12 +196,14 @@ final class LibraryStore: ObservableObject {
       LibraryRefreshPolicy.isDue(checkedAt: $0.checkedAt, attemptedAt: $0.attemptedAt, manual: manual)
     }
     guard document.hasRefreshTargets else { refreshMessage = nil; return }
-    guard !targets.isEmpty || !authors.isEmpty else { refreshMessage = nil; return }
+    guard !targets.isEmpty || !authors.isEmpty else { refreshMessage = nil; if manual { checkProgress = LibraryCheckProgress(skippedFresh: true) }; return }
     refreshing = true
-    defer { refreshing = false }
+    checkProgress = LibraryCheckProgress(running: true, total: targets.count + authors.count)
+    defer { refreshing = false; checkProgress.running = false; checkProgress.finishedAt = Date() }
     var checked = 0
     var failed = 0
     for (index, url) in targets.enumerated() {
+      defer { checkProgress.completed += 1 }
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       guard let key = SitePolicy.threadKey(url) else { continue }
       if let visit = visitTasks[key] { await visit.value }
@@ -225,10 +229,12 @@ final class LibraryStore: ObservableObject {
         change { $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt) }
         guard document.threads[key]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
         threadRefreshPhases[key] = previousMaximum.map { maximum > $0 } == true ? .updated : .checked
+        if threadRefreshPhases[key] == .updated { checkProgress.updated += 1 }
         checked += 1
       } catch {
         if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
         threadRefreshPhases[key] = .failed
+        checkProgress.failed += 1
         if let failure = error as? ReaderFailure, [.login, .verification, .rateLimit].contains(failure) {
           refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
@@ -238,18 +244,20 @@ final class LibraryStore: ObservableObject {
     }
     var authorsChecked = 0
     for author in authors {
+      defer { checkProgress.completed += 1 }
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
       refreshMessage = AppText.format("Checking topics by %@...", String(describing: author.name))
       if let failure = await refreshAuthor(author.id, session: session, manual: manual) {
+        checkProgress.failed += 1
         failed += 1
         if [.login, .verification, .rateLimit].contains(failure) {
           refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
         }
-      } else { authorsChecked += 1 }
+      } else { authorsChecked += 1; if authorRefreshPhases[author.id] == .updated { checkProgress.updated += 1 } }
     }
     let summary = authorsChecked == 0 ? AppText.format("Checked %@ threads.", String(describing: checked)) : AppText.format("Checked %@ threads and %@ followed authors.", String(describing: checked), String(describing: authorsChecked))
-    refreshMessage = failed == 0 ? summary : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: failed))
+    refreshMessage = failed == 0 ? nil : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: failed))
   }
   func follow(_ post: ForumPost, session: ForumSession) {
     guard session.site == site, site == .south, let id = post.authorID else { return }
@@ -376,6 +384,7 @@ struct HomeView: View {
               .accessibilityLabel(AppText.text("Open original forum website"))
           }.padding(.vertical, 6)
         }
+        LibraryCheckStatus(library: library).listRowBackground(Color.clear).listRowSeparator(.hidden)
         if session.site == .bookhouse {
           BookhouseFollowingSection(library: library, session: session) { path.append(.book($0)) }
         }
@@ -402,9 +411,6 @@ struct HomeView: View {
         }
         if session.site == .south {
           SouthFollowingSection(library: library, session: session) { path.append(.reader($0)) }
-        }
-        if let message = library.refreshMessage {
-          Section { Text(message).appFont(.caption).foregroundStyle(.secondary) }
         }
       }
       .navigationTitle(session.site == .bookhouse ? AppText.text("Forbidden Library") : session.site.host)

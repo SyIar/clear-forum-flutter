@@ -35,6 +35,7 @@ struct VideoDownloadRecord: Codable {
   let received: Int64
   let expected: Int64
   let localFilename: String?
+  var origin: VideoOrigin?
 }
 
 // Account headers and opaque resume data stay outside the Files-visible Documents directory.

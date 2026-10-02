@@ -29,7 +29,7 @@ public enum ForumRefreshPhase: Equatable {
   case checking, checked, updated, failed
 }
 
-// Keep ChunUI's sweep inside the item being checked, not its fullscreen window.
+// Keep the animated feedback in an inset side rail, away from reading text.
 public struct ForumRefreshFeedback: ViewModifier {
   public let phase: ForumRefreshPhase?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,13 +41,7 @@ public struct ForumRefreshFeedback: ViewModifier {
   public func body(content: Content) -> some View {
     content
     .padding(.horizontal, 12).padding(.vertical, 10)
-    .background {
-      if phase == .checking {
-        RoundedRectangle(cornerRadius: 12).fill(.blue.opacity(0.045))
-          .allowsHitTesting(false).accessibilityHidden(true)
-      }
-    }
-    .background {
+    .overlay(alignment: .leading) {
       if visible, scenePhase == .active, !reduceMotion, let start = completion ?? started {
         GeometryReader { geometry in
           TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
@@ -64,7 +58,7 @@ public struct ForumRefreshFeedback: ViewModifier {
               .float(Float(time)), .float(Float(progress)), .float(Float(alpha)),
               .float(0), .float3(0.2, 0.65, 1), .float(0.85)))
           }
-        }.clipShape(RoundedRectangle(cornerRadius: 12))
+        }.frame(width: 3).padding(.vertical, 12).clipShape(Capsule())
           .allowsHitTesting(false).accessibilityHidden(true)
       }
     }

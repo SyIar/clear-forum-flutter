@@ -7,7 +7,7 @@ enum FileHost: String, Codable, CaseIterable {
   }
 }
 
-struct HostedFileEntry: Identifiable, Hashable {
+struct HostedFileEntry: Identifiable, Hashable, Codable {
   let pageURL: URL
   var name: String
   var folder = false
@@ -26,7 +26,7 @@ struct HostedFileEntry: Identifiable, Hashable {
   }
 }
 
-struct HostedFileListing {
+struct HostedFileListing: Codable {
   let url: URL
   let title: String
   let entries: [HostedFileEntry]
@@ -34,7 +34,7 @@ struct HostedFileListing {
   var pages = 1
 }
 
-struct HostedFileRequest {
+struct HostedFileRequest: Codable {
   let url: URL
   let referer: URL
   let name: String
@@ -176,8 +176,9 @@ enum HostedFileFailure: Error, LocalizedError {
 
 // Queue discovery and file transfers advance one item at a time, preserving the
 // collection hierarchy without overwriting equal or case-colliding filenames.
-struct HostedBatchPlan {
-  struct Item {
+struct HostedBatchPlan: Codable {
+  struct Item: Codable {
+    var id = UUID()
     let entry: HostedFileEntry
     let path: [String]
   }

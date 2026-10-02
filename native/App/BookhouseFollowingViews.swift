@@ -28,6 +28,7 @@ struct BookhouseFollowingSection: View {
   @ObservedObject var session: ForumSession
   let open: (String) -> Void
   @Environment(\.scenePhase) private var scenePhase
+  @ObservedObject private var offline = BookhouseOfflineStore.shared
   var body: some View {
     Section {
       if library.document.readingBooks.isEmpty {
@@ -57,8 +58,18 @@ struct BookhouseFollowingSection: View {
             Text(error).appFont(.caption).foregroundStyle(.secondary)
           }
         }.modifier(ForumRefreshFeedback(phase: library.bookRefreshPhases[book.id]))
+          .contextMenu {
+            Button(AppText.text("Cache next five chapters"), forumSymbol: "arrow.down.to.line") { offline.download(book, session: session) }.disabled(offline.busy)
+          }
           .swipeActions { Button(AppText.text("Stop following book"), role: .destructive) { library.unfollowBook(book.id) } }
+        if offline.activeBook == book.id {
+          HStack {
+            ProgressView(value: Double(offline.completed), total: Double(max(1, offline.total)))
+            Button(AppText.text("Cancel")) { offline.cancel() }
+          }.accessibilityLabel(AppText.text("Caching chapters"))
+        }
       }
+      if let error = offline.error { Text(error).appFont(.caption).foregroundStyle(.secondary) }
     } header: {
       HStack {
         Text(AppText.text("My followed books"))
@@ -82,6 +93,7 @@ struct BookhouseChapterPicker: View {
   @Environment(\.forumDismiss) private var forumDismiss
   @State private var number = ""
   @State private var error: String?
+  @ObservedObject private var offline = BookhouseOfflineStore.shared
   var body: some View {
     NavigationStack {
       List {
@@ -98,6 +110,9 @@ struct BookhouseChapterPicker: View {
               HStack {
                 Text(chapter.title).forumFont(.body).foregroundStyle(.primary)
                 Spacer()
+                if offline.contains(chapter.url, bookID: book.id) {
+                  Image(forumSymbol: "arrow.down.circle", size: 16).foregroundStyle(.secondary).accessibilityLabel(AppText.text("Available offline"))
+                }
                 if book.position?.url == chapter.url { Image(forumSymbol: "checkmark", size: 16) }
               }
             }.buttonStyle(.plain)

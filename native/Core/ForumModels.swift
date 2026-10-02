@@ -1,6 +1,6 @@
 import Foundation
 
-enum PageKind { case forums, threads, posts }
+enum PageKind: String, Codable { case forums, threads, posts }
 enum ReaderFailure: String, Error, LocalizedError {
   case login, verification, forbidden, rateLimit, network, unsupported, storage, encoding
   var errorDescription: String? {
@@ -16,7 +16,7 @@ enum ReaderFailure: String, Error, LocalizedError {
     }
   }
 }
-struct ForumEntry: Identifiable {
+struct ForumEntry: Identifiable, Codable {
   var id: String { url.absoluteString }
   let title: String
   let url: URL
@@ -37,16 +37,16 @@ struct ForumTag: Identifiable, Codable, Equatable {
   let title: String
   let url: URL
 }
-struct TextRun: Equatable {
+struct TextRun: Equatable, Codable {
   var text: String
   var bold = false
   var italic = false
   var url: URL?
   var emoticon: URL?
 }
-enum BlockKind { case paragraph, quote, spoiler, code, image, link, media, purchase }
-struct BodyBlock: Identifiable {
-  let id = UUID()
+enum BlockKind: String, Codable { case paragraph, quote, spoiler, code, image, link, media, purchase }
+struct BodyBlock: Identifiable, Codable {
+  var id = UUID()
   var kind: BlockKind
   var runs: [TextRun] = []
   var children: [BodyBlock] = []
@@ -58,7 +58,7 @@ struct BodyBlock: Identifiable {
   var direct = false
   var purchase: SouthPurchaseOffer?
 }
-struct ForumPost: Identifiable {
+struct ForumPost: Identifiable, Codable {
   let id: String
   var author: String
   var date: String
@@ -69,7 +69,7 @@ struct ForumPost: Identifiable {
   var avatarOriginal: URL?
   var authorFilterURL: URL?
 }
-struct ForumPage {
+struct ForumPage: Codable {
   var url: URL
   var title: String
   var kind: PageKind

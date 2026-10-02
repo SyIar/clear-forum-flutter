@@ -219,8 +219,9 @@ struct RichBodyView: View {
   @ScaledMetric(relativeTo: .body) private var novelLineSpacing: CGFloat = 7
   @ScaledMetric(relativeTo: .body) private var novelParagraphSpacing: CGFloat = 14
   @Environment(\.readerBodyStyle) private var bodyStyle
+  @Environment(\.readingAppearance) private var appearance
   @EnvironmentObject private var session: ForumSession
-  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (20.0 / 17.0) : textSize }
+  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (appearance.fontSize / 17.0) : textSize }
   let blocks: [BodyBlock]
   let posters: PosterStore
   let navigate: (URL) -> Void
@@ -242,7 +243,7 @@ struct RichBodyView: View {
     return result
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing : 10) {
+    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing * appearance.paragraphSpacing / 14 : 10) {
       ForEach(groups) { group in
         if group.blocks[0].kind == .image {
           if group.blocks.count == 1 { image(group.blocks[0], grid: false) }
@@ -307,7 +308,7 @@ struct RichBodyView: View {
     else if let url = standaloneLink(runs) { CompactLink(url: url, label: runs.map(\.text).joined(), navigate: navigate) }
     else {
       Text(attributed(runs)).font(Font(MixedScriptFont.font(size: bodyTextSize, bold: false)))
-        .lineSpacing(bodyStyle == .novel ? novelLineSpacing : 2)
+        .lineSpacing(bodyStyle == .novel ? novelLineSpacing * appearance.lineSpacing / 7 : 2)
         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
     }
   }

@@ -47,6 +47,7 @@ struct TorrentCopyButton: View {
 @MainActor
 enum HostedTransfer {
   static func run(_ entry: HostedFileEntry, client: HostedFileClient, limit: Int64 = GofilePolicy.fileLimit,
+                  checkpointID: UUID? = nil,
                   activity: @escaping (FileTransferActivity) -> Void = { _ in },
                   progress: @escaping (Double?) -> Void) async throws -> URL {
     var active: GofileFileTransfer?
@@ -54,7 +55,7 @@ enum HostedTransfer {
       try await withCheckedThrowingContinuation { continuation in
         guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
         let transfer = GofileFileTransfer(name: entry.name, expectedBytes: entry.size, mime: entry.mime, cookies: [],
-          userAgent: HostedFileClient.userAgent, limit: limit, prepare: { try await client.resolve(entry) },
+          userAgent: HostedFileClient.userAgent, limit: limit, checkpointID: checkpointID, prepare: { try await client.resolve(entry) },
           activity: activity, progress: progress, completion: { continuation.resume(with: $0) })
         active = transfer; transfer.start(entry.pageURL)
       }

@@ -25,10 +25,17 @@ extension LibraryStore {
     change { $0.followedBooks[id]?.record(url: url, chapter: chapter, paragraph: paragraph) }
   }
   func refreshBooks(session: ForumSession, manual: Bool = false) async {
-    guard site == .bookhouse, session.site == .bookhouse else { return }
-    for book in document.readingBooks {
+    guard site == .bookhouse, session.site == .bookhouse, !checkProgress.running else { return }
+    let targets = document.readingBooks.filter { LibraryRefreshPolicy.isDue(checkedAt: $0.checkedAt, attemptedAt: $0.attemptedAt, manual: manual) }
+    guard !targets.isEmpty else { if manual { checkProgress = LibraryCheckProgress(skippedFresh: true) }; return }
+    checkProgress = LibraryCheckProgress(running: true, total: targets.count)
+    defer { checkProgress.running = false; checkProgress.finishedAt = Date() }
+    for book in targets {
       guard !Task.isCancelled else { return }
       await refreshBook(book.id, session: session, manual: manual)
+      checkProgress.completed += 1
+      if bookRefreshPhases[book.id] == .updated { checkProgress.updated += 1 }
+      if bookRefreshPhases[book.id] == .failed { checkProgress.failed += 1 }
     }
   }
   func refreshBook(_ id: String, session: ForumSession, manual: Bool = true) async {

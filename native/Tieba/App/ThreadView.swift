@@ -15,6 +15,9 @@ private struct PostPosition: PreferenceKey {
   static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) { value.merge(nextValue()) { _, next in next } }
 }
 struct ThreadView: View {
+  private struct ReturnPoint { let page: Int; let post: String; let result: PageResult<Post> }
+  @State private var returnPoint: ReturnPoint?
+  @State private var previousMaximum = 0
   let id: String
   let initialAnchor: String
   let initialPage: Int
@@ -54,6 +57,9 @@ struct ThreadView: View {
             }
           }
           ForEach(result.items) { post in
+            if previousMaximum > 0, post.id == result.items.first(where: { $0.floor > previousMaximum })?.id {
+              HStack { Divider(); Text(tr("newSinceVisit")).appFont(.caption).foregroundStyle(.secondary); Divider() }
+            }
             PostCard(post: post, forum: result.forum ?? Forum(), reader: reader) { target in reply = target }
               .id(post.id).background(GeometryReader { geometry in Color.clear.preference(key: PostPosition.self, value: [post.id: geometry.frame(in: .named("posts")).maxY]) })
           }
@@ -71,7 +77,7 @@ struct ThreadView: View {
               Toggle(tr("readerMode"), isOn: $reader)
               Button(tr(saved ? "unsavePost" : "savePost"), forumSymbol: saved ? "bookmark.slash" : "bookmark") { perform { try await app.api.bookmark(thread: id, post: visiblePost, remove: saved); saved.toggle() } }
               Button(tr("jumpPage"), forumSymbol: "number") { jumpValue = String(page); jump = true }
-              Button(tr("backToTop"), forumSymbol: "arrow.up") { withAnimation { proxy.scrollTo("top") } }
+              Button(tr("backToTop"), forumSymbol: "arrow.up") { rememberReturn(); withAnimation { proxy.scrollTo("top") } }
               ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(id)")!) { Label(tr("share"), forumSymbol: "square.and.arrow.up") }
               if result.thread?.author.id == app.activeID { Button(tr("deleteThread"), forumSymbol: "trash", role: .destructive) { removing = true } }
             } label: { Image(forumSymbol: "ellipsis") }
@@ -80,6 +86,7 @@ struct ThreadView: View {
         }
         .task(id: request) {
           if !initialized {
+            previousMaximum = integer(app.library.rows("history").first(where: { string($0["threadId"]) == id })?["maximumFloor"])
             initialized = true; page = initialPage; anchor = initialAnchor; onlyAuthor = initialAuthor; reverse = initialReverse; reader = settings.flag("readerMode")
             if resumeHistory, initialAnchor.isEmpty, settings.flag("restoreReading"), let record = app.library.rows("history").first(where: { string($0["threadId"]) == id }) {
               page = max(1, integer(record["page"])); anchor = string(record["lastPostId"]); onlyAuthor = boolean(record["onlyAuthor"])
@@ -91,14 +98,27 @@ struct ThreadView: View {
           filtersReady = true
           proxy.scrollTo(result.items.contains { $0.id == target } ? target : "top", anchor: .top)
         }.refreshable { await load() }
-        .onChange(of: onlyAuthor) { old, new in if filtersReady && old != new { change(1) } }
-        .onChange(of: reverse) { _, _ in if filtersReady { change(1) } }
+        .onChange(of: onlyAuthor) { old, new in if filtersReady && old != new { change(1); returnPoint = nil } }
+        .onChange(of: reverse) { _, _ in if filtersReady { change(1); returnPoint = nil } }
         .onPreferenceChange(PostPosition.self) { values in
           guard !loading, let post = values.filter({ $0.value > 0 }).min(by: { $0.value < $1.value })?.key else { return }
           visiblePost = post; historyTask?.cancel()
           historyTask = Task { @MainActor in try? await Task.sleep(nanoseconds: 450_000_000); guard !Task.isCancelled else { return }; remember(post) }
         }
         .onDisappear { historyTask?.cancel(); if !visiblePost.isEmpty { remember(visiblePost) } }
+        .overlay(alignment: .bottom) {
+          if let point = returnPoint {
+            HStack(spacing: 0) {
+              Button {
+                historyTask?.cancel(); result = point.result; page = point.page; visiblePost = point.post; returnPoint = nil
+                DispatchQueue.main.async { proxy.scrollTo(point.post, anchor: .top) }
+              } label: { Image(forumSymbol: "arrow.uturn.backward").frame(width: 48, height: 44) }
+                .accessibilityLabel(tr("returnReading")).disabled(loading)
+              Button { returnPoint = nil; remember(visiblePost) } label: { Image(forumSymbol: "xmark").frame(width: 44, height: 44) }
+                .accessibilityLabel(tr("keepReadingPosition"))
+            }.buttonStyle(.plain).padding(.horizontal, 6).glassEffect(.regular.interactive(), in: .capsule).padding(.bottom, 12)
+          }
+        }
         .sheet(item: $reply) { context in ReplyEditor(context: context) { reply = nil; request = UUID() } }
       .forumPrompt(tr("jumpPage"), isPresented: $jump, text: $jumpValue, placeholder: tr("page"), numeric: true, submit: tr("open")) {
         if let value = Int(jumpValue), (1...1_000_000).contains(value) { change(value) } else { app.error = tr("invalidPage") }
@@ -108,9 +128,17 @@ struct ThreadView: View {
         ] })
     }
   }
-  private func change(_ value: Int) { page = max(1, value); anchor = ""; request = UUID() }
+  private func rememberReturn() {
+    guard returnPoint == nil, !loading, !visiblePost.isEmpty else { return }
+    remember(visiblePost); returnPoint = ReturnPoint(page: page, post: visiblePost, result: result)
+  }
+  private func change(_ value: Int) { rememberReturn(); page = max(1, value); anchor = ""; request = UUID() }
   private func perform(_ body: @escaping () async throws -> Void) { app.requireLogin { Task { @MainActor in do { try await body() } catch { app.error = error.localizedDescription } } } }
-  private func remember(_ post: String) { guard let thread = result.thread else { return }; app.updateLibrary { $0.remember(thread: id, title: thread.title, forum: result.forum?.name ?? "", post: post, page: page, onlyAuthor: onlyAuthor) } }
+  private func remember(_ post: String) {
+    guard returnPoint == nil, !loading, let thread = result.thread else { return }
+    let floor = result.items.first { $0.id == post }?.floor ?? 0
+    app.updateLibrary { $0.remember(thread: id, title: thread.title, forum: result.forum?.name ?? "", post: post, page: page, onlyAuthor: onlyAuthor, floor: floor) }
+  }
   private func load() async {
     let expected = request; loading = true; error = nil
     do {

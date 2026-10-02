@@ -21,9 +21,9 @@ enum GofileDownloadSelection {
 }
 
 // A depth-first work list. A failed item remains at the head until retried or skipped.
-struct GofileBatchPlan {
-  struct Item: Identifiable {
-    let id = UUID()
+struct GofileBatchPlan: Codable {
+  struct Item: Identifiable, Codable {
+    var id = UUID()
     let entry: GofileEntry
     let path: [String]
     var page = 1

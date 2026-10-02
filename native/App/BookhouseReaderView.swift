@@ -11,6 +11,7 @@ struct BookhouseReaderView: View {
   @EnvironmentObject private var library: LibraryStore
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.colorScheme) private var colorScheme
   @StateObject private var posters = PosterStore()
   @State private var page: ForumPage?
   @State private var loading = false
@@ -44,6 +45,11 @@ struct BookhouseReaderView: View {
   @State private var progressSave: Task<Void, Never>?
   @State private var chapterPrefetch = BookhouseChapterPrefetch()
   @State private var readerVisible = false
+  @ObservedObject private var settings = ReadingSettings.shared
+  @ObservedObject private var offline = BookhouseOfflineStore.shared
+  @State private var showingSettings = false
+  @State private var returnPoint: ReadingReturnPoint?
+  @State private var pendingReturnAnchor: String?
   private var current: URL { page?.url ?? initialURL }
   private var blocks: [BodyBlock] { page?.posts.first?.blocks ?? [] }
   private var book: BookhouseFollowedBook? { followedBookID.flatMap { library.document.followedBooks[$0] } }
@@ -60,6 +66,8 @@ struct BookhouseReaderView: View {
       .forumSheet(isPresented: $selectingChapter) {
         if let book { BookhouseChapterPicker(book: book) { openChapter($0, number: $1) } }
       }
+      .forumSheet(isPresented: $showingSettings) { ReadingSettingsView() }
+      .environment(\.readingAppearance, settings.value.normalized)
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
       .task { if page == nil { await load(initialURL) } }
@@ -80,7 +88,7 @@ struct BookhouseReaderView: View {
 
   private var readingContent: some View {
     ScrollView {
-        LazyVStack(alignment: .leading, spacing: page?.kind == .posts ? paragraphSpacing : 16) {
+        LazyVStack(alignment: .leading, spacing: page?.kind == .posts ? paragraphSpacing * settings.value.normalized.paragraphSpacing / 14 : 16) {
           Color.clear.frame(height: 1).id("top")
           if let page {
             Text(book?.title ?? page.title).forumFont(.title2, weight: .bold).padding(.top, 8)
@@ -92,10 +100,12 @@ struct BookhouseReaderView: View {
           if let chapterNotice { Text(chapterNotice).appFont(.caption).foregroundStyle(.secondary) }
           if loading { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24) }
           Color.clear.frame(height: 1).id("bottom")
-        }.scrollTargetLayout().padding(.horizontal, 18).padding(.bottom, 28)
+        }.scrollTargetLayout().padding(.horizontal, page?.kind == .posts ? settings.value.normalized.margin : 18).padding(.bottom, 28)
           .frame(maxWidth: 780).frame(maxWidth: .infinity)
     }
-    .background(Color(uiColor: page?.kind == .posts ? .systemBackground : .systemGroupedBackground))
+    .foregroundStyle(page?.kind == .posts ? settings.value.foreground : .primary)
+    .background(page?.kind == .posts ? settings.value.background : Color(uiColor: .systemGroupedBackground))
+    .environment(\.colorScheme, page?.kind == .posts && settings.value.theme != .system ? (settings.value.theme == .night ? .dark : .light) : colorScheme)
     .environment(\.readerReferer, current)
   }
 
@@ -207,13 +217,19 @@ struct BookhouseReaderView: View {
             next: { if let target = page?.next { startLoad(target) } })
         case .actions:
           ReaderQuickActions(canJump: page != nil, busy: loading,
-            top: { setBottomPanel(nil); proxy.scrollTo("top", anchor: .top) },
-            bottom: { setBottomPanel(nil); proxy.scrollTo("bottom", anchor: .bottom) },
-            refresh: { startLoad(current, refresh: true) })
+            top: { rememberReturnPoint(); setBottomPanel(nil); proxy.scrollTo("top", anchor: .top) },
+            bottom: { rememberReturnPoint(); setBottomPanel(nil); proxy.scrollTo("bottom", anchor: .bottom) },
+            refresh: { startLoad(current, refresh: true) },
+            settings: page?.kind == .posts ? { setBottomPanel(nil); showingSettings = true } : nil)
         }
       }
       .padding(.bottom, 12)
       .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    } else if let point = returnPoint {
+      ReturnToReadingButton(restore: {
+        pendingReturnAnchor = point.anchor
+        startLoad(point.url)
+      }, dismiss: { returnPoint = nil; savePosition() })
     }
   }
   private func setBottomPanel(_ panel: ReaderBottomPanel?) {
@@ -316,6 +332,7 @@ struct BookhouseReaderView: View {
       let snapshot = refresh ? nil : session.pages.value(for: url)
       let loaded: ForumPage
       if let snapshot { loaded = snapshot.page }
+      else if !refresh, let book, let saved = offline.page(url, book: book) { loaded = saved; session.pages.store(saved) }
       else { loaded = try await session.load(url, cacheResult: true) }
       guard !Task.isCancelled, requestID == token else { return }
       if let book, !book.accepts(loaded) { throw BookhouseFollowingFailure.author }
@@ -346,6 +363,7 @@ struct BookhouseReaderView: View {
           visibleID = BookhouseReadingParagraph.id(url: publication.url, index: paragraph)
           pendingChapter = nil
         }
+        if let anchor = pendingReturnAnchor { visibleID = anchor; pendingReturnAnchor = nil; returnPoint = nil }
         latestVisibleIDs = []; restoring = true
         restoreID = visibleID
         library.remember(loaded, session: session, checkMaximum: false)
@@ -371,6 +389,7 @@ struct BookhouseReaderView: View {
     }
   }
   private func savePosition() {
+    guard returnPoint == nil else { return }
     if let page { session.pages.savePosition(visibleID, for: page.url) }
     guard let id = followedBookID, let paragraph = readingWindow.paragraph(id: visibleID) else { return }
     library.recordBook(id, url: paragraph.url, chapter: paragraph.chapter, paragraph: paragraph.index)
@@ -394,15 +413,23 @@ struct BookhouseReaderView: View {
   }
   private func openChapter(_ chapter: BookhouseChapter, number: Int) {
     guard !loading else { return }
+    rememberReturnPoint()
     pendingChapter = number
     startLoad(chapter.url)
+  }
+  private func rememberReturnPoint() {
+    guard returnPoint == nil, let anchor = visibleID else { return }
+    savePosition()
+    returnPoint = ReadingReturnPoint(url: readingWindow.paragraph(id: anchor)?.url ?? current, anchor: anchor)
   }
   private func prefetchNextChapter() {
     guard readerVisible, scenePhase == .active, let book, !loading, !restoring, error == nil, edgeLoading == nil,
           let target = readingWindow.prefetchTarget(visibleIDs: latestVisibleIDs, book: book),
           session.pages.value(for: target.url) == nil else { return }
     chapterPrefetch.start(target.url) {
-      let loaded = try await session.load(target.url, cacheResult: true)
+      let loaded: ForumPage
+      if let saved = offline.page(target.url, book: book) { loaded = saved; session.pages.store(saved) }
+      else { loaded = try await session.load(target.url, cacheResult: true) }
       guard book.accepts(loaded) else { throw BookhouseFollowingFailure.author }
       return loaded
     }
@@ -425,6 +452,7 @@ struct BookhouseReaderView: View {
       do {
         let loaded: ForumPage
         if let snapshot = session.pages.value(for: target.url) { loaded = snapshot.page }
+        else if let saved = offline.page(target.url, book: book) { loaded = saved; session.pages.store(saved) }
         else if let prefetched = await chapterPrefetch.take(target.url) { loaded = prefetched }
         else {
           try Task.checkCancellation()
