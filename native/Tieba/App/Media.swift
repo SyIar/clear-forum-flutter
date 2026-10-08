@@ -91,7 +91,14 @@ struct RemotePicture: View {
       }
     }.clipShape(RoundedRectangle(cornerRadius: 10))
       .task(id: "\(source):\(attempt):\(automatic)") {
-        guard automatic || manual else { return }; loading = true; image = await cache.load(source); loading = false
+        guard !Task.isCancelled else { return }
+        image = nil; loading = false
+        guard automatic || manual else { return }
+        loading = true
+        let loaded = await cache.load(source)
+        // Cache requests can be shared; only this view's current task may publish its result.
+        guard !Task.isCancelled else { return }
+        image = loaded; loading = false
       }.fullScreenCover(isPresented: $showing) { ImageGallery(urls: [url]) }
   }
 }
@@ -107,13 +114,7 @@ struct ImageGallery: View {
     NavigationStack {
       TabView(selection: $selection) {
         ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
-          Group {
-            if let image = images[url] { ZoomPicture(image: image) }
-            else { ProgressView().task {
-              _ = await PictureCache.shared.load(url)
-              if let data = try? Data(contentsOf: PictureCache.shared.file(url)), let full = UIImage(data: data) { images[url] = full }
-            } }
-          }.tag(index)
+          GalleryPicture(url: url) { images[url] = $0 }.id(url).tag(index)
         }
       }.tabViewStyle(.page(indexDisplayMode: urls.count > 1 ? .automatic : .never)).background(.black).ignoresSafeArea(edges: .bottom)
         .toolbar {
@@ -136,6 +137,40 @@ struct ImageGallery: View {
     let file = PictureCache.shared.file(url)
     do { try await PHPhotoLibrary.shared().performChanges { PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: file, options: nil) }; error = tr("imageSaved") }
     catch { self.error = error.localizedDescription }
+  }
+}
+private struct GalleryPicture: View {
+  let url: URL
+  let loaded: (UIImage) -> Void
+  @State private var image: UIImage?
+  @State private var failed = false
+  @State private var attempt = 0
+  var body: some View {
+    Group {
+      if let image { ZoomPicture(image: image) }
+      else if failed {
+        VStack(spacing: 16) {
+          Image(forumSymbol: "photo").accessibilityHidden(true)
+          Text(tr("imageLoadFailed")).appFont(.body)
+          Button(tr("retry"), forumSymbol: "arrow.clockwise") { attempt += 1 }
+            .buttonStyle(.bordered)
+        }.foregroundStyle(.white).padding()
+      } else { ProgressView().tint(.white) }
+    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+      .task(id: attempt) {
+        guard !Task.isCancelled, image == nil else { return }
+        failed = false
+        let preview = await PictureCache.shared.load(url)
+        guard !Task.isCancelled else { return }
+        let file = PictureCache.shared.file(url)
+        let full = await Task.detached(priority: .userInitiated) {
+          guard let data = try? Data(contentsOf: file) else { return nil as UIImage? }
+          return UIImage(data: data)
+        }.value
+        guard !Task.isCancelled else { return }
+        if let result = full ?? preview { image = result; loaded(result) }
+        else { failed = true }
+      }
   }
 }
 struct ZoomPicture: UIViewRepresentable {

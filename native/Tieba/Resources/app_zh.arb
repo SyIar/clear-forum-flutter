@@ -11,6 +11,7 @@
   "done": "\u5b8c\u6210",
   "close": "\u5173\u95ed",
   "retry": "\u91cd\u8bd5",
+  "imageLoadFailed": "\u56fe\u7247\u52a0\u8f7d\u5931\u8d25",
   "loading": "\u6b63\u5728\u52a0\u8f7d\u2026",
   "loadMore": "\u52a0\u8f7d\u66f4\u591a",
   "emptyTitle": "\u8fd9\u91cc\u6682\u65f6\u6ca1\u6709\u5185\u5bb9",

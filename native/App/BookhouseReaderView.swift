@@ -343,13 +343,13 @@ struct BookhouseReaderView: View {
       let snapshot = refresh ? nil : session.pages.value(for: url)
       let loaded: ForumPage
       if let match = pendingCachedMatch {
-        guard let book, book.id == match.bookID, let cached = offline.page(url, book: book) else {
+        guard let book, book.id == match.bookID, let cached = await offline.page(url, book: book) else {
           throw MediaFileError(message: AppText.text("This cached chapter is no longer available. Search again or reopen it from the catalog."))
         }
         loaded = cached; session.pages.store(cached)
       }
       else if let snapshot { loaded = snapshot.page }
-      else if !refresh, let book, let saved = offline.page(url, book: book) { loaded = saved; session.pages.store(saved) }
+      else if !refresh, let book, let saved = await offline.page(url, book: book) { loaded = saved; session.pages.store(saved) }
       else { loaded = try await session.load(url, cacheResult: true) }
       guard !Task.isCancelled, requestID == token else { return }
       if let book, !book.accepts(loaded) { throw BookhouseFollowingFailure.author }
@@ -459,7 +459,7 @@ struct BookhouseReaderView: View {
           session.pages.value(for: target.url) == nil else { return }
     chapterPrefetch.start(target.url) {
       let loaded: ForumPage
-      if let saved = offline.page(target.url, book: book) { loaded = saved; session.pages.store(saved) }
+      if let saved = await offline.page(target.url, book: book) { loaded = saved; session.pages.store(saved) }
       else { loaded = try await session.load(target.url, cacheResult: true) }
       guard book.accepts(loaded) else { throw BookhouseFollowingFailure.author }
       return loaded
@@ -486,7 +486,7 @@ struct BookhouseReaderView: View {
       do {
         let loaded: ForumPage
         if let snapshot = session.pages.value(for: target.url) { loaded = snapshot.page }
-        else if let saved = offline.page(target.url, book: book) { loaded = saved; session.pages.store(saved) }
+        else if let saved = await offline.page(target.url, book: book) { loaded = saved; session.pages.store(saved) }
         else if let prefetched = await chapterPrefetch.take(target.url) { loaded = prefetched }
         else {
           try Task.checkCancellation()

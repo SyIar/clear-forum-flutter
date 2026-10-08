@@ -10,13 +10,17 @@ final class BookhouseOfflineStore: ObservableObject {
   @Published private(set) var bytes = 0
   @Published private(set) var limitMB: Int
   @Published private(set) var error: String?
-  private var cache: BookhouseOfflineCache?
+  @Published private var entries: [BookhouseOfflineCache.Entry] = []
+  @Published private var maintaining = false
+  private let repository: BookhouseOfflineRepository
+  private var revision = 0
   private var worker: Task<Void, Never>?
-  private var plansURL: URL?
+  private var session: ForumSession?
   private var books: [String: BookhouseFollowedBook] = [:]
   private var ready = false
   private var paused = false
-  var busy: Bool { activeBook != nil }
+  private var lifecycle = 0
+  var busy: Bool { activeBook != nil || maintaining }
   var completed: Int { plans.first { $0.bookID == activeBook }?.completed ?? 0 }
   var total: Int { plans.first { $0.bookID == activeBook }?.targets.count ?? 0 }
   func plan(for bookID: String) -> BookhouseOfflinePlan? { plans.first { $0.bookID == bookID } }
@@ -24,38 +28,44 @@ final class BookhouseOfflineStore: ObservableObject {
   private init() {
     let limit = UserDefaults.standard.integer(forKey: "bookhouse.offlineLimit")
     limitMB = [50, 100, 250].contains(limit) ? limit : 100
-    do {
-      let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-      var directory = support.appendingPathComponent("OfflineBooks", isDirectory: true)
-      cache = try BookhouseOfflineCache(directory: directory, limit: limitMB * 1024 * 1024)
-      var values = URLResourceValues(); values.isExcludedFromBackup = true; try directory.setResourceValues(values)
-      bytes = cache?.bytes ?? 0
-      let tasks = support.appendingPathComponent("OfflineBookTasks.json")
-      plansURL = tasks
-      if FileManager.default.fileExists(atPath: tasks.path) {
-        let restored = try JSONDecoder().decode([BookhouseOfflinePlan].self, from: Data(contentsOf: tasks))
-        guard restored.allSatisfy(\.valid), Set(restored.map(\.bookID)).count == restored.count else { throw ReaderFailure.storage }
-        plans = restored
-      }
-      ready = true
-    } catch { self.error = AppText.text("Could not open the offline chapter cache.") }
+    repository = BookhouseOfflineRepository(limit: limitMB * 1024 * 1024)
+    Task {
+      do { try await prepare() }
+      catch { self.error = AppText.text("Could not open the offline chapter cache.") }
+    }
   }
-  func contains(_ url: URL, bookID: String) -> Bool { cache?.contains(url, bookID: bookID) == true }
+  private func apply(_ snapshot: BookhouseOfflineRepository.Snapshot) {
+    // Independent callers can resume in a different order than disk operations completed.
+    guard snapshot.revision > revision else { return }
+    revision = snapshot.revision; ready = true
+    entries = snapshot.entries; plans = snapshot.plans; bytes = snapshot.bytes
+    limitMB = snapshot.limit / (1024 * 1024)
+  }
+  private func prepare() async throws {
+    if !ready { apply(try await repository.snapshot()) }
+  }
+  func contains(_ url: URL, bookID: String) -> Bool {
+    entries.contains { $0.bookID == bookID && BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(url) }
+  }
   func captureRead(_ page: ForumPage, book: BookhouseFollowedBook) {
-    guard let cache else { return }
-    do { try cache.store(page, book: book, preservingBookID: activeBook); bytes = cache.bytes }
-    catch { self.error = AppText.text("Could not cache this chapter. Reading can continue.") }
+    let preservingBookID = activeBook
+    // This task belongs to the store, so leaving the reading view does not discard a save.
+    Task {
+      do { apply(try await repository.store(page, book: book, preservingBookID: preservingBookID)) }
+      catch { self.error = AppText.text("Could not cache this chapter. Reading can continue.") }
+    }
   }
   func search(_ query: String, books: [BookhouseFollowedBook]) async throws -> BookhouseOfflineSearch.Result {
-    guard let cache else { throw MediaFileError(message: AppText.text("Could not open the offline chapter cache.")) }
-    let documents = cache.searchDocuments(books: books)
-    let worker = Task.detached(priority: .userInitiated) { try BookhouseOfflineSearch.search(query, documents: documents) }
+    let documents = try await repository.searchDocuments(books: books)
+    try Task.checkCancellation()
+    let search = Task.detached(priority: .userInitiated) { try BookhouseOfflineSearch.search(query, documents: documents) }
     return try await withTaskCancellationHandler {
-      try await worker.value
-    } onCancel: { worker.cancel() }
+      try await search.value
+    } onCancel: { search.cancel() }
   }
-  func page(_ url: URL, book: BookhouseFollowedBook) -> ForumPage? {
-    do { return try cache?.page(url, book: book) }
+  func page(_ url: URL, book: BookhouseFollowedBook) async -> ForumPage? {
+    do { return try await repository.page(url, book: book) }
+    catch is CancellationError { return nil }
     catch { self.error = AppText.text("Could not read this offline chapter. Refresh to load it again."); return nil }
   }
   func download(_ book: BookhouseFollowedBook, session: ForumSession) {
@@ -65,37 +75,42 @@ final class BookhouseOfflineStore: ObservableObject {
     enqueue(book, chapters: book.chapters, session: session)
   }
   private func enqueue(_ book: BookhouseFollowedBook, chapters: [BookhouseChapter], session: ForumSession) {
-    guard ready, session.site == .bookhouse, !chapters.isEmpty else { return }
-    do {
-      try updatePlans {
-        if let index = $0.firstIndex(where: { $0.bookID == book.id }) { $0[index].include(chapters) }
-        else { $0.append(BookhouseOfflinePlan(bookID: book.id, chapters: chapters)) }
-      }
-      error = nil; resume(book, session: session)
-    } catch { self.error = AppText.error(error) }
+    guard session.site == .bookhouse, !chapters.isEmpty else { return }
+    let generation = lifecycle
+    Task {
+      do {
+        apply(try await repository.enqueue(book, chapters: chapters))
+        error = nil
+        try await activate(book, session: session, generation: generation)
+      } catch { self.error = AppText.error(error) }
+    }
   }
   // Resumption is tied to opening this book, not to presenting its chapter sheet.
   func resume(_ book: BookhouseFollowedBook, session: ForumSession) {
-    guard ready, session.site == .bookhouse, let cache, plan(for: book.id) != nil else { return }
-    books[book.id] = book; paused = false; failedBooks.remove(book.id)
-    if activeBook != book.id {
+    guard session.site == .bookhouse else { return }
+    let generation = lifecycle
+    Task {
       do {
-        try updatePlans { values in
-          guard let index = values.firstIndex(where: { $0.bookID == book.id }) else { return }
-          values[index].reconcile { cache.contains($0, bookID: book.id) }
-        }
-      } catch { self.error = AppText.error(error); failedBooks.insert(book.id); return }
+        try await prepare()
+        try await activate(book, session: session, generation: generation)
+      } catch { self.error = AppText.error(error); failedBooks.insert(book.id) }
     }
-    start(session: session)
   }
-  private func start(session: ForumSession) {
-    guard ready, !paused, worker == nil, let cache,
+  private func activate(_ book: BookhouseFollowedBook, session: ForumSession, generation: Int) async throws {
+    guard generation == lifecycle, plan(for: book.id) != nil else { return }
+    if activeBook != book.id { apply(try await repository.reconcile(book.id)) }
+    guard generation == lifecycle, plan(for: book.id) != nil else { return }
+    books[book.id] = book; self.session = session; paused = false; failedBooks.remove(book.id)
+    start()
+  }
+  private func start() {
+    guard ready, !paused, !maintaining, worker == nil, let session,
           plans.contains(where: { books[$0.bookID] != nil && !failedBooks.contains($0.bookID) }) else { return }
     worker = Task { [weak self] in
       guard let self else { return }
       defer {
-        self.activeBook = nil; self.worker = nil; self.bytes = cache.bytes
-        self.start(session: session)
+        self.activeBook = nil; self.worker = nil
+        self.start()
       }
       while !Task.isCancelled, !self.paused,
             let plan = self.plans.first(where: { self.books[$0.bookID] != nil && !self.failedBooks.contains($0.bookID) }),
@@ -104,22 +119,21 @@ final class BookhouseOfflineStore: ObservableObject {
         do {
           try Task.checkCancellation()
           guard let target = plan.next else {
-            try self.updatePlans { $0.removeAll { $0.id == plan.id } }
+            self.apply(try await self.repository.finish(plan.id))
             continue
           }
           guard book.chapters.contains(where: { BookhouseSitePolicy.threadKey($0.url) == BookhouseSitePolicy.threadKey(target) }) else { throw ReaderFailure.unsupported }
           var fetched = false
-          if self.page(target, book: book) == nil {
+          let cached = await self.page(target, book: book)
+          try Task.checkCancellation()
+          if cached == nil {
             let page = try await session.load(target, cacheResult: true)
             try Task.checkCancellation()
-            try cache.store(page, book: book, preservingBookID: book.id)
+            self.apply(try await self.repository.store(page, book: book, preservingBookID: book.id))
             fetched = true
           }
           try Task.checkCancellation()
-          try self.updatePlans { values in
-            if let index = values.firstIndex(where: { $0.id == plan.id }) { values[index].advance(target) }
-          }
-          self.bytes = cache.bytes
+          self.apply(try await self.repository.advance(plan.id, target: target))
           if fetched { try await Task.sleep(for: .milliseconds(700)) }
           else { await Task.yield() }
         } catch is CancellationError { return }
@@ -132,27 +146,33 @@ final class BookhouseOfflineStore: ObservableObject {
       }
     }
   }
-  private func updatePlans(_ change: (inout [BookhouseOfflinePlan]) -> Void) throws {
-    guard ready, var url = plansURL else { throw ReaderFailure.storage }
-    var updated = plans; change(&updated)
-    try JSONEncoder().encode(updated).write(to: url, options: .atomic)
-    var values = URLResourceValues(); values.isExcludedFromBackup = true; try? url.setResourceValues(values)
-    plans = updated
-  }
-  func pause() { paused = true; worker?.cancel() }
+  func pause() { lifecycle += 1; paused = true; worker?.cancel() }
   func cancel() {
-    guard let activeBook else { return }
-    do { try updatePlans { $0.removeAll { $0.bookID == activeBook } }; worker?.cancel() }
-    catch { self.error = AppText.error(error) }
+    guard let activeBook, let plan = plan(for: activeBook) else { return }
+    books.removeValue(forKey: activeBook)
+    worker?.cancel()
+    Task {
+      do { apply(try await repository.remove(plan.id)); start() }
+      catch { self.error = AppText.error(error) }
+    }
   }
   func setLimit(_ value: Int) {
     guard [50, 100, 250].contains(value) else { return }
-    do { try cache?.setLimit(value * 1024 * 1024, preservingBookID: activeBook); limitMB = value; bytes = cache?.bytes ?? 0; UserDefaults.standard.set(value, forKey: "bookhouse.offlineLimit") }
-    catch { self.error = error is BookhouseOfflineFailure ? AppText.text("The offline cache is full. Increase its limit in reading settings, then resume caching.") : AppText.error(error) }
+    let preservingBookID = activeBook
+    Task {
+      do {
+        apply(try await repository.setLimit(value * 1024 * 1024, preservingBookID: preservingBookID))
+        UserDefaults.standard.set(limitMB, forKey: "bookhouse.offlineLimit")
+      } catch { self.error = error is BookhouseOfflineFailure ? AppText.text("The offline cache is full. Increase its limit in reading settings, then resume caching.") : AppText.error(error) }
+    }
   }
   func clear() {
-    guard !busy else { return }
-    do { try cache?.clear(); bytes = cache?.bytes ?? 0; error = nil }
-    catch { self.error = AppText.error(error) }
+    guard !busy, worker == nil else { return }
+    maintaining = true
+    Task {
+      defer { maintaining = false; start() }
+      do { apply(try await repository.clear()); error = nil }
+      catch { self.error = AppText.error(error) }
+    }
   }
 }

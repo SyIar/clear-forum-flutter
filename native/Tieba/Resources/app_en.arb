@@ -16,6 +16,7 @@
   "emptyTitle": "Nothing here yet",
   "emptyBody": "Pull down to refresh, or try again later.",
   "networkError": "Could not load this page",
+  "imageLoadFailed": "Could not load this image",
   "signIn": "Sign in",
   "signOut": "Sign out",
   "loginNeeded": "Sign in to continue",

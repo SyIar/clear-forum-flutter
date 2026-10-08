@@ -220,7 +220,13 @@ struct PostCard: View {
           if let date = post.time { Text(date, style: .relative).appFont(.caption2).foregroundStyle(.secondary) }
         }.appFont(.caption).buttonStyle(.plain).foregroundStyle(Color(uiColor: .secondaryLabel)).padding(.top, 2)
       }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: max(8, settings.number("radius"))))
-        .sheet(isPresented: $nested) { NavigationStack { FloorView(thread: post.threadID, post: post.id, forum: forum, originalPosterID: originalPosterID).toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("close")) { nested = false } } } } }
+        .sheet(isPresented: $nested) {
+          NavigationStack {
+            FloorView(thread: post.threadID, post: post.id, forum: forum, originalPosterID: originalPosterID)
+              .navigationDestination(for: Route.self) { Destination(route: $0) }
+              .toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("close")) { nested = false } } }
+          }
+        }
         .sheet(item: Binding(get: { actionURL.map(URLItem.init) }, set: { actionURL = $0?.url })) { item in BaiduBrowser(session: app.session, url: item.url) { result in actionURL = nil; if case .failure(let error) = result { app.error = error.localizedDescription } }.ignoresSafeArea() }
         .forumConfirmation(tr("deleteConfirm"), isPresented: $removing, actions: { [
           ForumDialogAction(tr("deletePost"), role: .destructive) { perform { try await app.api.removeOwnContent(forum: forum, thread: post.threadID, post: post.id, nested: !post.parentID.isEmpty) } }
