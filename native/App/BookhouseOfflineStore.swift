@@ -27,8 +27,9 @@ final class BookhouseOfflineStore: ObservableObject {
   func caching(_ bookID: String) -> Bool { !paused && books[bookID] != nil && !failedBooks.contains(bookID) && plan(for: bookID) != nil }
   private init() {
     let limit = UserDefaults.standard.integer(forKey: "bookhouse.offlineLimit")
-    limitMB = [50, 100, 250].contains(limit) ? limit : 100
-    repository = BookhouseOfflineRepository(limit: limitMB * 1024 * 1024)
+    let selectedLimit = [50, 100, 250].contains(limit) ? limit : 100
+    limitMB = selectedLimit
+    repository = BookhouseOfflineRepository(limit: selectedLimit * 1024 * 1024)
     Task {
       do { try await prepare() }
       catch { self.error = AppText.text("Could not open the offline chapter cache.") }
