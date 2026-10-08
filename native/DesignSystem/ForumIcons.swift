@@ -52,7 +52,7 @@ public struct ForumOriginalPosterBadge: View {
   private let label: String
   public init(label: String) { self.label = label }
   public var body: some View {
-    Image(forumSymbol: "person", size: size).foregroundStyle(.blue)
+    Image(forumSymbol: "person.fill", size: size).foregroundStyle(.blue)
       .frame(width: size, height: size).fixedSize().accessibilityLabel(Text(label))
   }
 }

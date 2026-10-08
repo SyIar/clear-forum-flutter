@@ -1,3 +1,4 @@
+import CoreText
 import ForumUI
 import SwiftUI
 
@@ -234,10 +235,14 @@ struct PostCard: View {
     }
   }
   private func replyPreview(_ item: Post) -> Text {
+    let badgeSize = captionSize * settings.fontScale
+    let nameFont = MixedScriptFont.font(size: badgeSize, bold: true)
     let name = Text(item.author.name.isEmpty ? tr("unknownUser") : item.author.name)
-      .font(Font(MixedScriptFont.font(size: captionSize * settings.fontScale, bold: true))).foregroundColor(settings.accent)
+      .font(Font(nameFont)).foregroundColor(settings.accent)
+    // Inline images sit above the text baseline; center the badge on the font's cap height.
     let badge = item.isOriginalPoster(originalPosterID)
-      ? Text(" ") + Text(Image(forumSymbol: "person", size: captionSize * settings.fontScale)).foregroundColor(.blue)
+      ? Text(" ") + Text(Image(forumSymbol: "person.fill", size: badgeSize))
+        .baselineOffset((CTFontGetCapHeight(nameFont) - badgeSize) / 2).foregroundColor(.blue)
       : Text("")
     return name + badge + Text(": " + item.plainText).foregroundColor(Color(uiColor: .label))
   }
