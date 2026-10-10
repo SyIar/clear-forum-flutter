@@ -35,8 +35,11 @@ struct ForumLiteApp: App {
         }
         .forumSheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
         .onChange(of: scenePhase, initial: true) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.pause() }
-          else if value == .active { downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded() }
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.pause(); SouthOfflineStore.shared.pause() }
+          else if value == .active {
+            downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded()
+            if path.contains(where: { $0.site == .south }) { Task { await SouthOfflineStore.shared.resume(session: southSession) } }
+          }
         }
     }
   }
@@ -60,6 +63,8 @@ struct ForumLiteApp: App {
                 if bookhouseLibrary.document.followedBooks[match.bookID] != nil {
                   bookReader(match.url, id: match.bookID, match: match)
                 }
+              case .cachedSouth(let url):
+                SouthOfflineReader(url: url, library: southLibrary, home: { path = [.home(.south)] })
               case .reader(let url):
                 if site == .bookhouse {
                   bookReader(url, id: bookhouseLibrary.document.followedBook(at: url)?.id)
@@ -94,11 +99,13 @@ enum ForumDestination: Hashable {
   case reader(URL)
   case book(String)
   case cachedBook(BookhouseOfflineMatch)
+  case cachedSouth(URL)
   var site: ForumSite {
     switch self {
     case .home(let site), .search(let site): return site
     case .reader(let url): return ForumSite(url: url) ?? .simp
     case .book, .cachedBook: return .bookhouse
+    case .cachedSouth: return .south
     }
   }
 }
@@ -151,6 +158,10 @@ final class LibraryStore: ObservableObject {
   }
   func remember(_ page: ForumPage, session: ForumSession, checkMaximum: Bool = true) {
     guard session.site == site, site.accepts(page.url) else { return }
+    if session.offlineThreadID != nil {
+      change { $0.remember(SavedPage(url: page.url, title: page.title)) }
+      return
+    }
     if page.kind != .posts { directoryEntries = Array(page.entries.prefix(200)) }
     change {
       $0.remember(SavedPage(url: page.url, title: page.title))
@@ -411,6 +422,9 @@ struct HomeView: View {
         }
         if session.site == .bookhouse {
           BookhouseFollowingSection(library: library, session: session) { path.append(.book($0)) }
+        }
+        if session.site == .south {
+          SouthDownloadsSection(session: session, library: library) { path.append(.cachedSouth($0)) }
         }
         if session.site != .bookhouse {
         Section {

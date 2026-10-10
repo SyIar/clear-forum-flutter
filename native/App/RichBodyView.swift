@@ -400,6 +400,7 @@ struct MediaRow: View {
 
 @MainActor
 final class ImageStore {
+  let offlineThreadID: String?
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
   private var generation = 0
@@ -409,7 +410,10 @@ final class ImageStore {
     diagnosticEvents.append(ReaderDiagnostics.address(url.absoluteString) + " | " + message)
     diagnosticEvents = Array(diagnosticEvents.suffix(40))
   }
-  init() { cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80 }
+  init(offlineThreadID: String? = nil) {
+    self.offlineThreadID = offlineThreadID
+    cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80
+  }
   func releaseCachedImages() {
     generation += 1
     diagnosticEvents.removeAll()
@@ -422,6 +426,19 @@ final class ImageStore {
     if let task = tasks[url] { return await task.value }
     let epoch = generation
     let task = Task { () -> UIImage? in
+      if let offlineThreadID {
+        guard let file = try? await SouthOfflineStore.shared.repository.imageFile(url, threadID: offlineThreadID) else { return nil }
+        return await Task.detached(priority: .utility) {
+          guard let source = CGImageSourceCreateWithURL(file as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 2048,
+                  kCGImageSourceShouldCacheImmediately: true
+                ] as CFDictionary) else { return nil as UIImage? }
+          return UIImage(cgImage: image)
+        }.value
+      }
       guard MediaPolicy.allowed(url) else { record("Rejected image URL", url: url); return nil }
       var request = URLRequest(url: url, timeoutInterval: 25)
       request.httpShouldHandleCookies = false

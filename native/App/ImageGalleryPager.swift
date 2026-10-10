@@ -50,7 +50,11 @@ final class ImageGalleryController: UIPageViewController, UIPageViewControllerDa
     if let existing = pages[number] { return existing }
     let entry = entries[number]
     let initial = entry.url == source.url ? source : ImageViewerSource(preview: UIImage(), url: entry.url)
-    let child = OriginalImageController(source: initial, previewLoader: entry.url == source.url ? nil : { [images] in
+    let offlineLoader: (() async throws -> URL?)?
+    if let id = images.offlineThreadID {
+      offlineLoader = { try await SouthOfflineStore.shared.repository.copyImageForViewer(entry.url, threadID: id) }
+    } else { offlineLoader = nil }
+    let child = OriginalImageController(source: initial, localSourceLoader: offlineLoader, previewLoader: entry.url == source.url ? nil : { [images] in
       await images.load(entry.previewURL)
     })
     child.setGallerySelected(number == index)

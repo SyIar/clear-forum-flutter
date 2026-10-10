@@ -36,6 +36,7 @@ struct ReaderView: View {
   @State private var textSelection: PostTextSelection?
   @State private var bottomPanel: ReaderBottomPanel?
   @State private var showingDiagnostics = false
+  @State private var showingDownloads = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.scenePhase) private var scenePhase
   @State private var showingBlockedAuthors = false
@@ -58,7 +59,7 @@ struct ReaderView: View {
       loadedGeneration == session.generation && completedRequestID == requestID && pendingScrollAnchor == nil &&
       destination == nil && media == nil && imageSheet == nil && external == nil && presentation == nil &&
       gofile == nil && hostedFiles == nil && textSelection == nil && !showingDiagnostics &&
-      !selectingPage && !showingBlockedAuthors && !clearSession
+      !selectingPage && !showingBlockedAuthors && !clearSession && !showingDownloads
   }
   private var pinnedThreads: [ForumEntry] {
     guard session.site == .south, let page = displayPage, page.kind == .threads else { return [] }
@@ -178,7 +179,7 @@ struct ReaderView: View {
       }
       .background(Color(uiColor: .systemGroupedBackground))
       .environment(\.readerReferer, current)
-      .navigationTitle(SouthSitePolicy.topicAuthorID(current) != nil ? AppText.text("Author threads") : page?.kind == .posts ? AppText.text("Thread") : AppText.text("Forums")).navigationBarTitleDisplayMode(.inline)
+      .navigationTitle(session.offlineThreadID != nil ? AppText.text("Offline thread") : SouthSitePolicy.topicAuthorID(current) != nil ? AppText.text("Author threads") : page?.kind == .posts ? AppText.text("Thread") : AppText.text("Forums")).navigationBarTitleDisplayMode(.inline)
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
@@ -190,12 +191,20 @@ struct ReaderView: View {
             } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
               .accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil || loading)
             Menu {
+              if session.site == .south, session.offlineThreadID == nil, let page, page.kind == .posts {
+                Button(AppText.text("Download entire thread"), forumSymbol: "arrow.down.circle") {
+                  SouthOfflineStore.shared.download(url: current, title: page.title, page: page, session: session)
+                  showingDownloads = true
+                }.disabled(loading)
+              }
               ShareLink(item: current) { Label(AppText.text("Share link"), forumSymbol: "square.and.arrow.up") }
               Button(AppText.text("Site browser"), forumSymbol: "globe") { openBrowser(current) }
-              Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
-              Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
-              if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
-              Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
+              if session.offlineThreadID == nil {
+                Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
+                Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
+                if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
+                Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
+              }
             } label: { ForumToolbarIcon("ellipsis") }
               .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 44, height: 44)
               .accessibilityLabel(AppText.text("Page actions")).disabled(purchasing)
@@ -299,6 +308,7 @@ struct ReaderView: View {
         ReaderView(initialURL: item.url, library: library, session: session, home: home)
       }
       .forumSheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
+      .forumSheet(isPresented: $showingDownloads) { SouthDownloadsView(session: session, library: library) }
       .forumSheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
       .forumSheet(isPresented: $showingDiagnostics) {
         ReaderDiagnosticsView(url: diagnosticURL, context: diagnosticContext, session: session)
@@ -417,6 +427,7 @@ struct ReaderView: View {
   }
   private func openBrowser(_ target: URL) {
     guard !purchasing, session.site.sameOrigin(target) else { return }
+    if session.offlineThreadID != nil { external = target; return }
     session.beginBrowsing()
     presentation = .browser(target)
   }
@@ -433,6 +444,11 @@ struct ReaderView: View {
     requestID = UUID()
   }
   private func navigate(_ url: URL) {
+    if let offlineID = session.offlineThreadID {
+      if SouthSitePolicy.threadKey(url) == offlineID, SouthSitePolicy.authorID(url) == nil { go(to: url) }
+      else { external = url }
+      return
+    }
     if let target = GofilePolicy.pageURL(url) { gofile = GofileDestination(url: target) }
     else if HostedFilePolicy.provider(url) != nil { hostedFiles = HostedFilesDestination(url: url) }
     else if session.site.accepts(url) { destination = ReaderDestination(url: url) }
@@ -445,10 +461,14 @@ struct ReaderView: View {
     media = .video(url, block.direct, session.site.base)
   }
   private func buy(_ offer: SouthPurchaseOffer) {
+    guard session.offlineThreadID == nil else {
+      purchaseMessage = AppText.text("Open the live thread to purchase content, then download it again."); return
+    }
     guard !loading, edgeLoading == nil else { return }
     startPurchase(selected: offer)
   }
   private func startPurchase(selected offer: SouthPurchaseOffer? = nil, in source: ForumPage? = nil) {
+    guard session.offlineThreadID == nil else { return }
     guard !purchasing, let page = source ?? offer.flatMap({ readingPages.page(offering: $0) }) ?? self.page else { return }
     let blocked = library.document.blockedAuthorIDs
     guard offer != nil || (session.site == .south && page.purchaseOffers(excludingAuthors: blocked).contains(where: \.isFree)) else { return }

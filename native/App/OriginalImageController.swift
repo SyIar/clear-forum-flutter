@@ -12,6 +12,8 @@ private final class ImageScrollView: UIScrollView {
 final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   private let source: ImageViewerSource
   private let previewLoader: (() async -> UIImage?)?
+  private let localSourceLoader: (() async throws -> URL?)?
+  private var localLookup: Task<Void, Never>?
   private var preview: UIImage
   private var gallerySelected = true
   private let scroll = ImageScrollView()
@@ -27,8 +29,8 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   var imageChanged: (() -> Void)?
   var zoomed: Bool { scroll.zoomScale > scroll.minimumZoomScale + 0.001 }
   var canShare: Bool { file != nil || (imageView.image?.size.width ?? 0) > 0 }
-  init(source: ImageViewerSource, previewLoader: (() async -> UIImage?)? = nil) {
-    self.source = source; self.preview = source.preview; self.previewLoader = previewLoader
+  init(source: ImageViewerSource, localSourceLoader: (() async throws -> URL?)? = nil, previewLoader: (() async -> UIImage?)? = nil) {
+    self.source = source; self.preview = source.preview; self.previewLoader = previewLoader; self.localSourceLoader = localSourceLoader
     super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError("Not supported") }
@@ -101,8 +103,24 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   @objc private func zoom() { scroll.setZoomScale(scroll.zoomScale > 1 ? 1 : 2.5, animated: true) }
   @objc private func loadOriginal() {
     if originalLoaded { zoom(); return }
-    guard transfer == nil, decoding == nil else { return }
+    guard transfer == nil, decoding == nil, localLookup == nil else { return }
     originalButton.configuration?.showsActivityIndicator = true
+    if let localSourceLoader {
+      localLookup = Task { [weak self] in
+        do {
+          guard let file = try await localSourceLoader() else {
+            throw MediaFileError(message: AppText.text("This image has not been downloaded. Continue the thread download to save it."))
+          }
+          guard let self, !Task.isCancelled else { try? FileManager.default.removeItem(at: file); return }
+          self.localLookup = nil
+          self.decode(file)
+        } catch {
+          guard let self, !Task.isCancelled else { return }
+          self.localLookup = nil; self.failed(error)
+        }
+      }
+      return
+    }
     let transfer = MediaFileTransfer(limit: MediaFilePolicy.imageLimit, referer: source.url.deletingLastPathComponent(), progress: { _ in }, completion: { [weak self] result in
       guard let self else { if case .success(let url) = result { try? FileManager.default.removeItem(at: url) }; return }
       self.transfer = nil
@@ -148,6 +166,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     ForumDialogs.notice(title: AppText.text("Image"), message: message, close: AppText.text("OK"))
   }
   func stopLoading() {
+    localLookup?.cancel(); localLookup = nil
     previewTask?.cancel(); previewTask = nil
     transfer?.cancel(); transfer = nil
     decoding?.cancel(); decoding = nil
@@ -159,6 +178,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
       if previewTask == nil && !originalLoaded && (source.loadOriginalOnOpen || preview.size.width == 0) { loadOriginal() }
     } else {
       // Neighbors retain only previews, never several full-resolution bitmaps.
+      localLookup?.cancel(); localLookup = nil
       transfer?.cancel(); transfer = nil; decoding?.cancel(); decoding = nil
       imageView.image = preview; originalLoaded = false
       scroll.setZoomScale(1, animated: false)
