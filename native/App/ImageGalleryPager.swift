@@ -53,6 +53,7 @@ final class ImageGalleryController: UIPageViewController, UIPageViewControllerDa
     let child = OriginalImageController(source: initial, previewLoader: entry.url == source.url ? nil : { [images] in
       await images.load(entry.previewURL)
     })
+    child.setGallerySelected(number == index)
     child.zoomChanged = { [weak self] zoomed in
       guard let self, self.index == number, !self.stopped else { return }
       self.pageScroll?.isScrollEnabled = !zoomed
@@ -83,6 +84,7 @@ final class ImageGalleryController: UIPageViewController, UIPageViewControllerDa
     notifySelection()
   }
   private func trimPages() {
+    for (number, page) in pages { page.setGallerySelected(number == index) }
     for (number, page) in pages where abs(number - index) > 1 { page.stopLoading() }
     pages = pages.filter { abs($0.key - index) <= 1 }
   }

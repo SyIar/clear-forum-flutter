@@ -6,7 +6,8 @@ Forum image sheets use horizontal native paging instead of left/right arrow
 buttons. Paging commits the title and share target together, and a cancelled
 swipe keeps the original selection. A zoomed image keeps horizontal dragging
 until it is zoomed out; downward sheet resizing/dismissal remains native.
-Only the selected image and immediate neighbors stay in the controller cache.
+Only the selected image and immediate neighbors stay in the controller cache;
+neighbors retain previews and release full-resolution images and transfers.
 Previous/next accessibility actions remain available without visible arrows.
 
 In the local video gallery, tapping the canvas toggles the header, fullscreen

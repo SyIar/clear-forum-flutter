@@ -12,6 +12,8 @@ private final class ImageScrollView: UIScrollView {
 final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   private let source: ImageViewerSource
   private let previewLoader: (() async -> UIImage?)?
+  private var preview: UIImage
+  private var gallerySelected = true
   private let scroll = ImageScrollView()
   private let imageView = UIImageView()
   private let originalButton = UIButton(type: .system)
@@ -26,7 +28,8 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   var zoomed: Bool { scroll.zoomScale > scroll.minimumZoomScale + 0.001 }
   var canShare: Bool { file != nil || (imageView.image?.size.width ?? 0) > 0 }
   init(source: ImageViewerSource, previewLoader: (() async -> UIImage?)? = nil) {
-    self.source = source; self.previewLoader = previewLoader; super.init(nibName: nil, bundle: nil)
+    self.source = source; self.preview = source.preview; self.previewLoader = previewLoader
+    super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
@@ -69,10 +72,11 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
         let preview = await previewLoader()
         guard let self, !Task.isCancelled else { return }
         self.previewTask = nil; self.spinner.stopAnimating()
+        if let preview { self.preview = preview }
         guard !self.originalLoaded, self.transfer == nil, self.decoding == nil else { return }
         if let preview {
           self.imageView.image = preview; self.view.setNeedsLayout(); self.imageChanged?()
-        } else { self.loadOriginal() }
+        } else if self.gallerySelected { self.loadOriginal() }
       }
     }
   }
@@ -83,7 +87,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     if #available(iOS 26.0, *), let content = navigationController?.interactiveContentPopGestureRecognizer {
       content.require(toFail: scroll.panGestureRecognizer)
     }
-    if source.loadOriginalOnOpen && !originalLoaded { loadOriginal() }
+    if gallerySelected && source.loadOriginalOnOpen && !originalLoaded { loadOriginal() }
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
@@ -147,6 +151,21 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     previewTask?.cancel(); previewTask = nil
     transfer?.cancel(); transfer = nil
     decoding?.cancel(); decoding = nil
+  }
+  func setGallerySelected(_ selected: Bool) {
+    gallerySelected = selected
+    guard isViewLoaded else { return }
+    if selected {
+      if previewTask == nil && !originalLoaded && (source.loadOriginalOnOpen || preview.size.width == 0) { loadOriginal() }
+    } else {
+      // Neighbors retain only previews, never several full-resolution bitmaps.
+      transfer?.cancel(); transfer = nil; decoding?.cancel(); decoding = nil
+      imageView.image = preview; originalLoaded = false
+      scroll.setZoomScale(1, animated: false)
+      if let file { try? FileManager.default.removeItem(at: file); self.file = nil }
+      originalButton.configuration?.showsActivityIndicator = false
+      originalButton.accessibilityLabel = AppText.text("View source image at full resolution")
+    }
   }
   deinit { if let file { try? FileManager.default.removeItem(at: file) } }
   func shareImage() {
