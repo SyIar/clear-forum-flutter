@@ -197,16 +197,22 @@ final class GofileSession: NSObject, ObservableObject, WKNavigationDelegate, WKS
     Array(thumbnailTransfers.values).forEach { $0.cancel() }
   }
   func resumeThumbnails() { thumbnailsSuspended = false; revision += 1 }
-  func transfer(_ entry: GofileEntry, limit: Int64 = GofilePolicy.fileLimit, progress: @escaping (Double?) -> Void) async throws -> URL {
+  func transfer(_ entry: GofileEntry, limit: Int64 = GofilePolicy.fileLimit, checkpointID: UUID? = nil,
+                activity: @escaping (FileTransferActivity) -> Void = { _ in }, progress: @escaping (Double?) -> Void) async throws -> URL {
     guard !entry.unavailable, let link = entry.link else { throw GofileFailure.unavailable }
-    if userAgent.isEmpty { userAgent = (try? await webView.evaluateJavaScript("navigator.userAgent") as? String) ?? "" }
-    let cookies = await Self.store.httpCookieStore.allCookies()
+    let saved = checkpointID.flatMap { try? FileDownloadStore.load(FileTransferCheckpoint.self, name: $0.uuidString) }
+    if let saved { userAgent = saved.userAgent }
+    else if userAgent.isEmpty { userAgent = (try? await webView.evaluateJavaScript("navigator.userAgent") as? String) ?? "" }
+    let cookies: [HTTPCookie]
+    if let saved { cookies = saved.cookies.compactMap(\.cookie) }
+    else { cookies = await Self.store.httpCookieStore.allCookies() }
     var transfer: GofileFileTransfer?
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
         let value = GofileFileTransfer(name: entry.name, expectedBytes: entry.size, mime: entry.mime,
-          cookies: cookies, userAgent: userAgent, limit: limit, progress: progress, completion: { continuation.resume(with: $0) })
+          cookies: cookies, userAgent: userAgent, limit: limit, checkpointID: checkpointID, activity: activity,
+          progress: progress, completion: { continuation.resume(with: $0) })
         transfer = value; value.start(link)
       }
     } onCancel: { Task { @MainActor in transfer?.cancel() } }

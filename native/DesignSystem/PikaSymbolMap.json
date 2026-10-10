@@ -1,4 +1,5 @@
 {
+  "arrow.uturn.backward": "arrow-turn-up-left",
   "arrow.clockwise": "refresh",
   "arrow.down": "arrow-down",
   "arrow.down.circle": "arrow-down-circle",
@@ -62,6 +63,7 @@
   "pause": "pause-small",
   "pause.toolbar": "pause-big",
   "person": "user-default",
+  "person.fill": "user-default-filled",
   "person.2": "user-two",
   "person.badge.minus": "user-remove",
   "person.badge.plus": "user-plus",

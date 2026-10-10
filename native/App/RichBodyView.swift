@@ -120,6 +120,7 @@ struct PostCard: View {
   let purchase: (SouthPurchaseOffer) -> Void
   let purchasing: Bool
   var authorFilterActive = false
+  var isOriginalPoster = false
   var openAvatar: (() -> Void)?
   var selectText: (() -> Void)?
   var body: some View {
@@ -127,7 +128,10 @@ struct PostCard: View {
       HStack(spacing: ForumDesignSystem.spacing.md) {
         PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
-          Text(post.author).forumFont(.subheadline, weight: .bold)
+          HStack(spacing: 4) {
+            Text(post.author).forumFont(.subheadline, weight: .bold)
+            if isOriginalPoster { ForumOriginalPosterBadge(label: AppText.text("Original poster")) }
+          }
           if openAvatar == nil, post.authorID != nil || !post.date.isEmpty {
             HStack(spacing: 6) {
               if let id = post.authorID { Text(AppText.format("UID %@", String(describing: id))) }
@@ -219,8 +223,9 @@ struct RichBodyView: View {
   @ScaledMetric(relativeTo: .body) private var novelLineSpacing: CGFloat = 7
   @ScaledMetric(relativeTo: .body) private var novelParagraphSpacing: CGFloat = 14
   @Environment(\.readerBodyStyle) private var bodyStyle
+  @Environment(\.readingAppearance) private var appearance
   @EnvironmentObject private var session: ForumSession
-  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (20.0 / 17.0) : textSize }
+  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (appearance.fontSize / 17.0) : textSize }
   let blocks: [BodyBlock]
   let posters: PosterStore
   let navigate: (URL) -> Void
@@ -242,7 +247,7 @@ struct RichBodyView: View {
     return result
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing : 10) {
+    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing * appearance.paragraphSpacing / 14 : 10) {
       ForEach(groups) { group in
         if group.blocks[0].kind == .image {
           if group.blocks.count == 1 { image(group.blocks[0], grid: false) }
@@ -269,7 +274,11 @@ struct RichBodyView: View {
         }
       }
     case .link:
-      if let url = block.url { CompactLink(url: url, label: block.label, navigate: navigate) }
+      if let url = block.url {
+        if session.site == .south, SouthAttachment(url: url) != nil {
+          SouthAttachmentDownload(url: url, name: block.label)
+        } else { CompactLink(url: url, label: block.label, navigate: navigate) }
+      }
     case .media:
       MediaRow(block: block, posters: posters, play: play)
     case .quote:
@@ -307,7 +316,7 @@ struct RichBodyView: View {
     else if let url = standaloneLink(runs) { CompactLink(url: url, label: runs.map(\.text).joined(), navigate: navigate) }
     else {
       Text(attributed(runs)).font(Font(MixedScriptFont.font(size: bodyTextSize, bold: false)))
-        .lineSpacing(bodyStyle == .novel ? novelLineSpacing : 2)
+        .lineSpacing(bodyStyle == .novel ? novelLineSpacing * appearance.lineSpacing / 7 : 2)
         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -391,6 +400,7 @@ struct MediaRow: View {
 
 @MainActor
 final class ImageStore {
+  let offlineThreadID: String?
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
   private var generation = 0
@@ -400,7 +410,10 @@ final class ImageStore {
     diagnosticEvents.append(ReaderDiagnostics.address(url.absoluteString) + " | " + message)
     diagnosticEvents = Array(diagnosticEvents.suffix(40))
   }
-  init() { cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80 }
+  init(offlineThreadID: String? = nil) {
+    self.offlineThreadID = offlineThreadID
+    cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80
+  }
   func releaseCachedImages() {
     generation += 1
     diagnosticEvents.removeAll()
@@ -413,6 +426,19 @@ final class ImageStore {
     if let task = tasks[url] { return await task.value }
     let epoch = generation
     let task = Task { () -> UIImage? in
+      if let offlineThreadID {
+        guard let file = try? await SouthOfflineStore.shared.repository.imageFile(url, threadID: offlineThreadID) else { return nil }
+        return await Task.detached(priority: .utility) {
+          guard let source = CGImageSourceCreateWithURL(file as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 2048,
+                  kCGImageSourceShouldCacheImmediately: true
+                ] as CFDictionary) else { return nil as UIImage? }
+          return UIImage(cgImage: image)
+        }.value
+      }
       guard MediaPolicy.allowed(url) else { record("Rejected image URL", url: url); return nil }
       var request = URLRequest(url: url, timeoutInterval: 25)
       request.httpShouldHandleCookies = false

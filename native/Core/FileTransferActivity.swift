@@ -1,6 +1,6 @@
 import Foundation
 
-enum FileTransferActivity {
+enum FileTransferActivity: String, Codable {
   case waiting, resolving, downloading, saving, readingFolder
 
   // The plan retains its first item until a transfer has been saved. It is not

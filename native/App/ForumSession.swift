@@ -7,7 +7,8 @@ final class ForumSession: ObservableObject {
   let site: ForumSite
   let store: WKWebsiteDataStore
   let browserUserAgent: String
-  let images = ImageStore()
+  let images: ImageStore
+  let offlineThreadID: String?
   let pages = PageCache()
   private let purchases = SouthPurchaseService()
   private var operations: [UUID: PageRequest] = [:]
@@ -23,8 +24,10 @@ final class ForumSession: ObservableObject {
     diagnostics[key]?.events.append(line)
     if let html { diagnostics[key]?.html = html }
   }
-  init(site: ForumSite) {
+  init(site: ForumSite, offlineThreadID: String? = nil) {
     self.site = site
+    self.offlineThreadID = offlineThreadID
+    images = ImageStore(offlineThreadID: offlineThreadID)
     browserUserAgent = BrowserIdentity.userAgent(for: site, systemVersion: UIDevice.current.systemVersion, isPad: UIDevice.current.userInterfaceIdiom == .pad)
     // Keep the existing Simp login; South gets an isolated persistent WebKit profile.
     store = site == .bookhouse ? .nonPersistent() : site == .simp ? .default() : WKWebsiteDataStore(forIdentifier: UUID(uuidString: "1F621C45-387F-478D-A8E2-56DB533EA481")!)
@@ -45,6 +48,7 @@ final class ForumSession: ObservableObject {
     invalidatePages()
   }
   private func request(_ request: URLRequest, maxBytes: Int = 8 * 1024 * 1024, htmlOnly: Bool = false) async throws -> (HTTPURLResponse, Data) {
+    guard offlineThreadID == nil else { throw ReaderFailure.network }
     let id = UUID()
     let epoch = generation
     return try await withTaskCancellationHandler {
@@ -67,6 +71,13 @@ final class ForumSession: ObservableObject {
     }
   }
   func load(_ url: URL, cacheResult: Bool = false) async throws -> ForumPage {
+    if let offlineThreadID {
+      guard let page = try await SouthOfflineStore.shared.repository.page(url, threadID: offlineThreadID) else {
+        throw MediaFileError(message: AppText.text("This page has not been downloaded. Continue the download from South's home page."))
+      }
+      if cacheResult { pages.store(page) }
+      return page
+    }
     let key = SitePolicy.pageCacheKey(url)
     let id = UUID()
     diagnostics[key] = ReaderDiagnosticSnapshot(id: id, address: ReaderDiagnostics.address(url.absoluteString))
@@ -246,7 +257,7 @@ final class ForumSession: ObservableObject {
     if let selected { return try await purchases.buy(selected, page: page, excludingAuthors: blocked, load: read, submit: submit, onUpdate: onUpdate) }
     return try await purchases.unlockFree(in: page, excludingAuthors: blocked, load: read, submit: submit, onUpdate: onUpdate)
   }
-  func maximumPostNumber(from initial: ForumPage) async throws -> Int {
+  func latestThreadPage(from initial: ForumPage) async throws -> ForumPage {
     guard site.accepts(initial.url), let key = SitePolicy.threadKey(initial.url), initial.kind == .posts else { throw ReaderFailure.unsupported }
     var page = initial
     let filteredAuthor = SouthSitePolicy.authorID(page.url) != nil
@@ -256,7 +267,7 @@ final class ForumSession: ObservableObject {
     for attempt in 0..<3 {
       try Task.checkCancellation()
       guard site.accepts(page.url), SitePolicy.threadKey(page.url) == key, page.kind == .posts else { throw ReaderFailure.unsupported }
-      if let maximum = page.maximumPostNumber, maximum >= 0 { return maximum }
+      if let maximum = page.maximumPostNumber, maximum >= 0 { return page }
       guard attempt < 2, let last = page.url(forPage: page.pageCount) ?? page.lastPage ?? page.next,
             SitePolicy.threadKey(last) == key, SitePolicy.pageNumber(last) > page.pageNumber else { throw ReaderFailure.unsupported }
       page = try await load(last)
@@ -291,6 +302,7 @@ final class PosterStore: ObservableObject {
   private var active = 0
   func resolve(_ block: BodyBlock, session: ForumSession) async -> URL? {
     if let poster = block.poster { return poster }
+    guard session.offlineThreadID == nil else { return nil }
     guard !block.direct, let url = block.url, MediaPolicy.posterPage(url) else { return nil }
     if let task = tasks[url] { return await task.value }
     guard tasks.count < 128 else { return nil }

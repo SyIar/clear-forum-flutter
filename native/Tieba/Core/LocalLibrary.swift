@@ -37,9 +37,10 @@ struct LocalLibrary {
     history.insert(["forum": forum.stored, "visitedAt": ISO8601DateFormatter().string(from: Date())], at: 0)
     document["forumHistory"] = Array(history.prefix(1000))
   }
-  mutating func remember(thread: String, title: String, forum: String, post: String, page: Int, onlyAuthor: Bool) {
+  mutating func remember(thread: String, title: String, forum: String, post: String, page: Int, onlyAuthor: Bool, floor: Int = 0) {
+    let maximum = max(floor, integer(rows("history").first { string($0["threadId"]) == thread }?["maximumFloor"]))
     var history = rows("history").filter { string($0["threadId"]) != thread }
-    history.insert(["threadId": thread, "title": title, "forumName": forum, "lastPostId": post, "page": page, "onlyAuthor": onlyAuthor, "visitedAt": ISO8601DateFormatter().string(from: Date())], at: 0)
+    history.insert(["threadId": thread, "title": title, "forumName": forum, "lastPostId": post, "page": page, "onlyAuthor": onlyAuthor, "maximumFloor": maximum, "visitedAt": ISO8601DateFormatter().string(from: Date())], at: 0)
     document["history"] = Array(history.prefix(1000))
   }
   mutating func togglePin(_ forum: Forum) {

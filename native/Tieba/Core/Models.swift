@@ -178,10 +178,14 @@ struct Post: Identifiable {
   var liked: Bool
   var likes: Int
   var plainText: String { content.map(\.text).joined() }
+  func isOriginalPoster(_ ownerID: String?) -> Bool {
+    guard let ownerID, !ownerID.isEmpty, ownerID != "0" else { return false }
+    return author.id == ownerID
+  }
   init(_ raw: JSON, threadID: String, users: [String: JSON] = [:], parentID: String = "") {
     id = first(raw, ["id", "pid", "post_id"]); self.threadID = threadID; self.parentID = parentID
     let data = object(raw["author"])
-    author = UserProfile(raw: data.isEmpty ? users[string(raw["author_id"])] ?? [:] : data)
+    author = UserProfile(raw: data.isEmpty ? users[string(raw["author_id"])] ?? ["id": string(raw["author_id"])] : data)
     floor = integer(raw["floor"])
     let seconds = integer(raw["time"])
     time = seconds > 0 ? Date(timeIntervalSince1970: Double(seconds > 100_000_000_000 ? seconds / 1000 : seconds)) : nil

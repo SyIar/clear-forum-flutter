@@ -16,6 +16,7 @@
   "emptyTitle": "Nothing here yet",
   "emptyBody": "Pull down to refresh, or try again later.",
   "networkError": "Could not load this page",
+  "imageLoadFailed": "Could not load this image",
   "signIn": "Sign in",
   "signOut": "Sign out",
   "loginNeeded": "Sign in to continue",
@@ -310,5 +311,9 @@
   "systemFont": "System font",
   "notoSans": "Noto Sans",
   "fontPreview": "Read slowly, see clearly. Let each line feel natural.",
-  "backToForums": "Back to forums"
+  "backToForums": "Back to forums",
+  "newSinceVisit": "New since your last visit",
+  "returnReading": "Return to reading position",
+  "keepReadingPosition": "Keep this reading position",
+  "originalPoster": "Original poster"
 }

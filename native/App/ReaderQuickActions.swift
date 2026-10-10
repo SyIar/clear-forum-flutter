@@ -65,18 +65,39 @@ struct ReaderQuickActions: View {
   let top: () -> Void
   let bottom: () -> Void
   let refresh: () -> Void
+  var settings: (() -> Void)? = nil
   var body: some View {
       ReaderControlGroup {
         action(AppText.text("Top of page"), symbol: "arrow.up.to.line", disabled: !canJump || busy, perform: top)
         Divider().frame(height: 20)
         action(AppText.text("Bottom of page"), symbol: "arrow.down.to.line", disabled: !canJump || busy, perform: bottom)
         Divider().frame(height: 20)
-        action(AppText.text("Refresh"), symbol: "arrow.clockwise", disabled: busy, perform: refresh)
+        action(AppText.text(settings == nil ? "Refresh" : "Reading settings"), symbol: settings == nil ? "arrow.clockwise" : "gearshape", disabled: busy, perform: settings ?? refresh)
       }
   }
   private func action(_ title: String, symbol: String, disabled: Bool, perform: @escaping () -> Void) -> some View {
     ReaderControlButton(title: title, disabled: disabled, perform: perform) {
       Image(forumSymbol: symbol, size: 22)
     }
+  }
+}
+
+struct ReturnToReadingButton: View {
+  var restoreDisabled = false
+  let restore: () -> Void
+  let dismiss: () -> Void
+  var body: some View {
+    HStack(spacing: 0) {
+      Button(action: restore) {
+        Image(forumSymbol: "arrow.uturn.backward", size: 21).frame(width: 52, height: 44).contentShape(Rectangle())
+      }.disabled(restoreDisabled).opacity(restoreDisabled ? 0.4 : 1)
+        .accessibilityLabel(AppText.text("Return to reading position"))
+      Divider().frame(height: 18)
+      Button(action: dismiss) {
+        Image(forumSymbol: "xmark", size: 14).frame(width: 44, height: 44).contentShape(Rectangle())
+      }
+        .accessibilityLabel(AppText.text("Keep this reading position"))
+    }.buttonStyle(.plain).foregroundStyle(.blue).padding(4).glassEffect(.regular.interactive(), in: .capsule)
+      .padding(.bottom, 12)
   }
 }

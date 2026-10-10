@@ -6,7 +6,25 @@ import Combine
 final class HostedDownloadManager: ObservableObject {
   static let shared = HostedDownloadManager()
   @Published private(set) var items: [HostedBatchDownload] = []
+  @Published private(set) var storageError: String?
+  private var writable = true
   private var observations: [UUID: AnyCancellable] = [:]
+  private init() {
+    do { items = try (FileDownloadStore.load([HostedBatchRecord].self, name: "hosted") ?? []).map(HostedBatchDownload.init(record:)); items.forEach(observe) }
+    catch { writable = false; storageError = AppText.text("Download history could not be restored. Existing files were preserved.") }
+  }
+  private func observe(_ batch: HostedBatchDownload) {
+    batch.reserveRecovery()
+    batch.persist = { [weak self] in self?.save() ?? false }
+    observations[batch.id] = batch.objectWillChange.throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
+      .sink { [weak self] _ in self?.objectWillChange.send() }
+  }
+  @discardableResult private func save() -> Bool {
+    guard writable else { return false }
+    do { try FileDownloadStore.save(items.map(\.record), name: "hosted"); storageError = nil; return true }
+    catch { storageError = AppText.text("Could not save download history."); return false }
+  }
+  func download(for entry: HostedFileEntry) -> HostedBatchDownload? { items.first { $0.contains(entry) && $0.phase != .cancelled } }
   var active: [HostedBatchDownload] { items.filter(\.running) }
   var unfinished: [HostedBatchDownload] { items.filter { !$0.finished } }
   var resumable: [HostedBatchDownload] { items.filter(\.canResume) }
@@ -14,30 +32,50 @@ final class HostedDownloadManager: ObservableObject {
     let key = HostedFilePolicy.key(listing.url)
     if let existing = items.first(where: { $0.sourceKey == key && !$0.finished }) { return existing }
     let batch = HostedBatchDownload(listing: listing)
-    observations[batch.id] = batch.objectWillChange
-      .throttle(for: .milliseconds(150), scheduler: DispatchQueue.main, latest: true)
-      .sink { [weak self] _ in self?.objectWillChange.send() }
+    observe(batch)
     items.append(batch); batch.start()
     return batch
   }
   func pauseAll() { items.forEach { $0.pause() } }
+  func backgrounded() { items.forEach { $0.backgrounded() } }
+  func foregrounded() { items.forEach { $0.foregrounded() } }
   func resumeAll() { resumable.forEach { $0.resume() } }
   func clearFinished() { items.filter(\.finished).forEach(remove) }
   func remove(_ item: HostedBatchDownload) {
     guard item.finished else { return }
     observations[item.id] = nil; items.removeAll { $0.id == item.id }
+    save()
   }
 }
 
 @MainActor
 final class HostedBatchDownload: ObservableObject, Identifiable {
-  enum Phase { case idle, running, paused, finished, cancelled }
-  struct Saved: Identifiable { let id = UUID(); let name: String; let url: URL }
-  struct Skipped: Identifiable { let id = UUID(); let name: String; let reason: String }
-  let id = UUID()
+  enum Phase: String, Codable { case idle, running, paused, finished, cancelled }
+  struct Saved: Identifiable, Codable { var id = UUID(); let name: String; let url: URL; var entryKey: String? }
+  struct Skipped: Identifiable, Codable { var id = UUID(); let name: String; let reason: String }
+  let id: UUID
+  let created: Date
+  var persist: (() -> Bool)?
+  private var resumeOnForeground = false
+  func backgrounded() {
+    guard running else { return }
+    if SouthAttachment(url: listing.url) != nil || (activity != .downloading && activity != .saving) { pause() }
+    resumeOnForeground = true
+    persist?()
+  }
+  func foregrounded() { if resumeOnForeground && canResume { resumeOnForeground = false; resume() } }
+  func reserveRecovery() {
+    if SouthAttachment(url: listing.url) == nil, resumeOnForeground, activity == .downloading || activity == .saving, let transferID {
+      GofileFileTransfer.reserveRecovery(transferID)
+    }
+  }
+  var transferID: UUID? { plan?.pending.first?.id }
+  func contains(_ entry: HostedFileEntry) -> Bool { saved.contains { $0.entryKey == entry.id } || plan?.pending.contains { $0.entry.id == entry.id } == true }
+  func file(for entry: HostedFileEntry) -> URL? { saved.first { $0.entryKey == entry.id }?.url }
+  func isCurrent(_ entry: HostedFileEntry) -> Bool { plan?.pending.first?.entry.id == entry.id }
   let listing: HostedFileListing
   var sourceKey: String { HostedFilePolicy.key(listing.url) }
-  var provider: String { HostedFilePolicy.provider(listing.url)?.title ?? AppText.text("Files") }
+  var provider: String { SouthAttachment(url: listing.url) != nil ? "South" : HostedFilePolicy.provider(listing.url)?.title ?? AppText.text("Files") }
   @Published private(set) var phase = Phase.idle
   @Published private(set) var current = ""
   @Published private(set) var progress: Double?
@@ -71,7 +109,26 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
     case .cancelled: return issue ?? AppText.text("Stopped")
     }
   }
-  init(listing: HostedFileListing) { self.listing = listing }
+  init(listing: HostedFileListing) { id = UUID(); created = Date(); self.listing = listing }
+  init(record: HostedBatchRecord) throws {
+    guard HostedFilePolicy.provider(record.listing.url) != nil || SouthAttachment(url: record.listing.url) != nil,
+          record.plan?.pending.allSatisfy({ DownloadQueuePolicy.safePath($0.path) }) != false else { throw ReaderFailure.storage }
+    id = record.id; created = record.created; listing = record.listing; plan = record.plan
+    phase = [.finished, .cancelled].contains(record.phase) ? record.phase : .paused
+    current = record.current; issue = record.issue; retryAfter = record.retryAfter; progress = record.progress; skipped = record.skipped
+    if let folder = record.folder {
+      let directory = try FileDownloadStore.folder(folder, parent: "File Downloads"); self.directory = directory
+      saved = try record.saved.map { item in
+        Saved(id: item.id, name: item.name, url: try FileDownloadStore.destination(item.name.components(separatedBy: "/"), in: directory), entryKey: item.entryKey)
+      }
+    }
+    resumeOnForeground = record.phase == .running
+    activity = record.activity ?? .waiting
+  }
+  var record: HostedBatchRecord {
+    HostedBatchRecord(id: id, created: created, listing: listing, phase: phase, current: current, issue: issue,
+      retryAfter: retryAfter, folder: directory?.lastPathComponent, saved: saved, skipped: skipped, plan: plan, progress: progress, activity: activity)
+  }
   func start() {
     guard phase == .idle else { return }
     do {
@@ -83,61 +140,81 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
       var values = URLResourceValues(); values.isExcludedFromBackup = true; try? folder.setResourceValues(values)
       directory = folder; phase = .paused; resume()
     } catch { phase = .cancelled; issue = AppText.error(error) }
+    persist?()
   }
   func pause() {
+    resumeOnForeground = false
     guard running else { return }
     phase = .paused; worker?.cancel()
+    persist?()
   }
   func resume() {
     guard canResume else { return }
     progress = nil; activity = .waiting
     phase = .running; issue = nil; retryAfter = nil
     worker = Task { [weak self] in await self?.run() }
+    persist?()
   }
   func cancel() {
+    resumeOnForeground = false
+    if let transferID { GofileFileTransfer.releaseRecovery(transferID) }
     worker?.cancel(); phase = .cancelled; issue = nil; retryAfter = nil
+    persist?()
   }
   func skip() {
     guard phase == .paused, worker == nil, let item = plan?.pending.first else { return }
     skipped.append(Skipped(name: item.path.joined(separator: "/"), reason: issue ?? AppText.text("Skipped")))
-    plan?.advance(); resume()
+    if let transferID { FileDownloadStore.remove(transferID.uuidString) }
+    plan?.advance(); persist?(); resume()
   }
   private func run() async {
-    defer { worker = nil }
+    let startedTransfer = transferID
+    defer {
+      worker = nil; persist?()
+      if let startedTransfer { FileBackgroundEvents.saved(startedTransfer); GofileFileTransfer.releaseRecovery(startedTransfer) }
+      if UIApplication.shared.applicationState == .active { foregrounded() }
+    }
     while let item = plan?.pending.first, let directory {
       if Task.isCancelled { return }
       current = item.path.joined(separator: "/"); progress = nil
       activity = .waiting
       do {
+        if let recovered = try FileDownloadStore.recovered(item.id, path: item.path, directory: directory) {
+          saved.append(Saved(name: current, url: recovered, entryKey: item.entry.id)); plan?.advance()
+          if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
+          GofileFileTransfer.releaseRecovery(item.id); continue
+        }
         if item.entry.folder {
           activity = .readingFolder
           let listing = try await client.listing(item.entry.pageURL, expandAlbum: false)
           try Task.checkCancellation()
           try plan?.expand(listing)
-        } else if TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
+        } else if SouthAttachment(url: item.entry.pageURL) == nil, TorrentMetadata.isTorrent(name: item.entry.name, mime: item.entry.mime) {
           skipped.append(Skipped(name: current, reason: AppText.text("Use Copy magnet in the file list."))); plan?.advance()
         } else {
-          let file = try await HostedTransfer.run(item.entry, client: client, activity: { [weak self] value in
+          let file = try await HostedTransfer.run(item.entry, client: client, checkpointID: item.id, activity: { [weak self] value in
             guard let self, self.running else { return }
             self.activity = value
+            self.persist?()
           }) { [weak self] value in
             guard let self, self.running else { return }
             self.progress = value
           }
           defer { GofileFileTransfer.remove(file) }
           try Task.checkCancellation()
-          let destination = item.path.reduce(directory) { $0.appendingPathComponent($1) }
-          try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-          try FileManager.default.moveItem(at: file, to: destination)
-          saved.append(Saved(name: current, url: destination)); plan?.advance()
+          let destination = try FileDownloadStore.install(file, id: item.id, path: item.path, directory: directory)
+          saved.append(Saved(name: current, url: destination, entryKey: item.entry.id)); plan?.advance()
+          if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
         }
         current = ""; progress = nil; activity = .waiting
+        persist?()
+        if UIApplication.shared.applicationState != .active, pending > 0 { phase = .paused; resumeOnForeground = true; return }
         try await Task.sleep(for: .milliseconds(700))
       } catch is CancellationError { return }
       catch {
         guard !Task.isCancelled else { return }
         issue = AppText.error(error); retryAfter = (error as? HostedFileFailure)?.retryDate
-        phase = .paused; return
+        phase = .paused; persist?(); FileBackgroundEvents.saved(item.id); return
       }
     }
     guard !Task.isCancelled else { return }
@@ -169,6 +246,7 @@ struct HostedBatchView: View {
   @State private var export: GofileLocalFile?
   @State private var preview: GofileLocalFile?
   @State private var website: URL?
+  @State private var southBrowser: ReaderPresentation?
   var body: some View {
     List {
       Section {
@@ -192,7 +270,14 @@ struct HostedBatchView: View {
             Button(AppText.text("Skip this item"), forumSymbol: "forward.end", action: batch.skip).disabled(batch.pending == 0)
           }
         }
-        if batch.issue != nil { Button(AppText.text("Open website"), forumSymbol: "safari") { website = batch.listing.url } }
+        if batch.issue != nil {
+          Button(AppText.text("Open website"), forumSymbol: "safari") {
+            if let attachment = SouthAttachment(url: batch.listing.url) {
+              SouthAttachmentAccess.session.beginBrowsing()
+              southBrowser = .browser(attachment.page)
+            } else { website = batch.listing.url }
+          }
+        }
       }
       if let directory = batch.directory {
         Section {
@@ -203,9 +288,16 @@ struct HostedBatchView: View {
       if !batch.saved.isEmpty {
         Section(AppText.text("Saved files")) {
           ForEach(batch.saved) { file in
-            Button { preview = GofileLocalFile(url: file.url) } label: {
-              Label(file.name, forumSymbol: "checkmark.circle").foregroundStyle(.primary).lineLimit(2)
-            }.contextMenu { Button(AppText.text("Export file"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: file.url) } }
+            HStack(spacing: 12) {
+              Button { preview = GofileLocalFile(url: file.url) } label: {
+                Label(file.name, forumSymbol: "doc").appFont(.subheadline).foregroundStyle(.primary).lineLimit(2)
+              }.buttonStyle(.plain)
+              Spacer(minLength: 0)
+              ShareLink(item: file.url) { Image(forumSymbol: "square.and.arrow.up").frame(width: 44, height: 44) }
+                .buttonStyle(.borderless).accessibilityLabel(AppText.text("Share"))
+              Button { export = GofileLocalFile(url: file.url) } label: { Image(forumSymbol: "folder").frame(width: 44, height: 44) }
+                .buttonStyle(.borderless).accessibilityLabel(AppText.text("Save to Files"))
+            }
           }
         }
       }
@@ -222,7 +314,10 @@ struct HostedBatchView: View {
       if !batch.finished { Section { Button(AppText.text("Stop batch"), forumSymbol: "stop", role: .destructive, action: batch.cancel) } }
     }.navigationTitle(AppText.text("Downloads")).navigationBarTitleDisplayMode(.inline).toolbarRole(.editor)
       .sheet(item: $export) { GofileExport(file: $0.url) }
-      .navigationDestination(item: $preview) { GofileQuickLook(file: $0.url).ignoresSafeArea(.container, edges: .bottom).navigationBarTitleDisplayMode(.inline) }
+      .navigationDestination(item: $preview) { LocalFilePreview(file: $0.url) }
+      .sheet(item: $southBrowser, onDismiss: { SouthAttachmentAccess.session.endBrowsing() }) { presentation in
+        ReaderController(presentation: presentation, session: SouthAttachmentAccess.session) { _ in southBrowser = nil }
+      }
       .background { ExternalBrowserPresenter(url: $website, useFileBrowser: false).frame(width: 0, height: 0) }
   }
 }
