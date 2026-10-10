@@ -1,5 +1,27 @@
 # Video player controls
 
+## Gallery gestures (2026-10-10)
+
+Forum image sheets use horizontal native paging instead of left/right arrow
+buttons. Paging commits the title and share target together, and a cancelled
+swipe keeps the original selection. A zoomed image keeps horizontal dragging
+until it is zoomed out; downward sheet resizing/dismissal remains native.
+Only the selected image and immediate neighbors stay in the controller cache.
+Previous/next accessibility actions remain available without visible arrows.
+
+In the local video gallery, tapping the canvas toggles the header, fullscreen
+button, play button, time, and progress slider together. Hidden controls neither
+intercept touches nor remain in the accessibility tree. Tapping again restores
+them without pausing or seeking. The slider still owns scrubbing exclusively;
+horizontal file paging and downward dismissal continue to use canvas drags.
+VoiceOver can activate the video canvas to restore controls. Remote videos
+continue using AVKit's existing transport controls.
+
+Device acceptance: swipe both ways and cancel a partial swipe; test the first,
+last, and single-image cases, a slow image load, zoom/pan and sharing after a
+swipe; hide/reveal video controls while playing and paused; scrub, then change
+files or dismiss. CI compilation does not replace these touch checks.
+
 ## Local gallery live scrubbing (2026-10-02)
 
 The downloaded-file viewer updates the AVPlayer picture while the progress

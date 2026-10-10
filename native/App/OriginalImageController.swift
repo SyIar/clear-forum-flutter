@@ -11,6 +11,7 @@ private final class ImageScrollView: UIScrollView {
 
 final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   private let source: ImageViewerSource
+  private let previewLoader: (() async -> UIImage?)?
   private let scroll = ImageScrollView()
   private let imageView = UIImageView()
   private let originalButton = UIButton(type: .system)
@@ -18,7 +19,15 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
   private var file: URL?
   private var originalLoaded = false
   private var decoding: Task<Void, Never>?
-  init(source: ImageViewerSource) { self.source = source; super.init(nibName: nil, bundle: nil) }
+  private var previewTask: Task<Void, Never>?
+  private let spinner = UIActivityIndicatorView(style: .large)
+  var zoomChanged: ((Bool) -> Void)?
+  var imageChanged: (() -> Void)?
+  var zoomed: Bool { scroll.zoomScale > scroll.minimumZoomScale + 0.001 }
+  var canShare: Bool { file != nil || (imageView.image?.size.width ?? 0) > 0 }
+  init(source: ImageViewerSource, previewLoader: (() async -> UIImage?)? = nil) {
+    self.source = source; self.previewLoader = previewLoader; super.init(nibName: nil, bundle: nil)
+  }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -51,6 +60,21 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
       originalButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
       originalButton.widthAnchor.constraint(equalToConstant: 48), originalButton.heightAnchor.constraint(equalToConstant: 48),
     ])
+    spinner.translatesAutoresizingMaskIntoConstraints = false; spinner.color = .white
+    view.addSubview(spinner)
+    NSLayoutConstraint.activate([spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor), spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)])
+    if let previewLoader {
+      spinner.startAnimating()
+      previewTask = Task { [weak self] in
+        let preview = await previewLoader()
+        guard let self, !Task.isCancelled else { return }
+        self.previewTask = nil; self.spinner.stopAnimating()
+        guard !self.originalLoaded, self.transfer == nil, self.decoding == nil else { return }
+        if let preview {
+          self.imageView.image = preview; self.view.setNeedsLayout(); self.imageChanged?()
+        } else { self.loadOriginal() }
+      }
+    }
   }
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
@@ -69,6 +93,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     scroll.maximumZoomScale = max(8, image.scale / (fit * max(1, traitCollection.displayScale)))
   }
   func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
+  func scrollViewDidZoom(_ scrollView: UIScrollView) { zoomChanged?(zoomed) }
   @objc private func zoom() { scroll.setZoomScale(scroll.zoomScale > 1 ? 1 : 2.5, animated: true) }
   @objc private func loadOriginal() {
     if originalLoaded { zoom(); return }
@@ -104,6 +129,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
       case .success(let image):
         self.scroll.setZoomScale(1, animated: false)
         self.imageView.image = image; self.originalLoaded = true
+        self.imageChanged?()
         self.view.setNeedsLayout()
         self.originalButton.accessibilityLabel = AppText.text("Zoom source image")
       case .failure(let error): self.failed(error)
@@ -118,12 +144,14 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     ForumDialogs.notice(title: AppText.text("Image"), message: message, close: AppText.text("OK"))
   }
   func stopLoading() {
+    previewTask?.cancel(); previewTask = nil
     transfer?.cancel(); transfer = nil
     decoding?.cancel(); decoding = nil
   }
   deinit { if let file { try? FileManager.default.removeItem(at: file) } }
   func shareImage() {
-    let items: [Any] = file.map { [$0] } ?? [source.preview]
+    guard canShare else { return }
+    let items: [Any] = file.map { [$0] } ?? [imageView.image ?? source.preview]
     let share = UIActivityViewController(activityItems: items, applicationActivities: nil)
     share.popoverPresentationController?.sourceView = originalButton
     present(share, animated: true)

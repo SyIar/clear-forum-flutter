@@ -5,6 +5,8 @@ import UIKit
 private final class LocalVideoCanvas: UIView {
   override class var layerClass: AnyClass { AVPlayerLayer.self }
   var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+  var activate: (() -> Bool)?
+  override func accessibilityActivate() -> Bool { activate?() ?? false }
 }
 
 /// Seeking is owned exclusively by the slider, leaving the video canvas for gallery gestures.
@@ -33,6 +35,7 @@ final class LocalGalleryVideoController: UIViewController {
   private var duration: Double = 0
   private var seekToken = UUID()
   private var scrub = VideoScrubState()
+  private var chromeHidden = false
   var savePosition: ((Double) -> Void)?
   var toggleChrome: (() -> Void)?
   var scrubbingChanged: ((Bool) -> Void)?
@@ -43,6 +46,10 @@ final class LocalGalleryVideoController: UIViewController {
     super.viewDidLoad()
     view.backgroundColor = .clear
     canvas.playerLayer.player = player; canvas.playerLayer.videoGravity = .resizeAspect
+    canvas.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleFullscreen)))
+    canvas.isAccessibilityElement = true; canvas.accessibilityTraits = .button
+    canvas.accessibilityLabel = AppText.text("Video")
+    canvas.activate = { [weak self] in self?.toggleControls() ?? false }
     for child in [canvas, controls, fullscreen, spinner, error] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
     configureButton(play, symbol: "play", title: AppText.text("Play"))
     configureButton(fullscreen, symbol: "arrow.up.left.and.arrow.down.right", title: AppText.text("Full screen"))
@@ -90,15 +97,27 @@ final class LocalGalleryVideoController: UIViewController {
 
   func setChromeHidden(_ hidden: Bool) {
     loadViewIfNeeded()
+    chromeHidden = hidden
+    for control in [controls, fullscreen] {
+      control.isUserInteractionEnabled = !hidden
+      control.accessibilityElementsHidden = hidden
+    }
+    UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.2, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+      self.controls.alpha = hidden ? 0 : 1
+      self.fullscreen.alpha = hidden ? 0 : 1
+    }
     fullscreen.configuration?.image = ForumIcons.image(hidden ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", size: 22)
     fullscreen.accessibilityLabel = AppText.text(hidden ? "Exit full screen" : "Full screen")
+    canvas.accessibilityHint = fullscreen.accessibilityLabel
   }
   func setActive(_ value: Bool) {
     guard value != active else { return }
     active = value
     if value { loadViewIfNeeded(); open() } else { stop() }
   }
-  func isControlArea(_ point: CGPoint) -> Bool { controls.frame.contains(point) || fullscreen.frame.insetBy(dx: -8, dy: -8).contains(point) }
+  func isControlArea(_ point: CGPoint) -> Bool {
+    !chromeHidden && (controls.frame.contains(point) || fullscreen.frame.insetBy(dx: -8, dy: -8).contains(point))
+  }
 
   private func configureButton(_ button: UIButton, symbol: String, title: String) {
     var config = UIButton.Configuration.glass()
@@ -177,7 +196,12 @@ final class LocalGalleryVideoController: UIViewController {
       player.seek(to: .zero); player.play()
     } else { player.play() }
   }
-  @objc private func toggleFullscreen() { toggleChrome?() }
+  @objc private func toggleFullscreen() { _ = toggleControls() }
+  private func toggleControls() -> Bool {
+    guard active, !scrubbing, let toggleChrome else { return false }
+    toggleChrome()
+    return true
+  }
   @objc private func beginSeek() {
     guard active, prepared, duration > 0 else { return }
     if !scrubbing { resumeAfterSeek = player.timeControlStatus != .paused }
