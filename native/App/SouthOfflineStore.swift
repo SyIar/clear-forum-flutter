@@ -16,9 +16,8 @@ final class SouthOfflineStore: ObservableObject {
   private var transferID: UUID?
   private var session: ForumSession?
   private var paused = false
-  private var seeds: [String: ForumPage] = [:]
+  private var removals = 0
 
-  func entry(_ url: URL) -> SouthOfflineThread? { entries.first { $0.id == SouthSitePolicy.threadKey(url) } }
   private func apply(_ snapshot: SouthOfflineRepository.Snapshot) {
     guard snapshot.revision > revision else { return }
     revision = snapshot.revision; entries = snapshot.entries
@@ -29,10 +28,9 @@ final class SouthOfflineStore: ObservableObject {
     do { apply(try await repository.snapshot()); start() }
     catch { self.error = AppText.error(error) }
   }
-  func download(url: URL, title: String, page: ForumPage? = nil, session: ForumSession) {
+  func download(url: URL, title: String, session: ForumSession) {
     guard session.site == .south, session.offlineThreadID == nil else { return }
     self.session = session; paused = false
-    if let page, SouthSitePolicy.authorID(page.url) == nil, let id = SouthSitePolicy.threadKey(page.url) { seeds[id] = page }
     Task {
       do { apply(try await repository.enqueue(url: url, title: title)); start() }
       catch { self.error = AppText.error(error) }
@@ -40,13 +38,14 @@ final class SouthOfflineStore: ObservableObject {
   }
   func pause() { paused = true; worker?.cancel(); transfer?.cancel() }
   func remove(_ entry: SouthOfflineThread) async {
+    removals += 1
+    defer { removals -= 1; start() }
     if activeThread == entry.id { worker?.cancel(); transfer?.cancel() }
-    seeds.removeValue(forKey: entry.id)
     do { apply(try await repository.remove(entry.token)) }
     catch { self.error = AppText.error(error) }
   }
   private func start() {
-    guard worker == nil, !paused, let session, entries.contains(where: { $0.state == .pending }) else { return }
+    guard worker == nil, !paused, removals == 0, let session, entries.contains(where: { $0.state == .pending }) else { return }
     worker = Task { [weak self] in
       guard let self else { return }
       defer { self.activeThread = nil; self.progress = ""; self.worker = nil; self.start() }
@@ -64,10 +63,7 @@ final class SouthOfflineStore: ObservableObject {
             if let cached {
               page = cached
             } else {
-              let fresh = try await session.load(target)
-              if let seed = self.seeds[entry.id], seed.pageNumber == number {
-                page = fresh.preservingPurchaseContent(from: seed)
-              } else { page = fresh }
+              page = try await session.load(target)
               self.apply(try await self.repository.store(page, token: entry.token, expectedPage: number))
             }
             let images = SouthOfflineImages.urls(in: page)
@@ -96,7 +92,6 @@ final class SouthOfflineStore: ObservableObject {
             try await Task.sleep(for: .milliseconds(250))
           }
           self.apply(try await self.repository.finish(entry.token, missingImages: missing.count))
-          self.seeds.removeValue(forKey: entry.id)
         } catch {
           if Task.isCancelled { return }
           do { self.apply(try await self.repository.finish(entry.token, missingImages: missing.count, failure: AppText.error(error))) }

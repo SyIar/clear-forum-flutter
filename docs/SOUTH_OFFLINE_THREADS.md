@@ -10,7 +10,8 @@ The downloader always starts at the unfiltered thread root, even when invoked
 from a later page or an author-only view. Each response must have the expected
 thread identity, page number and unfiltered post content. It caches all pages in
 the pagination range reported by the first saved page. It does not automatically
-buy locked content. Content already unlocked in the current reader is preserved.
+buy locked content. Downloads use the current South session and save the content
+returned by the server for that account.
 New replies after this snapshot require removing the snapshot and downloading
 the thread again.
 

@@ -193,7 +193,7 @@ struct ReaderView: View {
             Menu {
               if session.site == .south, session.offlineThreadID == nil, let page, page.kind == .posts {
                 Button(AppText.text("Download entire thread"), forumSymbol: "arrow.down.circle") {
-                  SouthOfflineStore.shared.download(url: current, title: page.title, page: page, session: session)
+                  SouthOfflineStore.shared.download(url: current, title: page.title, session: session)
                   showingDownloads = true
                 }.disabled(loading)
               }
