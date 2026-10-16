@@ -47,6 +47,16 @@ public struct ForumToolbarIcon: View {
   }
 }
 
+public struct ForumOriginalPosterBadge: View {
+  @ScaledMetric(relativeTo: .subheadline) private var size: CGFloat = 13
+  private let label: String
+  public init(label: String) { self.label = label }
+  public var body: some View {
+    Image(forumSymbol: "person.fill", size: size).foregroundStyle(.blue)
+      .frame(width: size, height: size).fixedSize().accessibilityLabel(Text(label))
+  }
+}
+
 // Host the whole cluster in one ToolbarItem so UIKit cannot space a Menu
 // differently from a Button. Each child owns the same 44-point column.
 public struct ForumToolbarGroup<Content: View>: View {

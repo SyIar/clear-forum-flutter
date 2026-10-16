@@ -4,6 +4,8 @@ options:
   deploymentTarget:
     iOS: '26.0'
 packages:
+  ArchiveSupport:
+    path: ArchiveSupport
   SwiftSoup:
     url: https://github.com/scinfu/SwiftSoup.git
     exactVersion: 2.13.9
@@ -40,6 +42,7 @@ targets:
       - path: ../ios/Runner/MediaProbe.js
         buildPhase: resources
     dependencies:
+      - package: ArchiveSupport
       - package: SwiftSoup
       - target: ForumUI
         embed: true
@@ -56,7 +59,6 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Save downloaded videos to your photo library.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_CADisableMinimumFrameDurationOnPhone: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
   ForumUI:
     type: framework

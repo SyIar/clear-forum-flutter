@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSoup
 
-struct SouthPurchaseOffer: Identifiable, Equatable {
+struct SouthPurchaseOffer: Identifiable, Equatable, Codable {
   let threadID: String
   let postID: String
   let price: Decimal

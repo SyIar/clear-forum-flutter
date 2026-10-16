@@ -111,43 +111,32 @@ private struct MediaViewerContent: UIViewControllerRepresentable {
 }
 
 // Forum images use the native resizable sheet, preserving the mounted reader.
-// A controller is released on each gallery change, cancelling any original load.
+// Horizontal paging keeps only the current image and its immediate neighbors.
 struct ImageViewerSheet: View {
   let source: ImageViewerSource
   @EnvironmentObject private var session: ForumSession
   @Environment(\.dismiss) private var dismiss
   @State private var index: Int
-  @State private var loadedSource: ImageViewerSource?
+  @State private var imageReady = false
   @State private var detent: PresentationDetent = .large
   @StateObject private var state: MediaViewerState
   init(source: ImageViewerSource) {
     self.source = source
     _index = State(initialValue: source.gallery.firstIndex { $0.url == source.url } ?? 0)
-    _loadedSource = State(initialValue: source)
     _state = StateObject(wrappedValue: MediaViewerState(item: .image(UUID(), source)))
   }
   private var entries: [ImageGalleryEntry] {
     source.gallery.isEmpty ? [ImageGalleryEntry(url: source.url, previewURL: source.url)] : source.gallery
   }
-  private var selected: ImageGalleryEntry { entries[min(index, entries.count - 1)] }
   var body: some View {
     NavigationStack {
-      ZStack {
-        if let loadedSource, loadedSource.url == selected.url {
-          SheetImageContent(source: loadedSource, state: state).id(selected.url)
-        } else { ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity) }
+      ImageGalleryPager(source: source, entries: entries, images: session.images) { index, image in
+        self.index = index
+        state.image = image
+        imageReady = image?.canShare == true
       }
       .background(.black, in: RoundedRectangle(cornerRadius: 24))
       .clipShape(RoundedRectangle(cornerRadius: 24))
-      .overlay {
-        if entries.count > 1 {
-          HStack {
-            galleryButton(AppText.text("Previous image"), symbol: "chevron.left", disabled: index == 0) { index -= 1 }
-            Spacer()
-            galleryButton(AppText.text("Next image"), symbol: "chevron.right", disabled: index == entries.count - 1) { index += 1 }
-          }.padding(.horizontal, 12)
-        }
-      }
       .padding(6).glassEffect(.regular, in: RoundedRectangle(cornerRadius: 30)).padding(8)
       .navigationTitle(entries.count > 1 ? AppText.format("Image %@ of %@", String(describing: index + 1), String(describing: entries.count)) : AppText.text("Image"))
       .navigationBarTitleDisplayMode(.inline)
@@ -157,38 +146,12 @@ struct ImageViewerSheet: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
           Button(AppText.text("Share image"), forumSymbol: "square.and.arrow.up") { state.image?.shareImage() }
-            .disabled(loadedSource?.url != selected.url)
+            .disabled(!imageReady)
         }
-      }
-      .task(id: selected.url) {
-        let entry = selected
-        if entry.url == source.url { loadedSource = source; return }
-        loadedSource = nil
-        let preview = await session.images.load(entry.previewURL)
-        guard !Task.isCancelled, selected.url == entry.url else { return }
-        loadedSource = ImageViewerSource(preview: preview ?? UIImage(), url: entry.url, loadOriginalOnOpen: preview == nil)
       }
     }
     .presentationDetents([.medium, .large], selection: $detent)
     .presentationDragIndicator(.visible)
     .presentationContentInteraction(.resizes)
   }
-  private func galleryButton(_ title: String, symbol: String, disabled: Bool, action: @escaping () -> Void) -> some View {
-    Button(action: action) { Image(forumSymbol: symbol, size: 20).font(.title3.weight(.semibold)).frame(width: 44, height: 44) }
-      .buttonStyle(.glass).buttonBorderShape(.circle).disabled(disabled).accessibilityLabel(title)
-  }
-}
-
-private struct SheetImageContent: UIViewControllerRepresentable {
-  let source: ImageViewerSource
-  let state: MediaViewerState
-  func makeUIViewController(context: Context) -> OriginalImageController {
-    let controller = OriginalImageController(source: source)
-    state.image = controller
-    return controller
-  }
-  func updateUIViewController(_ controller: OriginalImageController, context: Context) {
-    state.image = controller
-  }
-  static func dismantleUIViewController(_ controller: OriginalImageController, coordinator: ()) { controller.stopLoading() }
 }

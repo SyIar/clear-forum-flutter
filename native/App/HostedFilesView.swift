@@ -37,6 +37,7 @@ struct HostedFilesView: View {
   @State private var opening: String?
   @State private var playError: String?
   @State private var playTask: Task<Void, Never>?
+  @State private var export: GofileLocalFile?
   private var visible: [HostedFileEntry] {
     let entries = model.listing?.entries ?? []
     return query.isEmpty ? entries : entries.filter { $0.name.localizedCaseInsensitiveContains(query) }
@@ -45,23 +46,9 @@ struct HostedFilesView: View {
     List {
       if let listing = model.listing {
         Section {
-          VStack(alignment: .leading, spacing: ForumDesignSystem.spacing.base) {
-          Text(listing.title).appFont(.headline).textSelection(.enabled)
-          if listing.expandedAlbum {
-            Label(AppText.text("Showing the complete album"), forumSymbol: "rectangle.stack").appFont(.caption).foregroundStyle(.secondary)
-          }
-          HStack(spacing: 12) {
-            if listing.entries.contains(where: { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }) {
-              Button { enqueue(listing) } label: {
-                Text(AppText.text("Download all"))
-              }.buttonStyle(ForumActionButtonStyle()).disabled(model.loading || model.error != nil)
-            }
-            Spacer(minLength: 0)
-            Text(listing.entries.count == 1 ? AppText.text("1 item") : AppText.format("%@ items", String(describing: listing.entries.count)))
-              .appFont(.caption).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-          }
-          }.padding(ForumDesignSystem.spacing.cardPadding).forumCardSurface()
-            .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(Color.clear)
+          FileListingHeader(title: listing.title, count: listing.entries.count,
+            canDownload: listing.entries.contains { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) },
+            disabled: model.loading || model.error != nil, album: listing.expandedAlbum) { enqueue(listing) }
         }
       }
       if model.loading { Section { HStack { ProgressView(); Text(AppText.text("Loading files")).foregroundStyle(.secondary) } } }
@@ -99,10 +86,7 @@ struct HostedFilesView: View {
                         .frame(width: 44, height: 44).contentShape(Rectangle())
                     }.buttonStyle(.borderless).disabled(opening != nil).accessibilityLabel(AppText.format("Play %@", String(describing: entry.name)))
                   }
-                  Button { enqueue(HostedFileListing(url: entry.pageURL, title: entry.name, entries: [entry])) } label: {
-                    Image(forumSymbol: "arrow.down.circle", size: 17).font(.body.weight(.medium))
-                      .frame(width: 44, height: 44).contentShape(Rectangle())
-                  }.buttonStyle(.borderless).accessibilityLabel(AppText.format("Download %@", String(describing: entry.name)))
+                  downloadButton(entry)
                 }
               }.contextMenu { Button(AppText.text("Open website"), forumSymbol: "safari") { website = entry.pageURL } }
             }
@@ -129,6 +113,7 @@ struct HostedFilesView: View {
       .onDisappear { playTask?.cancel(); playTask = nil; opening = nil }
       .navigationDestination(isPresented: $showingBatch) { if let batch { HostedBatchView(batch: batch) } }
       .navigationDestination(item: $media) { MediaViewerDestination(item: $0) }
+      .sheet(item: $export) { GofileExport(file: $0.url) }
       .background { ExternalBrowserPresenter(url: $website, useFileBrowser: false).frame(width: 0, height: 0) }
       .forumAlert(AppText.text("Could not open video"), isPresented: Binding(get: { playError != nil }, set: { if !$0 { playError = nil } }), actions: { [
           ForumDialogAction(AppText.text("Open website")) { website = url },
@@ -146,7 +131,17 @@ struct HostedFilesView: View {
     }.padding(.vertical, 4)
   }
   private func enqueue(_ listing: HostedFileListing) {
-    batch = downloads.enqueue(listing); showingBatch = true
+    batch = downloads.enqueue(listing)
+  }
+  private func downloadButton(_ entry: HostedFileEntry) -> some View {
+    let task = downloads.download(for: entry)
+    let file = task?.file(for: entry).flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+    return FileDownloadAction(exists: task != nil, running: task?.running == true && task?.isCurrent(entry) == true,
+      completed: file != nil, progress: task?.progress) {
+      if let file { export = GofileLocalFile(url: file) }
+      else if task != nil { VideoDownloadManager.shared.showingManager = true }
+      else { enqueue(HostedFileListing(url: entry.pageURL, title: entry.name, entries: [entry])) }
+    }
   }
   private func play(_ entry: HostedFileEntry) {
     opening = entry.id
@@ -155,6 +150,7 @@ struct HostedFilesView: View {
       do {
         let request = try await model.client.resolve(entry, download: false)
         try Task.checkCancellation()
+        VideoOrigins.register(request.url, title: entry.name, page: entry.pageURL)
         media = .video(request.url, true, request.referer)
       } catch { if !Task.isCancelled { playError = AppText.error(error) } }
     }

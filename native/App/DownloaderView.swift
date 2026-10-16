@@ -21,6 +21,11 @@ struct DownloaderView: View {
         }.buttonStyle(.plain).accessibilityLabel(AppText.text("Open link"))
           .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
+      Section {
+        NavigationLink { LocalFilesView() } label: {
+          Label(AppText.text("Local files"), forumSymbol: "folder")
+        }
+      }
     }.appFont(.body)
       .navigationTitle(AppText.text("Downloader")).navigationBarTitleDisplayMode(.inline)
       .toolbarRole(.editor).toolbar(.visible, for: .navigationBar).toolbar(.hidden, for: .bottomBar)

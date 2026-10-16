@@ -5,11 +5,19 @@
 - Opening a successfully loaded thread records its current maximum floor number as the local read baseline. This is the thread's maximum at visit time, not a claim that every floor was individually read.
 - The reader uses numbered post links on the final page. When viewing an earlier page, it follows the last-page navigation link using the existing session. It does not infer totals from page size, count article elements, or confuse global post IDs with floor numbers.
 - Home checks distinct threads in Bookmarks and Recent reading once on initial entry. Returning from the reader keeps the current data. The lower-right native SwiftUI `.glass` refresh button and pull-to-refresh explicitly repeat the check; see [page navigation and cache behavior](PAGE_NAVIGATION_CACHE.md).
-- A successful background check updates `latestMaximum` only. If it exceeds `seenMaximum`, every Home row for that thread displays `Updated` and the old/new floor numbers. Opening the thread again records the new baseline.
+- A successful background check updates `latestMaximum` without changing the read baseline. If it exceeds `seenMaximum`, every Home row for that thread displays `Updated` and the old/new floor numbers. Opening the thread again records the new baseline.
 - Legacy entries retain their links and order. A refresh can discover a latest floor, but a baseline is established only when the user opens the thread. Existing unknown baselines are not silently marked read.
 - Thread IDs deduplicate different pages, fragments and renamed slugs. Forums are excluded. Records persist locally in `reading_library_v1`; only threads retained in bookmarks or the recent ten entries keep tracking data.
 - Checks are serial and fetch HTML only. They never fetch image/video bodies, navigate to posting endpoints, or alter the local reading URL. Session/verification/rate-limit errors stop the batch and preserve previous state. Individual inaccessible threads also retain their previous state.
 - Last-page discovery follows at most two additional pages to handle a newly added page during checking; incomplete discovery is reported as unknown rather than a guessed count. In-flight checks cannot overwrite a newer visit's baseline.
+
+## Simp bookmark pagination
+
+- Home bookmarks follow the highest page observed in successfully parsed thread HTML. Both regular reader loads and background checks record pagination; this works even before a Home check finishes or while floor checks are inside their one-hour freshness interval.
+- A tap opens the bookmark's current destination immediately. There is no preliminary request or automatic redirect to another page. HTML obtained after opening can advance the bookmark for the next visit without changing the current reader URL, scroll position, or history destination.
+- The pagination value is persisted separately from the imported URL so row identity, custom labels, order, and multiple saved entries for one thread remain stable. Query-style page URLs and renamed thread slugs share tracking by numeric thread ID. An advanced destination drops obsolete post fragments.
+- Cached HTML and older in-flight responses cannot move a bookmark backwards. Pagination alone neither marks floors read nor counts as a successful maximum-floor check. Existing refresh throttling and failure handling still apply.
+- Recent reading, directories, sorted thread views, South, and Bookhouse keep their existing destinations. The bookmark indicator and removal action recognize the advanced Home destination.
 
 ## Media return
 

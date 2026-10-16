@@ -12,6 +12,7 @@ info = plistlib.loads((app / 'Info.plist').read_bytes())
 assert info['CFBundleIdentifier'] == 'dev.sylar.clearforum'
 assert info['CFBundleDisplayName'] == 'Forum Lite'
 assert info['DTPlatformName'] == 'iphoneos'
+assert info.get('CADisableMinimumFrameDurationOnPhone') is True, 'Missing iPhone ProMotion opt-in'
 assert info.get('NSPhotoLibraryAddUsageDescription'), 'Missing add-only Photos usage description'
 assert info.get('UIFileSharingEnabled') is True, 'Missing Documents file sharing'
 assert info.get('LSSupportsOpeningDocumentsInPlace') is True, 'Missing Files app document access'

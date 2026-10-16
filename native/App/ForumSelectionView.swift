@@ -53,8 +53,19 @@ struct ForumSelectionView: View {
       }.frame(maxWidth: 520).padding(.horizontal, ForumDesignSystem.spacing.xl).padding(.top, 28).padding(.bottom, ForumDesignSystem.spacing.xl)
         .frame(maxWidth: .infinity)
     }.scrollIndicators(.hidden)
-      .overlay(alignment: .top) { ForumEdgeBlur().frame(height: 65).ignoresSafeArea(edges: .top) }
-      .overlay(alignment: .bottom) { ForumEdgeBlur(bottom: true).frame(height: 75).ignoresSafeArea(edges: .bottom) }
+      .overlay {
+        GeometryReader { geometry in
+          let insets = geometry.safeAreaInsets
+          VStack(spacing: 0) {
+            ForumEdgeBlur().frame(height: 65 + insets.top)
+            Spacer(minLength: 0)
+            ForumEdgeBlur(bottom: true).frame(height: 75 + insets.bottom)
+          }
+          // Anchor both ends to the physical screen, including the home indicator.
+          .frame(width: geometry.size.width, height: geometry.size.height + insets.top + insets.bottom)
+          .offset(y: -insets.top)
+        }.allowsHitTesting(false).accessibilityHidden(true)
+      }
       .background { backdrop.ignoresSafeArea() }
       .environment(\.colorScheme, .dark)
       .toolbar(.hidden, for: .navigationBar)
