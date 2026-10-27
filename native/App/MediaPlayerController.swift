@@ -1,4 +1,3 @@
-import ForumUI
 import AVKit
 import AVFoundation
 import UIKit
@@ -158,7 +157,7 @@ final class MediaPlayerController: UIViewController, WKNavigationDelegate, WKUID
   private func updateFullscreenButton() {
     var configuration: UIButton.Configuration
     configuration = .glass()
-    configuration.image = ForumIcons.image( immersive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+    configuration.image = UIImage(systemName: immersive ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
     configuration.cornerStyle = .capsule
     configuration.baseForegroundColor = .label
     configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)

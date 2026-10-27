@@ -1,4 +1,3 @@
-import ForumUI
 import QuickLook
 import SwiftUI
 
@@ -13,7 +12,7 @@ struct LocalFilePreview: View {
     Group {
       if !checked { ProgressView() }
       else if !available {
-        ForumUnavailableView(AppText.text("File unavailable"), forumSymbol: "doc",
+        ContentUnavailableView(AppText.text("File unavailable"), systemImage: "doc",
           description: Text(AppText.text("This file was moved or is no longer available. Refresh the folder.")))
       } else if file.pathExtension.lowercased() == "zip" {
         LocalArchiveView(file: file)
@@ -23,7 +22,7 @@ struct LocalFilePreview: View {
       } else if QLPreviewController.canPreview(file as NSURL) {
         GofileQuickLook(file: file)
       } else {
-        ForumUnavailableView(AppText.text("Preview unavailable"), forumSymbol: "doc",
+        ContentUnavailableView(AppText.text("Preview unavailable"), systemImage: "doc",
           description: Text(AppText.text("This file format cannot be previewed here. You can share or export the file.")))
       }
     }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -33,7 +32,7 @@ struct LocalFilePreview: View {
       .toolbar {
         if available {
           ToolbarItem(placement: .topBarTrailing) {
-            ShareLink(item: file) { Image(forumSymbol: "square.and.arrow.up") }.accessibilityLabel(AppText.text("Share"))
+            ShareLink(item: file) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel(AppText.text("Share"))
           }
         }
       }

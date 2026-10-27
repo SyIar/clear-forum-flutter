@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 @MainActor
@@ -31,7 +30,6 @@ struct ReadingSettingsView: View {
   @ObservedObject private var settings = ReadingSettings.shared
   @ObservedObject private var offline = BookhouseOfflineStore.shared
   @Environment(\.dismiss) private var nativeDismiss
-  @Environment(\.forumDismiss) private var forumDismiss
   var body: some View {
     NavigationStack {
       Form {
@@ -59,7 +57,7 @@ struct ReadingSettingsView: View {
         }
       }.appFont(.body).navigationTitle(AppText.text("Reading settings")).navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) {
-          Button(AppText.text("Done")) { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
+          Button(AppText.text("Done")) { nativeDismiss() }
         } }
     }.presentationDetents([.medium, .large])
   }

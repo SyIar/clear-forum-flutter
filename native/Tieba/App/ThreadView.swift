@@ -54,7 +54,7 @@ struct ThreadView: View {
             Text(thread.title.isEmpty ? tr("noTitle") : thread.title).tiebaFont(.title3, weight: .bold).padding(.horizontal, 4)
             if let forum = result.forum { NavigationLink(forum.name, value: Route.forum(forum.name)).tiebaFont(.caption).padding(.horizontal, 4) }
             if settings.flag("showShortcutInThread") && !reader {
-              HStack { Button(tr(onlyAuthor ? "allReplies" : "onlyAuthor")) { onlyAuthor.toggle() }; Button(tr(reverse ? "oldestFirst" : "newestFirst")) { reverse.toggle() } }.appFont(.caption).buttonStyle(.glass)
+              HStack { Button(tr(onlyAuthor ? "allReplies" : "onlyAuthor")) { onlyAuthor.toggle() }; Button(tr(reverse ? "oldestFirst" : "newestFirst")) { reverse.toggle() } }.appFont(.caption).buttonStyle(.bordered)
             }
           }
           ForEach(result.items) { post in
@@ -71,17 +71,17 @@ struct ThreadView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
           ToolbarItemGroup(placement: .topBarTrailing) {
-            if !reader { Button(tr("reply"), forumSymbol: "square.and.pencil") { app.requireLogin { reply = ReplyContext(thread: id, forum: result.forum ?? Forum()) } }.disabled(result.forum == nil) }
+            if !reader { Button(tr("reply"), systemImage: "square.and.pencil") { app.requireLogin { reply = ReplyContext(thread: id, forum: result.forum ?? Forum()) } }.disabled(result.forum == nil) }
             Menu {
               Toggle(tr("onlyAuthor"), isOn: $onlyAuthor)
               Toggle(tr("newestFirst"), isOn: $reverse)
               Toggle(tr("readerMode"), isOn: $reader)
-              Button(tr(saved ? "unsavePost" : "savePost"), forumSymbol: saved ? "bookmark.slash" : "bookmark") { perform { try await app.api.bookmark(thread: id, post: visiblePost, remove: saved); saved.toggle() } }
-              Button(tr("jumpPage"), forumSymbol: "number") { jumpValue = String(page); jump = true }
-              Button(tr("backToTop"), forumSymbol: "arrow.up") { rememberReturn(); withAnimation { proxy.scrollTo("top") } }
-              ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(id)")!) { Label(tr("share"), forumSymbol: "square.and.arrow.up") }
-              if result.thread?.author.id == app.activeID { Button(tr("deleteThread"), forumSymbol: "trash", role: .destructive) { removing = true } }
-            } label: { Image(forumSymbol: "ellipsis") }
+              Button(tr(saved ? "unsavePost" : "savePost"), systemImage: saved ? "bookmark.slash" : "bookmark") { perform { try await app.api.bookmark(thread: id, post: visiblePost, remove: saved); saved.toggle() } }
+              Button(tr("jumpPage"), systemImage: "number") { jumpValue = String(page); jump = true }
+              Button(tr("backToTop"), systemImage: "arrow.up") { rememberReturn(); withAnimation { proxy.scrollTo("top") } }
+              ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(id)")!) { Label(tr("share"), systemImage: "square.and.arrow.up") }
+              if result.thread?.author.id == app.activeID { Button(tr("deleteThread"), systemImage: "trash", role: .destructive) { removing = true } }
+            } label: { Image(systemName: "ellipsis") }
           }
           Pagination(page: page, more: result.hasMore, loading: loading, previous: { change(page - 1) }, refresh: { request = UUID() }, next: { change(page + 1) }, jump: { jumpValue = String(page); jump = true })
         }
@@ -113,15 +113,15 @@ struct ThreadView: View {
               Button {
                 historyTask?.cancel(); result = point.result; page = point.page; visiblePost = point.post; returnPoint = nil
                 DispatchQueue.main.async { proxy.scrollTo(point.post, anchor: .top) }
-              } label: { Image(forumSymbol: "arrow.uturn.backward").frame(width: 48, height: 44) }
+              } label: { Image(systemName: "arrow.uturn.backward").frame(width: 48, height: 44) }
                 .accessibilityLabel(tr("returnReading")).disabled(loading)
-              Button { returnPoint = nil; remember(visiblePost) } label: { Image(forumSymbol: "xmark").frame(width: 44, height: 44) }
+              Button { returnPoint = nil; remember(visiblePost) } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
                 .accessibilityLabel(tr("keepReadingPosition"))
             }.buttonStyle(.plain).padding(.horizontal, 6).glassEffect(.regular.interactive(), in: .capsule).padding(.bottom, 12)
           }
         }
         .sheet(item: $reply) { context in ReplyEditor(context: context) { reply = nil; request = UUID() } }
-      .forumPrompt(tr("jumpPage"), isPresented: $jump, text: $jumpValue, placeholder: tr("page"), numeric: true, submit: tr("open")) {
+      .forumPrompt(tr("jumpPage"), isPresented: $jump, text: $jumpValue, placeholder: tr("page"), numeric: true, submit: tr("open"), cancel: tr("cancel")) {
         if let value = Int(jumpValue), (1...1_000_000).contains(value) { change(value) } else { app.error = tr("invalidPage") }
       }
         .forumConfirmation(tr("deleteConfirm"), isPresented: $removing, actions: { [
@@ -186,12 +186,12 @@ struct PostCard: View {
           Spacer(minLength: 2)
           if post.floor > 0 { Text("#\(post.floor)").appFont(.caption, weight: .semibold).foregroundStyle(.tint) }
           Menu {
-            Button(tr("copyText"), forumSymbol: "document.on.document") { UIPasteboard.general.string = post.plainText }
-            Button(tr("savePost"), forumSymbol: "bookmark") { perform { try await app.api.bookmark(thread: post.threadID, post: post.id) } }
-            Button(tr("blockUser"), forumSymbol: "person.slash") { app.updateLibrary { $0.addBlock(kind: "user", value: post.author.id, label: post.author.name) } }
-            Button(tr("report"), forumSymbol: "flag") { perform { let result = try await app.api.report(post.id); if let url = safeURL(first(object(result["data"]).isEmpty ? result : object(result["data"]), ["url", "report_url", "jubao_url"])) { actionURL = url } else { throw APIError(message: tr("operationFailed")) } } }
-            if app.activeID == post.author.id { Button(tr("deletePost"), forumSymbol: "trash", role: .destructive) { removing = true } }
-          } label: { Image(forumSymbol: "ellipsis", size: 15).appFont(.subheadline).padding(5) }
+            Button(tr("copyText"), systemImage: "doc.on.doc") { UIPasteboard.general.string = post.plainText }
+            Button(tr("savePost"), systemImage: "bookmark") { perform { try await app.api.bookmark(thread: post.threadID, post: post.id) } }
+            Button(tr("blockUser"), systemImage: "person.slash") { app.updateLibrary { $0.addBlock(kind: "user", value: post.author.id, label: post.author.name) } }
+            Button(tr("report"), systemImage: "flag") { perform { let result = try await app.api.report(post.id); if let url = safeURL(first(object(result["data"]).isEmpty ? result : object(result["data"]), ["url", "report_url", "jubao_url"])) { actionURL = url } else { throw APIError(message: tr("operationFailed")) } } }
+            if app.activeID == post.author.id { Button(tr("deletePost"), systemImage: "trash", role: .destructive) { removing = true } }
+          } label: { Image(systemName: "ellipsis").appFont(.subheadline).padding(5) }
         }
         RichContent(parts: post.content)
         if !reader && !settings.flag("hideReply") {
@@ -214,8 +214,8 @@ struct PostCard: View {
         }
         HStack {
           if !reader {
-            Button { perform { let undo = liked ?? post.liked; try await app.api.agree(thread: post.threadID, post: post.id, forum: forum.id, undo: undo); liked = !undo; likes = max(0, (likes ?? post.likes) + (undo ? -1 : 1)) } } label: { Label((likes ?? post.likes).formatted(), forumSymbol: (liked ?? post.liked) ? "hand.thumbsup.fill" : "hand.thumbsup").foregroundStyle((liked ?? post.liked) ? settings.accent : Color(uiColor: .secondaryLabel)) }.disabled(busy)
-            Button(tr("reply"), forumSymbol: "arrowshape.turn.up.left") { app.requireLogin { reply(ReplyContext(thread: post.threadID, forum: forum, parent: post.parentID.isEmpty ? post.id : post.parentID, subpost: post.parentID.isEmpty ? "" : post.id, replyUser: post.author.id)) } }
+            Button { perform { let undo = liked ?? post.liked; try await app.api.agree(thread: post.threadID, post: post.id, forum: forum.id, undo: undo); liked = !undo; likes = max(0, (likes ?? post.likes) + (undo ? -1 : 1)) } } label: { Label((likes ?? post.likes).formatted(), systemImage: (liked ?? post.liked) ? "hand.thumbsup.fill" : "hand.thumbsup").foregroundStyle((liked ?? post.liked) ? settings.accent : Color(uiColor: .secondaryLabel)) }.disabled(busy)
+            Button(tr("reply"), systemImage: "arrowshape.turn.up.left") { app.requireLogin { reply(ReplyContext(thread: post.threadID, forum: forum, parent: post.parentID.isEmpty ? post.id : post.parentID, subpost: post.parentID.isEmpty ? "" : post.id, replyUser: post.author.id)) } }
           }
           Spacer()
           if let date = post.time { Text(date, style: .relative).appFont(.caption2).foregroundStyle(.secondary) }
@@ -239,10 +239,9 @@ struct PostCard: View {
     let nameFont = MixedScriptFont.font(size: badgeSize, bold: true)
     let name = Text(item.author.name.isEmpty ? tr("unknownUser") : item.author.name)
       .font(Font(nameFont)).foregroundColor(settings.accent)
-    // Inline images sit above the text baseline; center the badge on the font's cap height.
+    // SF Symbols align to the surrounding text baseline without a raster offset.
     let badge = item.isOriginalPoster(originalPosterID)
-      ? Text(" ") + Text(Image(forumSymbol: "person.fill", size: badgeSize))
-        .baselineOffset((CTFontGetCapHeight(nameFont) - badgeSize) / 2).foregroundColor(.blue)
+      ? Text(" ") + Text(Image(systemName: "person.fill")).font(.system(size: badgeSize)).foregroundColor(.blue)
       : Text("")
     return name + badge + Text(": " + item.plainText).foregroundColor(Color(uiColor: .label))
   }

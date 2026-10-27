@@ -17,13 +17,13 @@ struct DownloaderView: View {
           .submitLabel(.go).focused($editing).onSubmit(open)
           .accessibilityLabel(AppText.text("Download link"))
         Button(action: open) {
-          Image(forumSymbol: "chevron.right", size: 22).frame(width: 44, height: 44)
+          Image(systemName: "chevron.right").font(.system(size: 22)).frame(width: 44, height: 44)
         }.buttonStyle(.plain).accessibilityLabel(AppText.text("Open link"))
           .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       Section {
         NavigationLink { LocalFilesView() } label: {
-          Label(AppText.text("Local files"), forumSymbol: "folder")
+          Label(AppText.text("Local files"), systemImage: "folder")
         }
       }
     }.appFont(.body)

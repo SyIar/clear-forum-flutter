@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 private enum BookhouseChapterText {
@@ -20,11 +19,11 @@ struct BookhouseFollowMenu: ViewModifier {
       content.contextMenu {
         if let book = library.document.followedBook(for: entry) {
           Button(role: .destructive) { library.unfollowBook(book.id) } label: {
-            Label(AppText.text("Stop following book"), forumSymbol: "bookmark.slash")
+            Label(AppText.text("Stop following book"), systemImage: "bookmark.slash")
           }
         } else {
           Button { library.followBook(entry, session: session) } label: {
-            Label(AppText.text("Follow book"), forumSymbol: "bookmark")
+            Label(AppText.text("Follow book"), systemImage: "bookmark")
           }.disabled(BookhouseFollowedBook(entry: entry) == nil)
         }
       }.sensoryFeedback(.success, trigger: library.document.followedBook(for: entry)?.id)
@@ -63,9 +62,9 @@ struct BookhouseFollowingSection: View {
               LibraryRefreshIndicator(phase: library.bookRefreshPhases[book.id], showsChevron: true)
             }.contentShape(Rectangle())
           }.buttonStyle(.plain)
-        }.modifier(ForumRefreshFeedback(phase: library.bookRefreshPhases[book.id]))
+        }
           .contextMenu {
-            Button(AppText.text("Cache next five chapters"), forumSymbol: "arrow.down.to.line") { offline.download(book, session: session) }.disabled(offline.busy)
+            Button(AppText.text("Cache next five chapters"), systemImage: "arrow.down.to.line") { offline.download(book, session: session) }.disabled(offline.busy)
           }
           .swipeActions { Button(AppText.text("Stop following book"), role: .destructive) { library.unfollowBook(book.id) } }
         if offline.activeBook == book.id {
@@ -93,7 +92,6 @@ struct BookhouseChapterPicker: View {
   @ObservedObject var library: LibraryStore
   let selectCached: (BookhouseOfflineMatch) -> Void
   @Environment(\.dismiss) private var nativeDismiss
-  @Environment(\.forumDismiss) private var forumDismiss
   @State private var selectedChapter = 1
   @State private var error: String?
   @ObservedObject private var offline = BookhouseOfflineStore.shared
@@ -140,9 +138,9 @@ struct BookhouseChapterPicker: View {
                 Text(chapter.title).forumFont(.body).foregroundStyle(.primary)
                 Spacer()
                 if offline.contains(chapter.url, bookID: book.id) {
-                  Image(forumSymbol: "arrow.down.circle", size: 16).foregroundStyle(.secondary).accessibilityLabel(AppText.text("Available offline"))
+                  Image(systemName: "arrow.down.circle").font(.system(size: 16)).foregroundStyle(.secondary).accessibilityLabel(AppText.text("Available offline"))
                 }
-                if book.position?.url == chapter.url { Image(forumSymbol: "checkmark", size: 16) }
+                if book.position?.url == chapter.url { Image(systemName: "checkmark").font(.system(size: 16)) }
               }
             }.buttonStyle(.plain)
           }
@@ -152,7 +150,7 @@ struct BookhouseChapterPicker: View {
           ToolbarItem(placement: .topBarLeading) {
             NavigationLink {
               BookhouseOfflineSearchView(library: library) { match in dismiss(); selectCached(match) }
-            } label: { ForumToolbarIcon("magnifyingglass") }
+            } label: { Image(systemName: "magnifyingglass") }
               .accessibilityLabel(AppText.text("Search cached text"))
           }
           ToolbarItem(placement: .topBarTrailing) {
@@ -177,5 +175,5 @@ struct BookhouseChapterPicker: View {
     finish(chapter, number)
   }
   private func finish(_ chapter: BookhouseChapter, _ number: Int) { dismiss(); select(chapter, number) }
-  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
+  private func dismiss() { nativeDismiss() }
 }

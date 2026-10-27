@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct ForumSelectionView: View {
@@ -11,33 +10,29 @@ struct ForumSelectionView: View {
 
   var body: some View {
     ScrollView {
-      VStack(spacing: ForumDesignSystem.spacing.xl) {
-        GlassEffectContainer(spacing: ForumDesignSystem.spacing.md) {
-          VStack(spacing: ForumDesignSystem.spacing.base) {
-            ForEach(ForumSite.allCases) { site in
-              NavigationLink(value: ForumDestination.home(site)) {
-                moduleCard(logo: site == .bookhouse ? "BookhouseLogo" : site == .simp ? "ForumLogo" : "SouthLogo")
-              }.buttonStyle(.plain)
-                .accessibilityLabel(AppText.format("Open %@ home", site.host))
-            }
-            HStack(spacing: ForumDesignSystem.spacing.base) {
-              Button(action: openTieba) {
-                moduleCard(logo: "TiebaLogo")
-              }.buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                .accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
-              Button(action: openDownloader) {
-                Image(forumSymbol: "square.and.arrow.down", size: 46)
-                  .foregroundStyle(.white).accessibilityHidden(true)
-                  .frame(maxWidth: .infinity).frame(height: 82)
-                  .padding(.horizontal, ForumDesignSystem.spacing.xl)
-                  .padding(.vertical, ForumDesignSystem.spacing.md)
-                  .contentShape(RoundedRectangle(cornerRadius: 28))
-                  .forumModuleGlass()
-              }.buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                .accessibilityLabel(AppText.text("Downloader"))
-            }
+      VStack(spacing: 20) {
+        VStack(spacing: 16) {
+          ForEach(ForumSite.allCases) { site in
+            NavigationLink(value: ForumDestination.home(site)) {
+              moduleCard(logo: site == .bookhouse ? "BookhouseLogo" : site == .simp ? "ForumLogo" : "SouthLogo")
+            }.buttonStyle(.glass).buttonBorderShape(.roundedRectangle(radius: 20))
+              .accessibilityLabel(AppText.format("Open %@ home", site.host))
+          }
+          HStack(spacing: 16) {
+            Button(action: openTieba) {
+              moduleCard(logo: "TiebaLogo")
+            }.buttonStyle(.glass).buttonBorderShape(.roundedRectangle(radius: 20))
+              .frame(maxWidth: .infinity)
+              .accessibilityLabel(AppText.format("Open %@ home", "tieba.baidu.com"))
+            Button(action: openDownloader) {
+              Image(systemName: "square.and.arrow.down").font(.system(size: 46))
+                .foregroundStyle(.primary).accessibilityHidden(true)
+                .frame(maxWidth: .infinity).frame(height: 82)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            }.buttonStyle(.glass).buttonBorderShape(.roundedRectangle(radius: 20))
+              .frame(maxWidth: .infinity)
+              .accessibilityLabel(AppText.text("Downloader"))
           }
         }
         if let photo = wallpaper.wallpaper {
@@ -50,24 +45,10 @@ struct ForumSelectionView: View {
               .padding(.horizontal, 12).padding(.vertical, 8)
           }.buttonStyle(.plain).accessibilityLabel(AppText.text("Wallpaper source"))
         }
-      }.frame(maxWidth: 520).padding(.horizontal, ForumDesignSystem.spacing.xl).padding(.top, 28).padding(.bottom, ForumDesignSystem.spacing.xl)
+      }.frame(maxWidth: 520).padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 20)
         .frame(maxWidth: .infinity)
     }.scrollIndicators(.hidden)
-      .overlay {
-        GeometryReader { geometry in
-          let insets = geometry.safeAreaInsets
-          VStack(spacing: 0) {
-            ForumEdgeBlur().frame(height: 65 + insets.top)
-            Spacer(minLength: 0)
-            ForumEdgeBlur(bottom: true).frame(height: 75 + insets.bottom)
-          }
-          // Anchor both ends to the physical screen, including the home indicator.
-          .frame(width: geometry.size.width, height: geometry.size.height + insets.top + insets.bottom)
-          .offset(y: -insets.top)
-        }.allowsHitTesting(false).accessibilityHidden(true)
-      }
       .background { backdrop.ignoresSafeArea() }
-      .environment(\.colorScheme, .dark)
       .toolbar(.hidden, for: .navigationBar)
       .background { ExternalBrowserPresenter(url: $external) }
       .task(id: scenePhase) {
@@ -79,9 +60,7 @@ struct ForumSelectionView: View {
   private func moduleCard(logo: String) -> some View {
     Image(logo).resizable().scaledToFit().frame(height: 82)
       .clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityHidden(true)
-      .padding(.horizontal, ForumDesignSystem.spacing.xl).padding(.vertical, ForumDesignSystem.spacing.md).frame(maxWidth: .infinity)
-      .contentShape(RoundedRectangle(cornerRadius: 28))
-      .forumModuleGlass()
+      .padding(.horizontal, 20).padding(.vertical, 12).frame(maxWidth: .infinity)
   }
 
   private var backdrop: some View {

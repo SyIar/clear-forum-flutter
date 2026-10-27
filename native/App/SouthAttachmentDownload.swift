@@ -1,6 +1,5 @@
 import SwiftUI
 import WebKit
-import ForumUI
 
 @MainActor enum SouthAttachmentAccess {
   // Uses the same persistent South WebKit profile, including after a relaunch.
@@ -26,7 +25,7 @@ struct SouthAttachmentDownload: View {
       Button {
         if let file { preview = GofileLocalFile(url: file) } else { open(task) }
       } label: {
-        Label(name, forumSymbol: "doc").forumFont(.subheadline)
+        Label(name, systemImage: "doc").forumFont(.subheadline)
           .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
       }.buttonStyle(.plain)
       FileDownloadAction(exists: task != nil, running: task?.running == true,

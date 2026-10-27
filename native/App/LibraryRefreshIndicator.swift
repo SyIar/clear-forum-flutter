@@ -1,9 +1,13 @@
-import ForumUI
 import SwiftUI
+
+enum ForumRefreshPhase: Equatable {
+  case checking, checked, updated, failed
+}
 
 struct LibraryRefreshIndicator: View {
   let phase: ForumRefreshPhase?
   var showsChevron = false
+  @ScaledMetric(relativeTo: .caption) private var size = 18.0
   private var status: String {
     switch phase {
     case .checking: return AppText.text("Checking for updates")
@@ -15,19 +19,23 @@ struct LibraryRefreshIndicator: View {
   }
   var body: some View {
     Group {
-      switch phase {
+      if showsChevron, phase != .checking {
+        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+      } else {
+        switch phase {
       case .checking: ProgressView().controlSize(.mini).tint(.blue)
-      case .checked: Image(forumSymbol: "checkmark", size: 14).foregroundStyle(.secondary)
-      case .updated: Image(forumSymbol: "checkmark.circle", size: 16).foregroundStyle(.blue)
-      case .failed: Image(forumSymbol: "exclamationmark.triangle", size: 16).foregroundStyle(.orange)
+      case .checked: Image(systemName: "checkmark").font(.caption).foregroundStyle(.secondary)
+      case .updated: Image(systemName: "checkmark.circle").font(.caption).foregroundStyle(.blue)
+      case .failed: Image(systemName: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
       case nil:
-        if showsChevron { Image(forumSymbol: "chevron.right", size: 12).foregroundStyle(.tertiary) }
+        if showsChevron { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
         else { Color.clear }
+        }
       }
     }
-    .frame(width: 18, height: 18)
+    .frame(width: size, height: size)
     .accessibilityElement(children: .ignore).accessibilityLabel(status)
-    .accessibilityHidden(phase == nil)
+    .accessibilityHidden(phase == nil || (showsChevron && phase != .checking))
     .allowsHitTesting(false)
   }
 }

@@ -1,5 +1,4 @@
 import Combine
-import ForumUI
 import SwiftUI
 
 struct LocalStorageView: View {
@@ -46,16 +45,16 @@ struct LocalStorageView: View {
                   .appFont(.subheadline, weight: .semibold).foregroundStyle(.blue)
               }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain)
-            Button(AppText.text("Delete file"), forumSymbol: "trash", role: .destructive) { deletion = file }
+            Button(AppText.text("Delete file"), systemImage: "trash", role: .destructive) { deletion = file }
               .labelStyle(.iconOnly).buttonStyle(.borderless).frame(width: 44, height: 44)
           }.padding(.vertical, 3)
-            .contextMenu { Button(AppText.text("Delete file"), forumSymbol: "trash", role: .destructive) { deletion = file } }
+            .contextMenu { Button(AppText.text("Delete file"), systemImage: "trash", role: .destructive) { deletion = file } }
         }
       }
     }.appFont(.body).navigationTitle(AppText.text("Storage analysis")).navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
-          Button(AppText.text("Refresh"), forumSymbol: "arrow.clockwise") { revision = UUID() }.disabled(loading)
+          Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { revision = UUID() }.disabled(loading)
         }
       }
       .task(id: revision) { await load() }

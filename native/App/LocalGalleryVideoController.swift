@@ -1,5 +1,4 @@
 import AVFoundation
-import ForumUI
 import UIKit
 
 private final class LocalVideoCanvas: UIView {
@@ -106,7 +105,7 @@ final class LocalGalleryVideoController: UIViewController {
       self.controls.alpha = hidden ? 0 : 1
       self.fullscreen.alpha = hidden ? 0 : 1
     }
-    fullscreen.configuration?.image = ForumIcons.image(hidden ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", size: 22)
+    fullscreen.configuration?.image = UIImage(systemName: hidden ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22))
     fullscreen.accessibilityLabel = AppText.text(hidden ? "Exit full screen" : "Full screen")
     canvas.accessibilityHint = fullscreen.accessibilityLabel
   }
@@ -121,7 +120,7 @@ final class LocalGalleryVideoController: UIViewController {
 
   private func configureButton(_ button: UIButton, symbol: String, title: String) {
     var config = UIButton.Configuration.glass()
-    config.image = ForumIcons.image(symbol, size: 22); config.baseForegroundColor = .white; config.cornerStyle = .capsule
+    config.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 22)); config.baseForegroundColor = .white; config.cornerStyle = .capsule
     button.configuration = config; button.accessibilityLabel = title
   }
   private func open() {
@@ -185,7 +184,7 @@ final class LocalGalleryVideoController: UIViewController {
   }
   private func updatePlayButton() {
     let playing = player.timeControlStatus != .paused
-    play.configuration?.image = ForumIcons.image(playing ? "pause" : "play", size: 22)
+    play.configuration?.image = UIImage(systemName: playing ? "pause.fill" : "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22))
     play.accessibilityLabel = AppText.text(playing ? "Pause" : "Play")
   }
   @objc private func togglePlayback() {

@@ -24,12 +24,12 @@ struct SouthDownloadsSection: View {
           Text(AppText.text("Downloaded threads"))
           Spacer()
           Text(AppText.format("View all (%@)", String(downloads.entries.count)))
-          Image(forumSymbol: "chevron.right", size: 12)
+          Image(systemName: "chevron.right").font(.system(size: 12))
         }.contentShape(Rectangle())
       }.buttonStyle(.plain)
     }
     .task { await downloads.resume(session: session) }
-    .forumSheet(isPresented: $showingAll) { SouthDownloadsView(session: session, library: library) }
+    .sheet(isPresented: $showingAll) { SouthDownloadsView(session: session, library: library) }
   }
 }
 
@@ -62,17 +62,17 @@ struct SouthDownloadsView: View {
               }
             }
             .swipeActions { Button(AppText.text("Remove download"), role: .destructive) { deleting = entry } }
-            .contextMenu { Button(AppText.text("Remove download"), forumSymbol: "trash", role: .destructive) { deleting = entry } }
+            .contextMenu { Button(AppText.text("Remove download"), systemImage: "trash", role: .destructive) { deleting = entry } }
           }
         } footer: {
           Text(AppText.text("Saves all readable pages and images. Videos and attachments are downloaded separately. Interrupted downloads resume when South opens."))
         }
       }
-      .overlay { if downloads.entries.isEmpty { ForumUnavailableView(AppText.text("No downloaded threads"), forumSymbol: "arrow.down.circle") } }
+      .overlay { if downloads.entries.isEmpty { ContentUnavailableView(AppText.text("No downloaded threads"), systemImage: "arrow.down.circle") } }
       .navigationTitle(AppText.text("Downloaded threads")).navigationBarTitleDisplayMode(.inline)
       .forumConfirmation(AppText.text("Remove this offline thread?"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), actions: {
-        [ForumDialogAction(AppText.text("Remove download"), role: .destructive) {
-          if let entry = deleting { Task { await downloads.remove(entry) } }
+        [ForumDialogAction(AppText.text("Remove download"), role: .destructive) { [entry = deleting] in
+          if let entry { Task { await downloads.remove(entry) } }
           deleting = nil
         }]
       })
@@ -90,7 +90,7 @@ private struct SouthDownloadRow: View {
   var chevron = true
   var body: some View {
     HStack(spacing: 10) {
-      Image(forumSymbol: "arrow.down.circle", size: 22).foregroundStyle(.blue)
+      Image(systemName: "arrow.down.circle").font(.system(size: 22)).foregroundStyle(.blue)
       VStack(alignment: .leading, spacing: 5) {
         Text(entry.title).forumFont(.body).foregroundStyle(.primary).lineLimit(2)
         HStack(spacing: 8) {
@@ -102,8 +102,8 @@ private struct SouthDownloadRow: View {
         if active { Text(progress).appFont(.caption).foregroundStyle(.blue).lineLimit(1) }
       }.frame(maxWidth: .infinity, alignment: .leading)
       if active { ProgressView().controlSize(.small) }
-      else if entry.state == .failed || entry.state == .partial { Image(forumSymbol: "exclamationmark.triangle", size: 16).foregroundStyle(.orange) }
-      else if chevron { Image(forumSymbol: "chevron.right", size: 12).foregroundStyle(.tertiary) }
+      else if entry.state == .failed || entry.state == .partial { Image(systemName: "exclamationmark.triangle").font(.system(size: 16)).foregroundStyle(.orange) }
+      else if chevron { Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(.tertiary) }
     }.padding(.vertical, 3).contentShape(Rectangle())
   }
 }

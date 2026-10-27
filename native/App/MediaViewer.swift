@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 import UIKit
 
@@ -72,10 +71,10 @@ struct MediaViewerDestination: View {
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           if isImage {
-            Button(AppText.text("Share image"), forumSymbol: "square.and.arrow.up") { state.image?.shareImage() }
+            Button(AppText.text("Share image"), systemImage: "square.and.arrow.up") { state.image?.shareImage() }
           } else if let download = state.download {
             VideoDownloadButton(state: state, download: download)
-            Button(AppText.text("Refresh video"), forumSymbol: "arrow.clockwise") { state.player?.reload() }
+            Button(AppText.text("Refresh video"), systemImage: "arrow.clockwise") { state.player?.reload() }
           }
         }
       }
@@ -135,17 +134,15 @@ struct ImageViewerSheet: View {
         state.image = image
         imageReady = image?.canShare == true
       }
-      .background(.black, in: RoundedRectangle(cornerRadius: 24))
-      .clipShape(RoundedRectangle(cornerRadius: 24))
-      .padding(6).glassEffect(.regular, in: RoundedRectangle(cornerRadius: 30)).padding(8)
+      .background(.black)
       .navigationTitle(entries.count > 1 ? AppText.format("Image %@ of %@", String(describing: index + 1), String(describing: entries.count)) : AppText.text("Image"))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
-          Button(AppText.text("Close"), forumSymbol: "xmark") { dismiss() }
+          Button(AppText.text("Close"), systemImage: "xmark") { dismiss() }
         }
         ToolbarItem(placement: .topBarTrailing) {
-          Button(AppText.text("Share image"), forumSymbol: "square.and.arrow.up") { state.image?.shareImage() }
+          Button(AppText.text("Share image"), systemImage: "square.and.arrow.up") { state.image?.shareImage() }
             .disabled(!imageReady)
         }
       }

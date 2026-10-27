@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct SouthPollCard: View {
@@ -9,7 +8,7 @@ struct SouthPollCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack {
-        Label(AppText.text("Poll"), forumSymbol: "chart.bar.xaxis").appFont(.headline)
+        Label(AppText.text("Poll"), systemImage: "chart.bar.xaxis").appFont(.headline)
         Spacer(minLength: 8)
         if let count = poll.participants {
           Text(AppText.format("%@ participants", String(describing: count.formatted()))).appFont(.caption).foregroundStyle(.secondary)
@@ -23,11 +22,11 @@ struct SouthPollCard: View {
               Text("\(option.id + 1)").appFont(.caption).monospacedDigit().foregroundStyle(.secondary)
                 .frame(minWidth: 14)
               Text(option.title).forumFont(.subheadline).foregroundStyle(.primary).frame(maxWidth: .infinity, alignment: .leading)
-              if option.selected { Image(forumSymbol: "checkmark.circle.fill").foregroundStyle(.blue).accessibilityLabel(AppText.text("Selected on website")) }
+              if option.selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.blue).accessibilityLabel(AppText.text("Selected on website")) }
               if let votes = option.votes {
                 Text(AppText.format("%@ votes", String(describing: votes.formatted()))).appFont(.caption).monospacedDigit().foregroundStyle(.secondary)
               } else {
-                Image(forumSymbol: "eye.slash", size: 12).font(.caption).foregroundStyle(.tertiary).accessibilityLabel(AppText.text("Votes hidden"))
+                Image(systemName: "eye.slash").font(.caption).foregroundStyle(.tertiary).accessibilityLabel(AppText.text("Votes hidden"))
               }
             }
             if let share = poll.share(of: option) {
@@ -44,9 +43,9 @@ struct SouthPollCard: View {
         }.appFont(.caption).foregroundStyle(.secondary)
       }
       Button(action: openBrowser) {
-        Label(poll.canVote ? AppText.text("Vote") : AppText.text("View poll"), forumSymbol: "globe")
+        Label(poll.canVote ? AppText.text("Vote") : AppText.text("View poll"), systemImage: "globe")
           .appFont(.subheadline, weight: .medium).frame(maxWidth: .infinity).padding(.vertical, 4)
-      }.buttonStyle(.glass).disabled(busy)
+      }.buttonStyle(.bordered).disabled(busy)
     }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
       .accessibilityElement(children: .contain)
   }

@@ -1,5 +1,4 @@
 import SwiftUI
-import ForumUI
 
 struct FileListingHeader: View {
   let title: String
@@ -9,17 +8,16 @@ struct FileListingHeader: View {
   var album = false
   let download: () -> Void
   var body: some View {
-    VStack(alignment: .leading, spacing: ForumDesignSystem.spacing.base) {
+    VStack(alignment: .leading, spacing: 16) {
       Text(title).appFont(.headline).textSelection(.enabled)
-      if album { Label(AppText.text("Showing the complete album"), forumSymbol: "rectangle.stack").appFont(.caption).foregroundStyle(.secondary) }
+      if album { Label(AppText.text("Showing the complete album"), systemImage: "rectangle.stack").appFont(.caption).foregroundStyle(.secondary) }
       HStack(spacing: 12) {
-        if canDownload { Button(AppText.text("Download all"), action: download).buttonStyle(ForumActionButtonStyle()).disabled(disabled) }
+        if canDownload { Button(AppText.text("Download all"), action: download).buttonStyle(.borderedProminent).disabled(disabled) }
         Spacer(minLength: 0)
         Text(count == 1 ? AppText.text("1 item") : AppText.format("%@ items", String(count)))
           .appFont(.caption).foregroundStyle(.secondary).lineLimit(1).fixedSize()
       }
-    }.padding(ForumDesignSystem.spacing.cardPadding).forumCardSurface()
-      .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(Color.clear)
+    }
   }
 }
 
@@ -39,7 +37,7 @@ struct FileDownloadAction: View {
               .stroke(.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).rotationEffect(.degrees(-90))
             Text("\(Int(progress * 100))").font(.system(size: 10, weight: .semibold)).monospacedDigit()
           } else { ProgressView().controlSize(.small) }
-        } else { Image(forumSymbol: completed ? "square.and.arrow.up" : exists ? "clock" : "arrow.down.circle", size: 20) }
+        } else { Image(systemName: completed ? "square.and.arrow.up" : exists ? "clock" : "arrow.down.circle").font(.system(size: 20)) }
       }.frame(width: 28, height: 28).frame(width: 44, height: 44).contentShape(Rectangle())
     }.buttonStyle(.borderless)
       .accessibilityLabel(completed ? AppText.text("Save to Files") : exists ? AppText.text("Downloads") : AppText.text("Download file"))

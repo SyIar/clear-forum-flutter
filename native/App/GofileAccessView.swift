@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct GofileAccessView: View {
@@ -10,7 +9,7 @@ struct GofileAccessView: View {
   @State private var password = ""
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label(failure.title, forumSymbol: failure.symbol).appFont(.headline)
+      Label(failure.title, systemImage: failure.symbol).appFont(.headline)
       Text(failure.localizedDescription).appFont(.subheadline).foregroundStyle(.secondary)
       if failure.needsPassword {
         SecureField(AppText.text("Password"), text: $password).textContentType(.password)
@@ -21,17 +20,17 @@ struct GofileAccessView: View {
           Task { await unlock(value) }
         } label: {
           HStack { if busy { ProgressView() }; Text(AppText.text("Unlock")) }
-        }.buttonStyle(.glassProminent).disabled(password.isEmpty || busy)
+        }.buttonStyle(.borderedProminent).disabled(password.isEmpty || busy)
       } else if let date = failure.retryDate {
         TimelineView(.periodic(from: .now, by: 1)) { context in
           if context.date < date {
             Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).appFont(.caption).monospacedDigit()
-          } else { Button(AppText.text("Try again"), forumSymbol: "arrow.clockwise", action: retry).disabled(busy) }
+          } else { Button(AppText.text("Try again"), systemImage: "arrow.clockwise", action: retry).disabled(busy) }
         }
       } else {
-        Button(AppText.text("Try again"), forumSymbol: "arrow.clockwise", action: retry).disabled(busy)
+        Button(AppText.text("Try again"), systemImage: "arrow.clockwise", action: retry).disabled(busy)
       }
-      Button(AppText.text("Open website"), forumSymbol: "globe", action: website).appFont(.subheadline).disabled(busy)
+      Button(AppText.text("Open website"), systemImage: "globe", action: website).appFont(.subheadline).disabled(busy)
     }.padding(.vertical, 8)
   }
 }
@@ -45,7 +44,7 @@ struct GofileBatchView: View {
   var body: some View {
     List {
       Section {
-        Label(title, forumSymbol: batch.phase == .finished ? "checkmark.circle" : "arrow.down.doc")
+        Label(title, systemImage: batch.phase == .finished ? "checkmark.circle" : "arrow.down.doc")
           .appFont(.headline)
         Text(AppText.format("%@ saved · %@ skipped · %@ queued", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.queued)))
           .appFont(.subheadline).foregroundStyle(.secondary)
@@ -56,10 +55,10 @@ struct GofileBatchView: View {
             ProgressView(value: progress)
             Text("\(Int(progress * 100))%").appFont(.caption).monospacedDigit()
           } else { ProgressView() }
-          Button(AppText.text("Pause"), forumSymbol: "pause", action: batch.pause)
+          Button(AppText.text("Pause"), systemImage: "pause", action: batch.pause)
         } else if batch.phase == .paused && batch.gate == nil {
           if let issue = batch.issue { Text(issue).appFont(.subheadline).foregroundStyle(.secondary) }
-          Button(AppText.text("Continue"), forumSymbol: "play", action: batch.resume).disabled(!batch.canResume)
+          Button(AppText.text("Continue"), systemImage: "play", action: batch.resume).disabled(!batch.canResume)
         } else if batch.phase == .cancelled, let issue = batch.issue {
           Text(issue).appFont(.subheadline).foregroundStyle(.secondary)
         }
@@ -71,16 +70,16 @@ struct GofileBatchView: View {
         }
       }
       if batch.phase == .paused, batch.pending > 0 {
-        Section { Button(AppText.text("Skip this item"), forumSymbol: "forward.end", action: batch.skip) }
+        Section { Button(AppText.text("Skip this item"), systemImage: "forward.end", action: batch.skip) }
       }
       if let directory = batch.directory {
         Section {
           HStack {
-            Label(AppText.text("Gofile Downloads"), forumSymbol: "folder")
+            Label(AppText.text("Gofile Downloads"), systemImage: "folder")
             Spacer()
             InfoButton(title: AppText.text("Saved files"), message: savedFilesInfo)
           }
-          Button(AppText.text("Export folder"), forumSymbol: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }
+          Button(AppText.text("Export folder"), systemImage: "square.and.arrow.up") { export = GofileLocalFile(url: directory) }
             .disabled(batch.running)
         }
       }
@@ -90,12 +89,12 @@ struct GofileBatchView: View {
             if let file = batch.savedFiles[key] {
               HStack(spacing: 12) {
                 Button { preview = GofileLocalFile(url: file) } label: {
-                  Label(file.lastPathComponent, forumSymbol: "doc").appFont(.subheadline).lineLimit(2)
+                  Label(file.lastPathComponent, systemImage: "doc").appFont(.subheadline).lineLimit(2)
                 }.buttonStyle(.plain)
                 Spacer(minLength: 0)
-                ShareLink(item: file) { Image(forumSymbol: "square.and.arrow.up").frame(width: 44, height: 44) }
+                ShareLink(item: file) { Image(systemName: "square.and.arrow.up").frame(width: 44, height: 44) }
                   .buttonStyle(.borderless).accessibilityLabel(AppText.text("Share"))
-                Button { export = GofileLocalFile(url: file) } label: { Image(forumSymbol: "folder").frame(width: 44, height: 44) }
+                Button { export = GofileLocalFile(url: file) } label: { Image(systemName: "folder").frame(width: 44, height: 44) }
                   .buttonStyle(.borderless).accessibilityLabel(AppText.text("Save to Files"))
               }
             }
@@ -113,7 +112,7 @@ struct GofileBatchView: View {
         }
       }
       if batch.phase == .running || batch.phase == .paused {
-        Section { Button(AppText.text("Stop batch"), forumSymbol: "stop", role: .destructive, action: batch.cancel) }
+        Section { Button(AppText.text("Stop batch"), systemImage: "stop", role: .destructive, action: batch.cancel) }
       }
     }.navigationTitle(AppText.text("Gofile Helper")).navigationBarTitleDisplayMode(.inline)
       .toolbarRole(.editor)

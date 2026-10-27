@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 import Combine
 
@@ -70,7 +69,7 @@ struct GofileBatchRow: View {
   var body: some View {
     NavigationLink { GofileBatchView(batch: batch) } label: {
       VStack(alignment: .leading, spacing: 6) {
-        Label(batch.title, forumSymbol: "folder").appFont(.headline).lineLimit(2)
+        Label(batch.title, systemImage: "folder").appFont(.headline).lineLimit(2)
         Text(AppText.format("%@ saved · %@ skipped · %@ queued", String(describing: batch.completed), String(describing: batch.skipped.count), String(describing: batch.queued)))
           .appFont(.caption).foregroundStyle(.secondary)
         if batch.running {
@@ -84,7 +83,7 @@ struct GofileBatchRow: View {
       }.padding(.vertical, 4)
     }.swipeActions {
       if batch.phase == .finished || batch.phase == .cancelled {
-        Button(AppText.text("Remove from list"), forumSymbol: "xmark") { manager.remove(batch) }
+        Button(AppText.text("Remove from list"), systemImage: "xmark") { manager.remove(batch) }
       }
     }
   }

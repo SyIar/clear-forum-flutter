@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 import UIKit
 
@@ -75,7 +74,7 @@ struct LocalArchiveView: View {
   var body: some View {
     List {
       Section {
-        Label(file.lastPathComponent, forumSymbol: "folder").appFont(.headline)
+        Label(file.lastPathComponent, systemImage: "folder").appFont(.headline)
         Text(AppText.text("Extract beside the ZIP into a new folder. Existing files and the original ZIP are kept."))
           .appFont(.subheadline).foregroundStyle(.secondary)
       }
@@ -87,11 +86,11 @@ struct LocalArchiveView: View {
             Text("\(Int(fraction * 100))%").monospacedDigit()
           }
           ProgressView(value: fraction)
-          Button(AppText.text("Cancel"), forumSymbol: "xmark") { manager.cancel(file) }
+          Button(AppText.text("Cancel"), systemImage: "xmark") { manager.cancel(file) }
         } else {
           if let error = job?.error { Text(error).foregroundStyle(.secondary) }
           if let path = job?.folder {
-            Button(AppText.text("Open extracted folder"), forumSymbol: "folder") { folder = ExtractedFolder(path: path) }
+            Button(AppText.text("Open extracted folder"), systemImage: "folder") { folder = ExtractedFolder(path: path) }
           }
           if job?.needsPassword == true {
             SecureField(AppText.text("ZIP password"), text: $password)
@@ -100,14 +99,14 @@ struct LocalArchiveView: View {
             Text(AppText.text("The password is used only for this extraction and is not saved."))
               .appFont(.caption).foregroundStyle(.secondary)
           }
-          Button(AppText.text("Extract ZIP"), forumSymbol: "square.and.arrow.down") { start() }
+          Button(AppText.text("Extract ZIP"), systemImage: "square.and.arrow.down") { start() }
             .disabled(manager.running)
           if manager.running { Text(AppText.text("Another ZIP is being extracted. Please wait.")).appFont(.caption).foregroundStyle(.secondary) }
         }
       }
       Section {
-        Button(AppText.text("Save to Files"), forumSymbol: "folder") { export = GofileLocalFile(url: file) }
-        ShareLink(item: file) { Label(AppText.text("Share"), forumSymbol: "square.and.arrow.up") }
+        Button(AppText.text("Save to Files"), systemImage: "folder") { export = GofileLocalFile(url: file) }
+        ShareLink(item: file) { Label(AppText.text("Share"), systemImage: "square.and.arrow.up") }
       }
     }.appFont(.body)
       .onAppear { visible = true }.onDisappear { visible = false; password = ""; passwordFocused = false }
@@ -124,7 +123,7 @@ struct LocalArchiveView: View {
           do { try await Task.sleep(nanoseconds: 200_000_000) } catch { return }
         }
       }
-      .forumSheet(item: $folder) { folder in
+      .sheet(item: $folder) { folder in
         NavigationStack { LocalFilesView(path: folder.path) }
       }
       .sheet(item: $export) { GofileExport(file: $0.url) }

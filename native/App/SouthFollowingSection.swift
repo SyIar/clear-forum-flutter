@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct SouthFollowingSection: View {
@@ -18,12 +17,12 @@ struct SouthFollowingSection: View {
               HStack(spacing: 10) {
                 PostAvatar(url: author.avatar, author: author.name)
                 Text(author.name).forumFont(.subheadline, weight: .semibold).foregroundStyle(.primary).lineLimit(1)
-                Image(forumSymbol: "chevron.right", size: 11).font(.caption2).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
               }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(AppText.format("All topics by %@", String(describing: author.name)))
             Spacer(minLength: 0)
             LibraryRefreshIndicator(phase: library.authorRefreshPhases[author.id])
-            Button { library.unfollow(author.id) } label: { Image(forumSymbol: "person.badge.minus") }
+            Button { library.unfollow(author.id) } label: { Image(systemName: "person.badge.minus") }
               .buttonStyle(.borderless).accessibilityLabel(AppText.format("Unfollow %@", String(describing: author.name)))
           }
           ForEach(author.topics.filter { !library.onlyUpdates || library.document.isUnreadSouthThread($0.url) }) { topic in
@@ -45,7 +44,7 @@ struct SouthFollowingSection: View {
               .appFont(.caption).foregroundStyle(.secondary)
           }
         }.padding(.vertical, 6)
-          .modifier(ForumRefreshFeedback(phase: library.authorRefreshPhases[author.id]))
+
       }
     } header: {
       HStack {

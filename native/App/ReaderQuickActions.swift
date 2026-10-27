@@ -1,18 +1,18 @@
-import ForumUI
 import SwiftUI
 
 enum ReaderBottomPanel: Equatable {
   case pages, actions
 }
 
-// Both panels use one horizontal glass capsule and equal action columns.
+// One native material surface contains the reader controls, like a floating toolbar.
 private struct ReaderControlGroup<Content: View>: View {
   @ViewBuilder let content: () -> Content
   var body: some View {
     HStack(spacing: 0, content: content)
-      .frame(width: 240, height: 48)
-      .padding(4)
-      .glassEffect(.regular.interactive(), in: .capsule)
+      .frame(maxWidth: 320)
+      .padding(8)
+      .glassEffect(.regular, in: .capsule)
+      .padding(.horizontal, 16)
   }
 }
 
@@ -24,11 +24,10 @@ private struct ReaderControlButton<Content: View>: View {
   var body: some View {
     Button(action: perform) {
       content()
-        .frame(maxWidth: .infinity, minHeight: 48)
+        .frame(maxWidth: .infinity, minHeight: 44)
         .contentShape(Rectangle())
     }
-    .buttonStyle(.plain).foregroundStyle(.blue).disabled(disabled)
-    .opacity(disabled ? 0.4 : 1).accessibilityLabel(title)
+    .buttonStyle(.borderless).disabled(disabled).accessibilityLabel(title)
   }
 }
 
@@ -43,7 +42,7 @@ struct ReaderPagingActions: View {
   var body: some View {
     ReaderControlGroup {
       ReaderControlButton(title: AppText.text("Previous page"), disabled: !canGoBack, perform: previous) {
-        Image(forumSymbol: "chevron.left", size: 22)
+        Image(systemName: "chevron.left")
       }
       Divider().frame(height: 20)
       ReaderControlButton(title: AppText.text("Choose page"), disabled: !canSelect, perform: select) {
@@ -53,7 +52,7 @@ struct ReaderPagingActions: View {
       }.accessibilityValue(AppText.format("Page %@", String(pageNumber)))
       Divider().frame(height: 20)
       ReaderControlButton(title: AppText.text("Next page"), disabled: !canGoForward, perform: next) {
-        Image(forumSymbol: "chevron.right", size: 22)
+        Image(systemName: "chevron.right")
       }
     }
   }
@@ -77,7 +76,7 @@ struct ReaderQuickActions: View {
   }
   private func action(_ title: String, symbol: String, disabled: Bool, perform: @escaping () -> Void) -> some View {
     ReaderControlButton(title: title, disabled: disabled, perform: perform) {
-      Image(forumSymbol: symbol, size: 22)
+      Image(systemName: symbol)
     }
   }
 }
@@ -89,15 +88,15 @@ struct ReturnToReadingButton: View {
   var body: some View {
     HStack(spacing: 0) {
       Button(action: restore) {
-        Image(forumSymbol: "arrow.uturn.backward", size: 21).frame(width: 52, height: 44).contentShape(Rectangle())
-      }.disabled(restoreDisabled).opacity(restoreDisabled ? 0.4 : 1)
+        Image(systemName: "arrow.uturn.backward").font(.system(size: 21)).frame(width: 52, height: 44).contentShape(Rectangle())
+      }.disabled(restoreDisabled)
         .accessibilityLabel(AppText.text("Return to reading position"))
       Divider().frame(height: 18)
       Button(action: dismiss) {
-        Image(forumSymbol: "xmark", size: 14).frame(width: 44, height: 44).contentShape(Rectangle())
+        Image(systemName: "xmark").font(.system(size: 14)).frame(width: 44, height: 44).contentShape(Rectangle())
       }
         .accessibilityLabel(AppText.text("Keep this reading position"))
-    }.buttonStyle(.plain).foregroundStyle(.blue).padding(4).glassEffect(.regular.interactive(), in: .capsule)
+    }.buttonStyle(.borderless).padding(4).glassEffect(.regular, in: .capsule)
       .padding(.bottom, 12)
   }
 }

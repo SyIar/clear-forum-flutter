@@ -12,12 +12,6 @@ packages:
   SwiftProtobuf:
     url: https://github.com/apple/swift-protobuf.git
     exactVersion: 1.38.1
-  ChunUI:
-    url: https://github.com/liseami/ChunUI
-    revision: b240cbbdb9c6d7afc9f02d9ce4ddff5a25ce73bb
-  Pow:
-    url: https://github.com/EmergeTools/Pow
-    exactVersion: 1.0.6
 settings:
   base:
     SWIFT_VERSION: '5.0'
@@ -64,9 +58,7 @@ targets:
     type: framework
     platform: iOS
     sources:
-      - DesignSystem
-    dependencies:
-      - package: ChunUI
+      - NativeUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.sylar.forumlite.ui

@@ -1,5 +1,4 @@
 import Combine
-import ForumUI
 import QuickLookThumbnailing
 import SwiftUI
 import UniformTypeIdentifiers
@@ -20,20 +19,20 @@ struct LocalFilesView: View {
   var body: some View {
     List {
       if let error = store.error {
-        Label(error, forumSymbol: "exclamationmark.triangle").foregroundStyle(.secondary)
+        Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
       }
       if store.loading && store.entries.isEmpty {
         HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear)
       } else if entries.isEmpty && store.error == nil {
-        ForumUnavailableView(search.isEmpty ? AppText.text("This folder is empty.") : AppText.text("No matching files on this page."),
-          forumSymbol: "folder", description: search.isEmpty ? Text(AppText.text("Downloaded files and files copied into Forum Lite appear here.")) : nil)
+        ContentUnavailableView(search.isEmpty ? AppText.text("This folder is empty.") : AppText.text("No matching files on this page."),
+          systemImage: "folder", description: search.isEmpty ? Text(AppText.text("Downloaded files and files copied into Forum Lite appear here.")) : nil)
           .listRowBackground(Color.clear)
       }
       ForEach(entries) { entry in
         if entry.directory {
           NavigationLink { LocalFilesView(path: entry.destinationPath) } label: { row(entry) }
             .contextMenu {
-              Button(AppText.text("Delete folder"), forumSymbol: "trash", role: .destructive) { deletion = entry }
+              Button(AppText.text("Delete folder"), systemImage: "trash", role: .destructive) { deletion = entry }
             }
         } else {
           Button {
@@ -51,7 +50,7 @@ struct LocalFilesView: View {
             } catch { store.error = AppText.text("This file was moved or is no longer available. Refresh the folder.") }
           } label: { row(entry) }.buttonStyle(.plain)
             .contextMenu {
-              Button(AppText.text("Delete file"), forumSymbol: "trash", role: .destructive) { deletion = entry }
+              Button(AppText.text("Delete file"), systemImage: "trash", role: .destructive) { deletion = entry }
             }
         }
       }
@@ -63,9 +62,9 @@ struct LocalFilesView: View {
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           NavigationLink { LocalStorageView(path: store.path) } label: {
-            Image(forumSymbol: "chart.bar.xaxis")
+            Image(systemName: "chart.bar.xaxis")
           }.accessibilityLabel(AppText.text("Storage analysis"))
-          Button(AppText.text("Refresh"), forumSymbol: "arrow.clockwise") { Task { await store.reload() } }
+          Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { Task { await store.reload() } }
             .disabled(store.loading)
         }
       }
@@ -93,7 +92,7 @@ struct LocalFilesView: View {
           if let date = entry.modified { Text(date, format: .dateTime.year().month().day()) }
         }.appFont(.caption).foregroundStyle(.secondary)
       }.frame(maxWidth: .infinity, alignment: .leading)
-      if !entry.directory { Image(forumSymbol: "chevron.right", size: 14).foregroundStyle(.tertiary) }
+      if !entry.directory { Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(.tertiary) }
     }.padding(.vertical, 4).contentShape(Rectangle())
   }
 }
@@ -139,7 +138,7 @@ enum LocalMediaKind: Equatable {
     return .other
   }
   var symbol: String {
-    switch self { case .image: return "photo"; case .video: return "video"; case .audio: return "audio"; case .other: return "doc" }
+    switch self { case .image: return "photo"; case .video: return "video"; case .audio: return "waveform"; case .other: return "doc" }
   }
 }
 
@@ -155,7 +154,7 @@ private struct LocalFileThumbnail: View {
     Group {
       if let image { Image(uiImage: image).resizable().scaledToFill() }
       else {
-        Image(forumSymbol: entry.directory ? "folder" : LocalMediaKind.kind(URL(fileURLWithPath: entry.name)).symbol, size: 24)
+        Image(systemName: entry.directory ? "folder" : LocalMediaKind.kind(URL(fileURLWithPath: entry.name)).symbol).font(.system(size: 24))
           .foregroundStyle(.blue).frame(maxWidth: .infinity, maxHeight: .infinity).background(.blue.opacity(0.08))
       }
     }.frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 10))

@@ -30,7 +30,7 @@ struct TorrentCopyButton: View {
       ZStack {
         if task != nil { ProgressView().controlSize(.small) }
         else {
-          Image(forumSymbol: copied ? "checkmark" : "doc.on.doc")
+          Image(systemName: copied ? "checkmark" : "doc.on.doc")
             .font(.body.weight(.medium)).contentTransition(.opacity)
         }
       }.frame(width: 44, height: 44).contentShape(Rectangle())

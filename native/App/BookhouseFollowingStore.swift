@@ -1,5 +1,4 @@
 import Foundation
-import ForumUI
 
 extension LibraryStore {
   @discardableResult func followBook(_ entry: ForumEntry, session: ForumSession) -> String? {

@@ -1,4 +1,3 @@
-import ForumUI
 import QuickLook
 import SwiftUI
 import UIKit
@@ -115,7 +114,7 @@ final class LocalGalleryController: UIViewController, UIPageViewControllerDataSo
   }
   private func configure(_ button: UIButton, symbol: String, title: String) {
     var config = UIButton.Configuration.glass(); config.cornerStyle = .capsule
-    config.image = ForumIcons.image(symbol, size: 22); config.baseForegroundColor = .white
+    config.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 22)); config.baseForegroundColor = .white
     button.configuration = config; button.accessibilityLabel = title
   }
   private func page(_ number: Int) -> LocalGalleryPageController {
@@ -289,7 +288,7 @@ private final class LocalGalleryPageController: UIViewController {
       video.scrubbingChanged = { [weak self] in self?.scrubbingChanged?($0) }
       self.video = video; child = video
     } else if let file { child = UIHostingController(rootView: LocalFilePreview(file: file)) }
-    else { child = UIHostingController(rootView: ForumUnavailableView(AppText.text("File unavailable"), forumSymbol: "doc").foregroundStyle(.white)) }
+    else { child = UIHostingController(rootView: ContentUnavailableView(AppText.text("File unavailable"), systemImage: "doc").foregroundStyle(.white)) }
     addChild(child); view.addSubview(child.view); child.view.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([child.view.topAnchor.constraint(equalTo: view.topAnchor), child.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       child.view.leadingAnchor.constraint(equalTo: view.leadingAnchor), child.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)])

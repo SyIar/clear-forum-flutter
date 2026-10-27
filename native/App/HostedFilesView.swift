@@ -54,13 +54,13 @@ struct HostedFilesView: View {
       if model.loading { Section { HStack { ProgressView(); Text(AppText.text("Loading files")).foregroundStyle(.secondary) } } }
       if let error = model.error {
         Section {
-          Label(error, forumSymbol: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
+          Label(error, systemImage: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
           TimelineView(.periodic(from: .now, by: 1)) { context in
             if let date = model.retryAfter, date > context.date {
               Text(AppText.format("Try again in %@s", String(describing: Int(ceil(date.timeIntervalSince(context.date)))))).appFont(.caption).monospacedDigit()
-            } else { Button(AppText.text("Retry"), forumSymbol: "arrow.clockwise") { revision += 1 }.disabled(model.loading) }
+            } else { Button(AppText.text("Retry"), systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading) }
           }
-          Button(AppText.text("Open website"), forumSymbol: "safari") { website = url }
+          Button(AppText.text("Open website"), systemImage: "safari") { website = url }
         }
       }
       if !visible.isEmpty {
@@ -81,19 +81,19 @@ struct HostedFilesView: View {
                     Button { play(entry) } label: {
                       ZStack {
                         if opening == entry.id { ProgressView().controlSize(.small) }
-                        else { Image(forumSymbol: "play.circle") }
+                        else { Image(systemName: "play.circle") }
                       }.font(.body.weight(.medium))
                         .frame(width: 44, height: 44).contentShape(Rectangle())
                     }.buttonStyle(.borderless).disabled(opening != nil).accessibilityLabel(AppText.format("Play %@", String(describing: entry.name)))
                   }
                   downloadButton(entry)
                 }
-              }.contextMenu { Button(AppText.text("Open website"), forumSymbol: "safari") { website = entry.pageURL } }
+              }.contextMenu { Button(AppText.text("Open website"), systemImage: "safari") { website = entry.pageURL } }
             }
           }
         }
       } else if model.listing != nil, !model.loading, model.error == nil {
-        ForumUnavailableView(query.isEmpty ? AppText.text("This folder is empty") : AppText.text("No matching files"), forumSymbol: "folder")
+        ContentUnavailableView(query.isEmpty ? AppText.text("This folder is empty") : AppText.text("No matching files"), systemImage: "folder")
       }
       if downloads.items.contains(where: { $0.sourceKey == HostedFilePolicy.key(model.listing?.url ?? url) }) {
         Section(AppText.text("Downloads")) {
@@ -105,8 +105,8 @@ struct HostedFilesView: View {
       .searchable(text: $query, prompt: AppText.text("Find a file"))
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          Button(AppText.text("Open website"), forumSymbol: "safari") { website = model.listing?.url ?? url }
-          Button(AppText.text("Refresh"), forumSymbol: "arrow.clockwise") { revision += 1 }.disabled(model.loading)
+          Button(AppText.text("Open website"), systemImage: "safari") { website = model.listing?.url ?? url }
+          Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { revision += 1 }.disabled(model.loading)
         }
       }
       .task(id: revision) { await model.load(url, revision: revision) }
@@ -122,8 +122,8 @@ struct HostedFilesView: View {
   }
   private func fileLabel(_ entry: HostedFileEntry) -> some View {
     HStack(spacing: 12) {
-      Image(forumSymbol: entry.symbol, size: 22).font(.title2).foregroundStyle(ForumDesignSystem.primary)
-        .frame(width: 44, height: 44).background(ForumDesignSystem.surface, in: RoundedRectangle(cornerRadius: ForumDesignSystem.radius.base))
+      Image(systemName: entry.symbol).font(.title2).foregroundStyle(Color.accentColor)
+        .frame(width: 44, height: 44).background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
       VStack(alignment: .leading, spacing: 4) {
         Text(entry.name).appFont(.subheadline).foregroundStyle(.primary).lineLimit(3)
         Text(entry.folder ? AppText.text("Folder") : entry.sizeDescription).appFont(.caption).foregroundStyle(.secondary)
@@ -163,7 +163,7 @@ struct HostedModalRoot: View {
   var body: some View {
     NavigationStack {
       HostedFilesView(url: url).toolbar {
-        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), forumSymbol: "chevron.left", action: close) }
+        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
     }.appFont(.body)
       .environment(\.locale, AppText.locale)

@@ -53,7 +53,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     let doubleTap = UITapGestureRecognizer(target: self, action: #selector(zoom))
     doubleTap.numberOfTapsRequired = 2; scroll.addGestureRecognizer(doubleTap)
     var configuration = UIButton.Configuration.glass()
-    configuration.image = ForumIcons.image( "magnifyingglass")
+    configuration.image = UIImage(systemName: "magnifyingglass")
     configuration.cornerStyle = .capsule; configuration.baseForegroundColor = .white
     originalButton.configuration = configuration
     originalButton.accessibilityLabel = AppText.text("View source image at full resolution")
@@ -163,7 +163,7 @@ final class OriginalImageController: UIViewController, UIScrollViewDelegate {
     if let file { try? FileManager.default.removeItem(at: file); self.file = nil }
     guard !(error is CancellationError), viewIfLoaded?.window != nil, presentedViewController == nil else { return }
     let message = (error as? MediaFileError)?.message ?? AppText.text("Could not open the source image. Tap the magnifier to retry.")
-    ForumDialogs.notice(title: AppText.text("Image"), message: message, close: AppText.text("OK"))
+    ForumDialogs.notice(from: self, title: AppText.text("Image"), message: message, close: AppText.text("OK"))
   }
   func stopLoading() {
     localLookup?.cancel(); localLookup = nil

@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct LibraryCheckProgress {
@@ -101,30 +100,27 @@ struct LibraryUpdateButton: View {
     Button { showingStatus.toggle() } label: {
       Group {
         if library.updateChecksRunning { ProgressView().controlSize(.small) }
-        else { Image(forumSymbol: symbol, size: 19).foregroundStyle(hasFailures ? Color.orange : .blue) }
-      }.frame(width: 44, height: 44)
-    }.buttonStyle(.glass).buttonBorderShape(.circle)
+        else { Image(systemName: symbol).foregroundStyle(hasFailures ? Color.orange : .blue) }
+      }
+    }.buttonStyle(.glass).controlSize(.large).buttonBorderShape(.circle)
       .accessibilityLabel(AppText.text("Update status and filters"))
       .accessibilityValue(library.updateChecksRunning ? AppText.text("Checking for updates") : library.onlyUpdates ? AppText.text("Updates only") : "")
-      .popover(isPresented: $showingStatus, arrowEdge: .bottom) {
-        VStack(alignment: .leading, spacing: 16) {
-          HStack {
-            Text(AppText.text("Update status")).appFont(.headline)
-            Spacer(minLength: 12)
-            Button { showingStatus = false } label: {
-              Image(forumSymbol: "xmark", size: 15).frame(width: 32, height: 32)
-            }.buttonStyle(.borderless).foregroundStyle(.secondary).accessibilityLabel(AppText.text("Close"))
+      .sheet(isPresented: $showingStatus) {
+        NavigationStack {
+          Form {
+            Section { LibraryCheckStatus(library: library, compact: true) }
+            Button(action: refresh) {
+              Label(AppText.text("Refresh"), systemImage: "arrow.clockwise")
+            }.disabled(library.updateChecksRunning || !library.document.hasRefreshTargets)
           }
-          LibraryCheckStatus(library: library, compact: true)
-          Button(action: refresh) {
-            Label(AppText.text("Refresh"), forumSymbol: "arrow.clockwise")
-              .appFont(.subheadline).frame(maxWidth: .infinity, minHeight: 32)
-          }.buttonStyle(.glass)
-            .disabled(library.updateChecksRunning || !library.document.hasRefreshTargets)
-            .accessibilityLabel(AppText.text("Refresh"))
-        }.padding(16).frame(width: 288)
-          .presentationCompactAdaptation(.popover)
-          .presentationBackground(.regularMaterial)
+          .navigationTitle(AppText.text("Update status"))
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+              Button(AppText.text("Done")) { showingStatus = false }
+            }
+          }
+        }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
       }
       .onDisappear { showingStatus = false }
   }

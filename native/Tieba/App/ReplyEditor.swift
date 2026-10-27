@@ -73,8 +73,8 @@ struct ReplyEditor: View {
           }
         }
         Section {
-          PhotosPicker(selection: $picked, maxSelectionCount: max(1, 9 - attachments.count), matching: .images) { Label(tr("attachImages"), forumSymbol: "photo.on.rectangle") }.disabled(attachments.count >= 9 || busy || importing)
-          Button(tr("emoticons"), forumSymbol: "face.smiling") { emoticons = true }
+          PhotosPicker(selection: $picked, maxSelectionCount: max(1, 9 - attachments.count), matching: .images) { Label(tr("attachImages"), systemImage: "photo.on.rectangle") }.disabled(attachments.count >= 9 || busy || importing)
+          Button(tr("emoticons"), systemImage: "face.smiling") { emoticons = true }
           Toggle(tr("originalImage"), isOn: $original)
         }
         if busy { HStack { ProgressView(); Text("\(tr("sendingImages")) \(progress)/\(attachments.count)") } }
@@ -162,7 +162,7 @@ struct DraftsView: View {
         } } label: { VStack(alignment: .leading, spacing: 6) { Text(string(draft["forumName"])).tiebaFont(.caption).foregroundStyle(.secondary); Text(string(draft["content"])).tiebaFont(.body).lineLimit(3) } }.disabled(opening)
           .swipeActions { Button(tr("discard"), role: .destructive) { app.updateLibrary { $0.removeDraft(string(draft["key"])) } } }
       }
-      if drafts.isEmpty { ForumUnavailableView(tr("emptyDrafts"), forumSymbol: "doc") }
+      if drafts.isEmpty { ContentUnavailableView(tr("emptyDrafts"), systemImage: "doc") }
     }.navigationTitle(tr("drafts")).sheet(item: $selection) { ReplyEditor(context: $0) { selection = nil } }
   }
 }

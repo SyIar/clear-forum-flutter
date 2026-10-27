@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 import WebKit
 import QuickLook
@@ -27,8 +26,8 @@ struct GofileBrowserView: View {
         }
       } else if let error = session.error {
         Section {
-          Label(error, forumSymbol: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
-          Button(AppText.text("Open website"), forumSymbol: "safari") { session.showWebsite() }
+          Label(error, systemImage: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
+          Button(AppText.text("Open website"), systemImage: "safari") { session.showWebsite() }
         }
       }
       if session.loading { HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear) }
@@ -69,14 +68,14 @@ struct GofileBrowserView: View {
     .searchable(text: $search, prompt: AppText.text("Find files on this page"))
     .toolbar {
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button(AppText.text("Open website"), forumSymbol: "safari") { session.showWebsite() }
-        Button(AppText.text("Refresh"), forumSymbol: "arrow.clockwise") { session.load() }.disabled(session.loading)
+        Button(AppText.text("Open website"), systemImage: "safari") { session.showWebsite() }
+        Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { session.load() }.disabled(session.loading)
       }
       if let listing = session.listing, listing.pages > 1 {
         ToolbarItemGroup(placement: .bottomBar) {
-          Button(AppText.text("Previous"), forumSymbol: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
+          Button(AppText.text("Previous"), systemImage: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
           Text("\(listing.page) / \(listing.pages)").monospacedDigit()
-          Button(AppText.text("Next"), forumSymbol: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
+          Button(AppText.text("Next"), systemImage: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
         }
       }
     }
@@ -138,7 +137,7 @@ private struct GofileThumbnail: View {
     ZStack {
       RoundedRectangle(cornerRadius: 10).fill(Color(uiColor: .tertiarySystemFill))
       if let image { Image(uiImage: image).resizable().scaledToFill() }
-      else { Image(forumSymbol: entry.symbol, size: 22).font(.title2).foregroundStyle(.blue) }
+      else { Image(systemName: entry.symbol).font(.title2).foregroundStyle(.blue) }
     }.frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 10))
       .task(id: "\(session.revision):\(entry.thumbnail?.absoluteString ?? entry.id)") { image = await session.thumbnail(entry) }
       .accessibilityHidden(true)
@@ -189,7 +188,7 @@ struct GofileModalRoot: View {
   var body: some View {
     NavigationStack {
       GofileBrowserView(url: url).toolbar {
-        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), forumSymbol: "chevron.left", action: close) }
+        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
     }.appFont(.body)
       .environment(\.locale, AppText.locale)

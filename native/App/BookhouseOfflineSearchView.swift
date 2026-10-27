@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct BookhouseOfflineSearchView: View {

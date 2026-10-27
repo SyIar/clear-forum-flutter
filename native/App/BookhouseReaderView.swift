@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct BookhouseReaderView: View {
@@ -66,16 +65,16 @@ struct BookhouseReaderView: View {
       .navigationTitle(AppText.text(page?.kind == .posts ? "Reading" : "Forbidden Library"))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { readerToolbar }
-      .forumSheet(isPresented: $selectingPage) {
+      .sheet(isPresented: $selectingPage) {
         if let page { PageSelector(page: page) { if let target = page.url(forPage: $0) { startLoad(target) } } }
       }
-      .forumSheet(isPresented: $selectingChapter) {
+      .sheet(isPresented: $selectingChapter) {
         if let book {
           BookhouseChapterPicker(book: book, currentChapter: readingWindow.paragraph(id: visibleID)?.chapter ?? book.position?.chapter ?? book.chapters.first?.first ?? 1,
             session: session, select: { openChapter($0, number: $1) }, library: library, selectCached: openCachedMatch)
         }
       }
-      .forumSheet(isPresented: $showingSettings) { ReadingSettingsView() }
+      .sheet(isPresented: $showingSettings) { ReadingSettingsView() }
       .environment(\.readingAppearance, settings.value.normalized)
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
@@ -122,8 +121,8 @@ struct BookhouseReaderView: View {
     VStack(alignment: .leading, spacing: 12) {
       Text(message).foregroundStyle(.secondary)
       HStack {
-        Button(AppText.text("Retry")) { startLoad(failedTarget ?? current, refresh: true, cachedMatch: pendingCachedMatch) }.buttonStyle(.glass)
-        Button(AppText.text("Site browser")) { external = failedTarget ?? current }.buttonStyle(.glass)
+        Button(AppText.text("Retry")) { startLoad(failedTarget ?? current, refresh: true, cachedMatch: pendingCachedMatch) }.buttonStyle(.bordered)
+        Button(AppText.text("Site browser")) { external = failedTarget ?? current }.buttonStyle(.bordered)
       }
     }.padding(.vertical, 20)
   }
@@ -183,25 +182,23 @@ struct BookhouseReaderView: View {
   }
 
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
-      ToolbarItem(placement: .topBarTrailing) {
-        ForumToolbarGroup {
-          Button(action: home) { ForumToolbarIcon("house") }
+      ToolbarItemGroup(placement: .topBarTrailing) {
+          Button(action: home) { Image(systemName: "house") }
             .accessibilityLabel(AppText.text("Home"))
-          Button(action: search) { ForumToolbarIcon("magnifyingglass") }
+          Button(action: search) { Image(systemName: "magnifyingglass") }
             .accessibilityLabel(AppText.text("Search forum"))
-          Button { external = current } label: { ForumToolbarIcon("safari") }
+          Button { external = current } label: { Image(systemName: "safari") }
             .accessibilityLabel(AppText.text("Site browser"))
-        }
-      }.sharedBackgroundVisibility(.hidden)
+      }
       if book != nil {
         ToolbarItem(placement: .bottomBar) {
-          Button { selectingChapter = true } label: { ForumToolbarIcon("page.jump") }
+          Button { selectingChapter = true } label: { Image(systemName: "arrow.left.arrow.right") }
             .accessibilityLabel(AppText.text("Chapters"))
         }
       } else if BookhouseSitePolicy.route(current)?.kind == .search {
         ToolbarItem(placement: .bottomBar) {
           Button { setBottomPanel(bottomPanel == .pages ? nil : .pages) } label: {
-            ForumToolbarIcon(bottomPanel == .pages ? "xmark" : "page.jump").contentTransition(.opacity)
+            Image(systemName: bottomPanel == .pages ? "xmark" : "arrow.left.arrow.right").contentTransition(.opacity)
           }.buttonStyle(.borderless).accessibilityLabel(AppText.text("Choose page"))
             .accessibilityValue(bottomPanel == .pages ? AppText.text("Expanded") : AppText.text("Collapsed"))
         }
@@ -209,7 +206,7 @@ struct BookhouseReaderView: View {
       ToolbarSpacer(.flexible, placement: .bottomBar)
       ToolbarItem(placement: .bottomBar) {
         Button { setBottomPanel(bottomPanel == .actions ? nil : .actions) } label: {
-          ForumToolbarIcon(bottomPanel == .actions ? "xmark" : "slider.horizontal.3").contentTransition(.opacity)
+          Image(systemName: bottomPanel == .actions ? "xmark" : "slider.horizontal.3").contentTransition(.opacity)
         }.buttonStyle(.borderless).accessibilityLabel(AppText.text("Page actions"))
           .accessibilityValue(bottomPanel == .actions ? AppText.text("Expanded") : AppText.text("Collapsed"))
       }
@@ -268,7 +265,7 @@ struct BookhouseReaderView: View {
   @ViewBuilder private func novel(_ page: ForumPage) -> some View {
     if let post = page.posts.first {
       HStack(spacing: 12) {
-        if !post.author.isEmpty { Label(post.author, forumSymbol: "person").forumFont(.caption) }
+        if !post.author.isEmpty { Label(post.author, systemImage: "person").forumFont(.caption) }
         Text(post.date)
       }.appFont(.caption).foregroundStyle(.secondary)
       Divider().padding(.bottom, 6)
@@ -284,7 +281,7 @@ struct BookhouseReaderView: View {
         Text(AppText.text("Replies and continuations")).appFont(.headline)
         if !repliesLoaded {
           Button(AppText.text("Show replies and continuations")) { operation = Task { await loadReplies() } }
-            .buttonStyle(.glass).disabled(repliesLoading || loading)
+            .buttonStyle(.bordered).disabled(repliesLoading || loading)
           if repliesLoading { ProgressView() }
           if let repliesError { Text(repliesError).appFont(.caption).foregroundStyle(.secondary) }
         } else if page.entries.isEmpty {

@@ -86,11 +86,11 @@ struct ReaderView: View {
           Color.clear.frame(height: 1).id("top")
           if let error {
             ContentUnavailableView {
-              Label(AppText.text("Could not load page"), forumSymbol: "wifi.exclamationmark")
+              Label(AppText.text("Could not load page"), systemImage: "wifi.exclamationmark")
             } description: { Text(error) } actions: {
               Button(AppText.text("Retry")) { reload() }.buttonStyle(.borderedProminent)
               Button(AppText.text("Site browser")) { openBrowser(current) }.buttonStyle(.bordered)
-              Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
+              Button(AppText.text("Page diagnostics"), systemImage: "ladybug") { showingDiagnostics = true }
             }
           } else if let page = displayPage {
             let visible = library.document.visibleContent(in: page)
@@ -98,7 +98,7 @@ struct ReaderView: View {
               ScrollView(.horizontal) {
                 HStack(spacing: 6) {
                   ForEach(Array(page.breadcrumbs.enumerated()), id: \.offset) { index, entry in
-                    if index > 0 { Image(forumSymbol: "chevron.right", size: 9).font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
+                    if index > 0 { Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary) }
                     Button(entry.title) { navigate(entry.url) }
                       .forumFont(.caption, weight: .medium).buttonStyle(.plain).foregroundStyle(.blue)
                       .padding(.horizontal, 6).frame(minHeight: 36)
@@ -127,10 +127,10 @@ struct ReaderView: View {
                          openAvatar: session.site == .south ? { openAvatar(post) } : nil,
                          selectText: session.site == .south ? { textSelection = PostTextSelection(text: PostTextExport.text(in: post.blocks)) } : nil).id(post.id)
               }
-              if visible.posts.isEmpty { ForumUnavailableView(AppText.text("No visible replies"), forumSymbol: "person.slash") }
+              if visible.posts.isEmpty { ContentUnavailableView(AppText.text("No visible replies"), systemImage: "person.slash") }
             } else {
               directoryEntries(in: visible)
-              if visible.entries.isEmpty { ForumUnavailableView(page.entries.isEmpty ? AppText.text("No threads yet") : AppText.text("No visible threads"), forumSymbol: "tray") }
+              if visible.entries.isEmpty { ContentUnavailableView(page.entries.isEmpty ? AppText.text("No threads yet") : AppText.text("No visible threads"), systemImage: "tray") }
             }
           } else { ProgressView(AppText.text("Loading page...")).frame(maxWidth: .infinity).padding(.top, 100) }
           if error == nil, page != nil, readingPages.target(.next) != nil {
@@ -182,37 +182,35 @@ struct ReaderView: View {
       .navigationTitle(session.offlineThreadID != nil ? AppText.text("Offline thread") : SouthSitePolicy.topicAuthorID(current) != nil ? AppText.text("Author threads") : page?.kind == .posts ? AppText.text("Thread") : AppText.text("Forums")).navigationBarTitleDisplayMode(.inline)
   }
   @ToolbarContentBuilder private var readerToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-          ForumToolbarGroup {
-            Button(action: home) { ForumToolbarIcon("house") }
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button(action: home) { Image(systemName: "house") }
               .accessibilityLabel(AppText.text("Home"))
             Button {
               library.toggle(current, title: page?.title ?? current.path)
-            } label: { ForumToolbarIcon(library.contains(current) ? "bookmark.fill" : "bookmark") }
+            } label: { Image(systemName: library.contains(current) ? "bookmark.fill" : "bookmark") }
               .accessibilityLabel(AppText.text("Bookmark")).disabled(page == nil || loading)
             Menu {
               if session.site == .south, session.offlineThreadID == nil, let page, page.kind == .posts {
-                Button(AppText.text("Download entire thread"), forumSymbol: "arrow.down.circle") {
+                Button(AppText.text("Download entire thread"), systemImage: "arrow.down.circle") {
                   SouthOfflineStore.shared.download(url: current, title: page.title, session: session)
                   showingDownloads = true
                 }.disabled(loading)
               }
-              ShareLink(item: current) { Label(AppText.text("Share link"), forumSymbol: "square.and.arrow.up") }
-              Button(AppText.text("Site browser"), forumSymbol: "globe") { openBrowser(current) }
+              ShareLink(item: current) { Label(AppText.text("Share link"), systemImage: "square.and.arrow.up") }
+              Button(AppText.text("Site browser"), systemImage: "globe") { openBrowser(current) }
               if session.offlineThreadID == nil {
-                Button(AppText.text("Page diagnostics"), forumSymbol: "ladybug") { showingDiagnostics = true }
-                Button(AppText.text("Sign in"), forumSymbol: "person.crop.circle") { openBrowser(session.site.login) }
-                if session.site == .south { Button(AppText.text("Blocked authors"), forumSymbol: "person.slash") { showingBlockedAuthors = true } }
-                Button(AppText.text("Clear session"), forumSymbol: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
+                Button(AppText.text("Page diagnostics"), systemImage: "ladybug") { showingDiagnostics = true }
+                Button(AppText.text("Sign in"), systemImage: "person.crop.circle") { openBrowser(session.site.login) }
+                if session.site == .south { Button(AppText.text("Blocked authors"), systemImage: "person.slash") { showingBlockedAuthors = true } }
+                Button(AppText.text("Clear session"), systemImage: "person.crop.circle.badge.minus", role: .destructive) { clearSession = true }
               }
-            } label: { ForumToolbarIcon("ellipsis") }
-              .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 44, height: 44)
+            } label: { Image(systemName: "ellipsis") }
+              .menuIndicator(.hidden)
               .accessibilityLabel(AppText.text("Page actions")).disabled(purchasing)
-          }
-        }.sharedBackgroundVisibility(.hidden)
+        }
         ToolbarItem(placement: .bottomBar) {
           Button { setBottomPanel(bottomPanel == .pages ? nil : .pages) } label: {
-            ForumToolbarIcon(bottomPanel == .pages ? "xmark" : "page.jump").contentTransition(.opacity)
+            Image(systemName: bottomPanel == .pages ? "xmark" : "arrow.left.arrow.right").contentTransition(.opacity)
           }.buttonStyle(.borderless).disabled(purchasing)
             .accessibilityLabel(AppText.text("Choose page"))
             .accessibilityValue(bottomPanel == .pages ? AppText.text("Expanded") : AppText.text("Collapsed"))
@@ -220,7 +218,7 @@ struct ReaderView: View {
         ToolbarSpacer(.flexible, placement: .bottomBar)
         ToolbarItem(placement: .bottomBar) {
           Button { setBottomPanel(bottomPanel == .actions ? nil : .actions) } label: {
-            ForumToolbarIcon(bottomPanel == .actions ? "xmark" : "slider.horizontal.3").contentTransition(.opacity)
+            Image(systemName: bottomPanel == .actions ? "xmark" : "slider.horizontal.3").contentTransition(.opacity)
           }.buttonStyle(.borderless).disabled(purchasing)
             .accessibilityLabel(AppText.text("Page actions"))
             .accessibilityValue(bottomPanel == .actions ? AppText.text("Expanded") : AppText.text("Collapsed"))
@@ -228,10 +226,10 @@ struct ReaderView: View {
   }
   private func activeReader(proxy: ScrollViewProxy) -> some View {
     scrollingReader.toolbar { readerToolbar }
-      .forumSheet(isPresented: $selectingPage) {
+      .sheet(isPresented: $selectingPage) {
         if let page = displayPage { PageSelector(page: page) { if let target = page.url(forPage: $0) { go(to: target) } } }
       }
-      .forumSheet(isPresented: $showingPinnedThreads, onDismiss: {
+      .sheet(isPresented: $showingPinnedThreads, onDismiss: {
         guard let target = selectedPinnedThread else { return }
         selectedPinnedThread = nil
         navigate(target)
@@ -307,10 +305,10 @@ struct ReaderView: View {
         // destination's environment scope. Carry the same site objects explicitly.
         ReaderView(initialURL: item.url, library: library, session: session, home: home)
       }
-      .forumSheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
-      .forumSheet(isPresented: $showingDownloads) { SouthDownloadsView(session: session, library: library) }
-      .forumSheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
-      .forumSheet(isPresented: $showingDiagnostics) {
+      .sheet(isPresented: $showingBlockedAuthors) { SouthBlockedAuthorsView(library: library) }
+      .sheet(isPresented: $showingDownloads) { SouthDownloadsView(session: session, library: library) }
+      .sheet(item: $textSelection) { PostTextSelectionSheet(selection: $0) }
+      .sheet(isPresented: $showingDiagnostics) {
         ReaderDiagnosticsView(url: diagnosticURL, context: diagnosticContext, session: session)
       }
       .sheet(item: $imageSheet) { item in
@@ -387,7 +385,7 @@ struct ReaderView: View {
   }
   private func openAvatar(_ post: ForumPost) {
     guard let url = post.avatarOriginal ?? post.avatar else { return }
-    let preview = ForumIcons.image("person.crop.circle").withTintColor(.systemGray, renderingMode: .alwaysOriginal)
+    let preview = (UIImage(systemName: "person.crop.circle") ?? UIImage()).withTintColor(.systemGray, renderingMode: .alwaysOriginal)
     imageSheet = ImageViewerPresentation(source: ImageViewerSource(preview: preview, url: url, loadOriginalOnOpen: true))
   }
   @ViewBuilder private func bottomControls(proxy: ScrollViewProxy) -> some View {
