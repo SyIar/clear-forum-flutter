@@ -5,6 +5,7 @@ public struct LocalFileEntry: Identifiable, Hashable, Sendable {
   public let directory: Bool
   public let bytes: Int64?
   public let modified: Date?
+  public var added: Date? = nil
   public var compactedPath: [String]? = nil
   public var id: [String] { path }
   public var name: String { path.last ?? "" }
@@ -24,9 +25,12 @@ public struct LocalFileCatalog: Sendable {
       !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("/") && !$0.contains("\\") && !$0.contains("\0")
     }) else { throw Failure.unavailable }
     var target = root
-    for part in path {
+    for (index, part) in path.enumerated() {
       target.appendPathComponent(part)
       // Do not follow links that Files or another importer may have placed here.
+      if index == path.count - 1, !FileManager.default.fileExists(atPath: target.path) {
+        target = LocalImageConversion.resolved(target)
+      }
       let values = try target.resourceValues(forKeys: [.isSymbolicLinkKey])
       guard values.isSymbolicLink != true else { throw Failure.unavailable }
     }
@@ -50,10 +54,12 @@ public struct LocalFileCatalog: Sendable {
             values.isDirectory == true || values.isRegularFile == true else { continue }
       let isDirectory = values.isDirectory == true
       entries.append(LocalFileEntry(path: path + [child.lastPathComponent], directory: isDirectory,
-        bytes: isDirectory ? nil : values.fileSize.map(Int64.init), modified: values.contentModificationDate))
+        bytes: isDirectory ? nil : values.fileSize.map(Int64.init), modified: values.contentModificationDate,
+        added: LocalFileMetadata.arrival(at: child)))
     }
     return entries.sorted {
-      if $0.directory != $1.directory { return $0.directory }
+      let left = $0.added ?? .distantPast, right = $1.added ?? .distantPast
+      if left != right { return left > right }
       return $0.name.localizedStandardCompare($1.name) == .orderedAscending
     }
   }

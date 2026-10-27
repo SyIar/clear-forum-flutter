@@ -4,6 +4,8 @@ options:
   deploymentTarget:
     iOS: '26.0'
 packages:
+  ImageCodecSupport:
+    path: ImageCodecSupport
   ArchiveSupport:
     path: ArchiveSupport
   SwiftSoup:
@@ -36,6 +38,7 @@ targets:
       - path: ../ios/Runner/MediaProbe.js
         buildPhase: resources
     dependencies:
+      - package: ImageCodecSupport
       - package: ArchiveSupport
       - package: SwiftSoup
       - target: ForumUI

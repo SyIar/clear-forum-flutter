@@ -50,7 +50,10 @@ final class HostedDownloadManager: ObservableObject {
 @MainActor
 final class HostedBatchDownload: ObservableObject, Identifiable {
   enum Phase: String, Codable { case idle, running, paused, finished, cancelled }
-  struct Saved: Identifiable, Codable { var id = UUID(); let name: String; let url: URL; var entryKey: String? }
+  struct Saved: Identifiable, Codable {
+    var id = UUID(); let name: String; let url: URL; var entryKey: String?
+    var resolvedURL: URL { LocalImageConversion.resolved(url) }
+  }
   struct Skipped: Identifiable, Codable { var id = UUID(); let name: String; let reason: String }
   let id: UUID
   let created: Date
@@ -70,7 +73,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
   }
   var transferID: UUID? { plan?.pending.first?.id }
   func contains(_ entry: HostedFileEntry) -> Bool { saved.contains { $0.entryKey == entry.id } || plan?.pending.contains { $0.entry.id == entry.id } == true }
-  func file(for entry: HostedFileEntry) -> URL? { saved.first { $0.entryKey == entry.id }?.url }
+  func file(for entry: HostedFileEntry) -> URL? { saved.first { $0.entryKey == entry.id }?.resolvedURL }
   func isCurrent(_ entry: HostedFileEntry) -> Bool { plan?.pending.first?.entry.id == entry.id }
   let listing: HostedFileListing
   var sourceKey: String { HostedFilePolicy.key(listing.url) }
@@ -181,6 +184,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
         if let recovered = try FileDownloadStore.recovered(item.id, path: item.path, directory: directory) {
           saved.append(Saved(name: current, url: recovered, entryKey: item.entry.id)); plan?.advance()
           if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
+          LocalImageConversionManager.shared.enqueue(file: recovered)
           GofileFileTransfer.releaseRecovery(item.id); continue
         }
         if item.entry.folder {
@@ -204,6 +208,7 @@ final class HostedBatchDownload: ObservableObject, Identifiable {
           let destination = try FileDownloadStore.install(file, id: item.id, path: item.path, directory: directory)
           saved.append(Saved(name: current, url: destination, entryKey: item.entry.id)); plan?.advance()
           if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
+          LocalImageConversionManager.shared.enqueue(file: destination)
         }
         current = ""; progress = nil; activity = .waiting
         persist?()
@@ -288,13 +293,13 @@ struct HostedBatchView: View {
         Section(AppText.text("Saved files")) {
           ForEach(batch.saved) { file in
             HStack(spacing: 12) {
-              Button { preview = GofileLocalFile(url: file.url) } label: {
+              Button { preview = GofileLocalFile(url: file.resolvedURL) } label: {
                 Label(file.name, systemImage: "doc").appFont(.subheadline).foregroundStyle(.primary).lineLimit(2)
               }.buttonStyle(.plain)
               Spacer(minLength: 0)
-              ShareLink(item: file.url) { Image(systemName: "square.and.arrow.up").frame(width: 44, height: 44) }
+              ShareLink(item: file.resolvedURL) { Image(systemName: "square.and.arrow.up").frame(width: 44, height: 44) }
                 .buttonStyle(.borderless).accessibilityLabel(AppText.text("Share"))
-              Button { export = GofileLocalFile(url: file.url) } label: { Image(systemName: "folder").frame(width: 44, height: 44) }
+              Button { export = GofileLocalFile(url: file.resolvedURL) } label: { Image(systemName: "folder").frame(width: 44, height: 44) }
                 .buttonStyle(.borderless).accessibilityLabel(AppText.text("Save to Files"))
             }
           }

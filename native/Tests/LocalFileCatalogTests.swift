@@ -10,17 +10,22 @@ final class LocalFileCatalogTests: XCTestCase {
     try run(root, LocalFileCatalog(root: root))
   }
 
-  func testListsFoldersFirstWithNaturalNamesAndSizes() throws {
+  func testListsNewestArrivalFirstRegardlessOfModificationDate() throws {
     try fixture { root, catalog in
       try FileManager.default.createDirectory(at: root.appendingPathComponent("Images"), withIntermediateDirectories: true)
       try Data([1, 2, 3]).write(to: root.appendingPathComponent("Video10.mp4"))
       try Data([1]).write(to: root.appendingPathComponent("Video2.mp4"))
       try Data().write(to: root.appendingPathComponent(".private"))
+      try LocalFileMetadata.arrived(root.appendingPathComponent("Images"), at: Date(timeIntervalSince1970: 100))
+      try LocalFileMetadata.arrived(root.appendingPathComponent("Video10.mp4"), at: Date(timeIntervalSince1970: 300))
+      try LocalFileMetadata.arrived(root.appendingPathComponent("Video2.mp4"), at: Date(timeIntervalSince1970: 200))
+      try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1)], ofItemAtPath: root.appendingPathComponent("Video10.mp4").path)
       let entries = try catalog.entries()
-      XCTAssertEqual(entries.map(\.name), ["Images", "Video2.mp4", "Video10.mp4"])
-      XCTAssertNil(entries[0].bytes)
-      XCTAssertEqual(entries[2].bytes, 3)
-      XCTAssertNotNil(entries[2].modified)
+      XCTAssertEqual(entries.map(\.name), ["Video10.mp4", "Video2.mp4", "Images"])
+      XCTAssertNil(entries[2].bytes)
+      XCTAssertEqual(entries[0].bytes, 3)
+      XCTAssertNotNil(entries[0].modified)
+      XCTAssertEqual(LocalGallerySelection(entries: entries, selected: ["Video10.mp4"])?.files.map(\.name), ["Video10.mp4", "Video2.mp4"])
     }
   }
 
@@ -105,10 +110,10 @@ final class LocalFileCatalogTests: XCTestCase {
       try FileManager.default.createSymbolicLink(at: parent.appendingPathComponent("Loop"), withDestinationURL: root)
       try Data([1, 2]).write(to: root.appendingPathComponent("Video.mp4"))
       let rows = try catalog.browserEntries()
-      XCTAssertEqual(rows.first?.destinationPath, ["Outer"])
-      XCTAssertNil(rows.first?.compactedPath)
-      XCTAssertEqual(rows.last?.destinationPath, ["Video.mp4"])
-      XCTAssertEqual(rows.last?.bytes, 2)
+      XCTAssertEqual(rows.first(where: \.directory)?.destinationPath, ["Outer"])
+      XCTAssertNil(rows.first(where: \.directory)?.compactedPath)
+      XCTAssertEqual(rows.first(where: { !$0.directory })?.destinationPath, ["Video.mp4"])
+      XCTAssertEqual(rows.first(where: { !$0.directory })?.bytes, 2)
     }
   }
 }

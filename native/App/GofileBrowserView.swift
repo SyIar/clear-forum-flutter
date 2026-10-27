@@ -50,7 +50,7 @@ struct GofileBrowserView: View {
                 }, unavailable: entry.unavailable)
               } else {
                 Button {
-                  if let file = downloads.download(for: entry)?.savedFiles[entry.id] {
+                  if let file = downloads.download(for: entry)?.localFile(entry.id) {
                     session.preview = GofileLocalFile(url: file)
                   } else { session.open(entry) }
                 } label: { entryLabel(entry) }.buttonStyle(.plain)
@@ -119,7 +119,7 @@ struct GofileBrowserView: View {
   }
   private func downloadButton(_ entry: GofileEntry) -> some View {
     let task = downloads.download(for: entry)
-    let file = task?.savedFiles[entry.id]
+    let file = task?.localFile(entry.id)
     return FileDownloadAction(exists: task != nil, running: task?.running == true && task?.isCurrent(entry) == true,
       completed: file != nil, progress: task?.progress) {
       if let file { session.export = GofileLocalFile(url: file) }

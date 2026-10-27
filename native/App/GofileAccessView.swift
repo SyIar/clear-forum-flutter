@@ -86,7 +86,7 @@ struct GofileBatchView: View {
       if !batch.savedFiles.isEmpty {
         Section(AppText.text("Saved files")) {
           ForEach(batch.savedFiles.keys.sorted(), id: \.self) { key in
-            if let file = batch.savedFiles[key] {
+            if let file = batch.localFile(key) {
               HStack(spacing: 12) {
                 Button { preview = GofileLocalFile(url: file) } label: {
                   Label(file.lastPathComponent, systemImage: "doc").appFont(.subheadline).lineLimit(2)

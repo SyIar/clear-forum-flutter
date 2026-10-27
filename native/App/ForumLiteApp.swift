@@ -33,9 +33,10 @@ struct ForumLiteApp: App {
         }
         .sheet(isPresented: $downloads.showingManager) { DownloadsView(manager: downloads, gofile: gofileDownloads, hosted: hostedDownloads) }
         .onChange(of: scenePhase, initial: true) { _, value in
-          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.pause(); SouthOfflineStore.shared.pause() }
+          if value == .background { downloads.backgrounded(); gofileDownloads.backgrounded(); hostedDownloads.backgrounded(); BookhouseOfflineStore.shared.pause(); SouthOfflineStore.shared.pause(); LocalImageConversionManager.shared.pause() }
           else if value == .active {
             downloads.foregrounded(); gofileDownloads.foregrounded(); hostedDownloads.foregrounded()
+            LocalImageConversionManager.shared.resume()
             if path.contains(where: { $0.site == .south }) { Task { await SouthOfflineStore.shared.resume(session: southSession) } }
           }
         }

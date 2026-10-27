@@ -9,6 +9,8 @@ struct LocalFilesView: View {
   @State private var gallery: LocalGalleryRequest?
   @State private var archive: GofileLocalFile?
   @State private var deletion: LocalFileEntry?
+  @State private var showingConversion = false
+  @ObservedObject private var conversion = LocalImageConversionManager.shared
   @Environment(\.scenePhase) private var scenePhase
 
   init(path: [String] = []) { _store = StateObject(wrappedValue: LocalFilesStore(path: path)) }
@@ -61,6 +63,13 @@ struct LocalFilesView: View {
       .searchable(text: $search, prompt: AppText.text("Find files in this folder"))
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
+          Button {
+            conversion.enqueue(path: store.path)
+            showingConversion = true
+          } label: {
+            if conversion.running { ProgressView() }
+            else { Image(systemName: "photo.badge.arrow.down") }
+          }.accessibilityLabel("PNG to lossless WebP")
           NavigationLink { LocalStorageView(path: store.path) } label: {
             Image(systemName: "chart.bar.xaxis")
           }.accessibilityLabel(AppText.text("Storage analysis"))
@@ -79,6 +88,7 @@ struct LocalFilesView: View {
         }
       .background { LocalGalleryPresenter(request: $gallery).frame(width: 0, height: 0) }
       .navigationDestination(item: $archive) { LocalFilePreview(file: $0.url) }
+      .sheet(isPresented: $showingConversion) { LocalImageConversionView() }
       .modifier(LocalFileDeletion(entry: $deletion, catalog: store.catalog, completed: { Task { await store.reload() } }))
   }
 
@@ -89,7 +99,7 @@ struct LocalFilesView: View {
         Text(entry.displayName).lineLimit(2).foregroundStyle(.primary)
         HStack(spacing: 8) {
           if let bytes = entry.bytes { Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)) }
-          if let date = entry.modified { Text(date, format: .dateTime.year().month().day()) }
+          if let date = entry.added { Text(date, format: .dateTime.year().month().day()) }
         }.appFont(.caption).foregroundStyle(.secondary)
       }.frame(maxWidth: .infinity, alignment: .leading)
       if !entry.directory { Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(.tertiary) }

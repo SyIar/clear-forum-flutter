@@ -26,7 +26,7 @@ struct LocalFileDeletion: ViewModifier {
     do {
       let target = try catalog.url(for: selected.path)
       let downloads = HostedDownloadManager.shared.unfinished.compactMap(\.directory) + GofileDownloadManager.shared.unfinished.compactMap(\.directory)
-      let archives = LocalArchiveManager.shared.activeFiles
+      let archives = LocalArchiveManager.shared.activeFiles + LocalImageConversionManager.shared.activeFiles
       func overlaps(_ other: URL) -> Bool {
         let a = target.standardizedFileURL.resolvingSymlinksInPath().path
         let b = other.standardizedFileURL.resolvingSymlinksInPath().path

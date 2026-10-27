@@ -37,6 +37,7 @@ import UIKit
         let worker = Task.detached(priority: .utility) { try LocalArchiveExtractor.extract(path, in: catalog, progress: progress, password: password) }
         let folder = try await worker.value
         jobs[file]?.folder = folder
+        LocalImageConversionManager.shared.enqueue(path: folder)
         NotificationCenter.default.post(name: FileDownloadStore.didInstallFile, object: nil)
       } catch is CancellationError {
         jobs[file]?.error = AppText.text("Canceled")

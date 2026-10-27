@@ -41,6 +41,7 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
   @Published private(set) var gate: GofileFailure?
   @Published private(set) var directory: URL?
   @Published private(set) var savedFiles: [String: URL] = [:]
+  func localFile(_ id: String) -> URL? { savedFiles[id].map(LocalImageConversion.resolved) }
   private var plan: GofileBatchPlan?
   @Published private var worker: Task<Void, Never>?
   private var unlocked: GofileListing?
@@ -164,6 +165,7 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
         if let recovered = try FileDownloadStore.recovered(item.id, path: item.path, directory: directory) {
           savedFiles[item.entry.id] = recovered; completed += 1; plan?.advance()
           if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
+          LocalImageConversionManager.shared.enqueue(file: recovered)
           GofileFileTransfer.releaseRecovery(item.id); continue
         }
         if item.entry.folder {
@@ -194,6 +196,7 @@ final class GofileBatchDownload: ObservableObject, Identifiable {
           try Task.checkCancellation()
           let destination = try FileDownloadStore.install(file, id: item.id, path: item.path, directory: directory)
           savedFiles[item.entry.id] = destination
+          LocalImageConversionManager.shared.enqueue(file: destination)
           completed += 1; plan?.advance()
           if persist?() == true { FileDownloadStore.acknowledge(item.id) }; FileBackgroundEvents.saved(item.id)
         }

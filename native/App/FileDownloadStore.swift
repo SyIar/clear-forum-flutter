@@ -29,24 +29,33 @@ enum FileDownloadStore {
     guard DownloadQueuePolicy.safePath(path) else { throw ReaderFailure.storage }
     let target = path.reduce(directory) { $0.appendingPathComponent($1) }.standardizedFileURL
     guard target.path.hasPrefix(directory.standardizedFileURL.path + "/") else { throw ReaderFailure.storage }
-    return target
+    return LocalImageConversion.resolved(target)
   }
   struct Receipt: Codable { let path: [String]; let bytes: Int64 }
   static func recovered(_ id: UUID, path: [String], directory: URL) throws -> URL? {
     guard let receipt = try load(Receipt.self, name: id.uuidString + "-receipt"), receipt.path == path else { return nil }
     let target = try destination(path, in: directory)
-    guard FileManager.default.fileExists(atPath: target.path),
-          (try target.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) == receipt.bytes else { return nil }
+    guard FileManager.default.fileExists(atPath: target.path) else { return nil }
+    if target.lastPathComponent == path.last {
+      return (try target.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) == receipt.bytes ? target : nil
+    }
+    guard let metadata = LocalFileMetadata.read(LocalFileMetadata.conversionKey, at: target),
+          let origin = try? JSONDecoder().decode(LocalImageConversion.Origin.self, from: metadata),
+          Int64(origin.bytes) == receipt.bytes,
+          LocalImageConversion.hash(try Data(contentsOf: target)) == origin.outputHash else { return nil }
     return target
   }
   static func install(_ file: URL, id: UUID, path: [String], directory: URL) throws -> URL {
-    let target = try destination(path, in: directory)
+    guard DownloadQueuePolicy.safePath(path) else { throw ReaderFailure.storage }
+    let target = path.reduce(directory) { $0.appendingPathComponent($1) }.standardizedFileURL
+    guard target.path.hasPrefix(directory.standardizedFileURL.path + "/") else { throw ReaderFailure.storage }
     let bytes = Int64(try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
     guard bytes > 0 else { throw ReaderFailure.storage }
     // Write the receipt first so a process exit between move and queue save is recoverable.
     try save(Receipt(path: path, bytes: bytes), name: id.uuidString + "-receipt")
     try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
     try FileManager.default.moveItem(at: file, to: target)
+    try? LocalFileMetadata.arrived(target)
     NotificationCenter.default.post(name: didInstallFile, object: nil)
     return target
   }

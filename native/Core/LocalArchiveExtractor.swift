@@ -72,6 +72,7 @@ enum LocalArchiveExtractor {
         if let date = entry.modified {
           try manager.setAttributes([.modificationDate: date], ofItemAtPath: target.path)
         }
+        try? LocalFileMetadata.arrived(target)
       }
       // Empty encrypted directory entries also have password/authentication data.
       if entry.directory { try consume(archive, encrypted: entry.encrypted, password: password, progress: progress) { _ in } }
