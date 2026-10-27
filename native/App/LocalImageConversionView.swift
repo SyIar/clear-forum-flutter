@@ -22,7 +22,7 @@ import UIKit
 
   private init() {
     do { pending = try FileDownloadStore.load([[String]].self, name: journal) ?? [] }
-    catch { writable = false; error = "Could not restore conversion requests. Original files were kept." }
+    catch { writable = false; self.error = "Could not restore conversion requests. Original files were kept." }
   }
   var activeFiles: [URL] {
     guard running, let root = documents() else { return [] }
@@ -60,7 +60,7 @@ import UIKit
   }
   @discardableResult private func persist() -> Bool {
     do { try FileDownloadStore.save(pending, name: journal); return true }
-    catch { error = "Could not save conversion requests. Original files were kept."; return false }
+    catch { self.error = "Could not save conversion requests. Original files were kept."; return false }
   }
   private func run() async {
     defer {
@@ -99,7 +99,7 @@ import UIKit
           completed += 1
         }
       } catch is CancellationError { return }
-      catch { failed += 1; error = "Some files could not be processed. They were left unchanged." }
+      catch { failed += 1; self.error = "Some files could not be processed. They were left unchanged." }
       guard !Task.isCancelled, pending.first == path else { return }
       pending.removeFirst()
       if !persist() { suspended = true; return }

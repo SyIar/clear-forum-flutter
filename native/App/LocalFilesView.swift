@@ -183,7 +183,7 @@ private struct LocalFileThumbnail: View {
         var thumbnail = result?.uiImage
         if thumbnail == nil, LocalMediaKind.kind(url) == .image {
           let worker = Task.detached(priority: .utility) { () -> CGImage? in
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+            guard let source = CGImageSourceCreateWithURL(LocalImageConversion.resolved(url) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
             return CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
               kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: 104] as CFDictionary)
           }

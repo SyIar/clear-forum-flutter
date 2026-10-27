@@ -78,7 +78,10 @@ final class LocalGalleryImageController: UIViewController, UIScrollViewDelegate 
     let file = file
     decoding = Task { [weak self] in
       let worker = Task.detached(priority: .userInitiated) { () -> UIImage? in
-        guard !Task.isCancelled, let source = CGImageSourceCreateWithURL(file as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+        // A conversion can finish between resolving the PNG and opening it.
+        let source = CGImageSourceCreateWithURL(LocalImageConversion.resolved(file) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+          ?? CGImageSourceCreateWithURL(LocalImageConversion.resolved(file) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+        guard !Task.isCancelled, let source,
               let decoded = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
