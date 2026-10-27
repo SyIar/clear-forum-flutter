@@ -32,9 +32,11 @@ for folder in folders + ['native/Core']:
         for match in re.finditer(r'\b(?:systemName|systemImage|symbol):\s*|\bvar symbol:\s*String\s*\{', source):
             start = match.end()
             block = match.group().endswith('{')
-            depth = 0
+            nesting = []
             quoted = False
             escaped = False
+            literal_start = None
+            include_literal = False
             end = start
             for end in range(start, len(source)):
                 char = source[end]
@@ -45,25 +47,29 @@ for folder in folders + ['native/Core']:
                         escaped = True
                     elif char == '"':
                         quoted = False
+                        value = source[literal_start:end]
+                        if include_literal and re.fullmatch(r'[a-z][a-z0-9.]*', value):
+                            symbols.add(value)
                 elif char == '"':
                     quoted = True
+                    literal_start = end + 1
+                    include_literal = not any(item in '([' for item in nesting)
                 elif char in '({[':
-                    depth += 1
+                    nesting.append(char)
                 elif char in ')}]':
-                    if depth == 0:
+                    if not nesting:
                         break
-                    depth -= 1
-                elif char == ',' and depth == 0 and not block:
+                    nesting.pop()
+                elif char == ',' and not nesting and not block:
                     break
-                elif char == '\n' and depth == 0 and not block:
+                elif char == '\n' and not nesting and not block:
                     break
-            symbols.update(re.findall(r'"([a-z][a-z0-9.]*)"', source[start:end]))
 if sys.platform == 'darwin':
     with tempfile.TemporaryDirectory(prefix='forum-native-symbols-') as directory:
         script = Path(directory) / 'symbols.swift'
         script.write_text('import AppKit\nlet symbols = ' + json.dumps(sorted(symbols)) + '\n'
             'let missing = symbols.filter { NSImage(systemSymbolName: $0, accessibilityDescription: nil) == nil }\n'
-            'precondition(missing.isEmpty, "Missing system symbols: \\(missing)")\n'
+            'guard missing.isEmpty else { print("Missing system symbols: \\(missing)"); exit(1) }\n'
             'print("Validated \\(symbols.count) system symbols against the Apple catalog")\n', encoding='utf-8')
         subprocess.run(['swift', str(script)], check=True)
 else:
