@@ -449,7 +449,8 @@ struct ReaderView: View {
           isVisible, scenePhase == .active, presentation == nil, !purchasing,
           !showingDiagnostics, !selectingPage, media == nil, imageSheet == nil,
           external == nil, destination == nil, gofile == nil, hostedFiles == nil,
-          !showingDownloads, SimpSitePolicy.readable(target),
+          !showingDownloads, !showingBlockedAuthors, !showingPinnedThreads,
+          textSelection == nil, !clearSession, SimpSitePolicy.readable(target),
           verificationAttempts.insert(SitePolicy.pageCacheKey(target)).inserted else { return }
     setBottomPanel(nil)
     cancelAdjacent()
