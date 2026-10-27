@@ -137,7 +137,7 @@ struct ReaderView: View {
           if error == nil, page != nil, readingPages.target(.next) != nil {
             HStack {
               Spacer(minLength: 0)
-              ReaderEdgeIndicator(edge: .next, loading: edgeLoading == .next, failure: edgeFailure) { loadAdjacent(.next) }
+              ReaderEdgeIndicator(edge: .next, loading: edgeLoading == .next, failure: edgeFailure) { retryAdjacent(.next) }
               Spacer(minLength: 0)
             }.frame(minHeight: 44).id("reader-next-page")
           }
@@ -242,7 +242,7 @@ struct ReaderView: View {
       }
       .overlay(alignment: .top) {
         if loading && page != nil { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) }
-        else { ReaderEdgeIndicator(edge: .previous, loading: edgeLoading == .previous, failure: edgeFailure) { loadAdjacent(.previous) } }
+        else { ReaderEdgeIndicator(edge: .previous, loading: edgeLoading == .previous, failure: edgeFailure) { retryAdjacent(.previous) } }
       }
       .task(id: requestID) {
         guard completedRequestID != requestID else { return }
@@ -584,6 +584,10 @@ struct ReaderView: View {
   }
   private var diagnosticURL: URL {
     edgeFailure.flatMap { readingPages.target($0.edge) } ?? current
+  }
+  private func retryAdjacent(_ edge: ReaderEdge) {
+    if let target = readingPages.target(edge) { verificationAttempts.remove(SitePolicy.pageCacheKey(target)) }
+    loadAdjacent(edge)
   }
   private func loadAdjacent(_ edge: ReaderEdge) {
     guard !loading, !purchasing, edgeLoading == nil, let target = readingPages.target(edge) else { return }
