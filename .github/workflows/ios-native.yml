@@ -33,7 +33,17 @@ jobs:
       - run: python3 scripts/check_media_support.py
       - run: xcodegen generate --spec native/project.yml
       - name: Compile native device app
-        run: xcodebuild -project native/ForumLite.xcodeproj -scheme ForumLite -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath native/build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=$((1000 + GITHUB_RUN_NUMBER)) build
+        run: |
+          set -o pipefail
+          xcodebuild -quiet -project native/ForumLite.xcodeproj -scheme ForumLite -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath native/build CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION=$((1000 + GITHUB_RUN_NUMBER)) build 2>&1 | tee native/device-build.log
+      - name: Keep failed device compiler diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ForumLite-device-build-log-${{ github.run_number }}
+          path: native/device-build.log
+          if-no-files-found: ignore
+          retention-days: 7
       - run: python3 scripts/package_native.py
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
