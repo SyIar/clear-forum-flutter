@@ -42,7 +42,7 @@ enum FileDownloadStore {
     guard let metadata = LocalFileMetadata.read(LocalFileMetadata.conversionKey, at: target),
           let origin = try? JSONDecoder().decode(LocalImageConversion.Origin.self, from: metadata),
           Int64(origin.bytes) == receipt.bytes,
-          LocalImageConversion.hash(try Data(contentsOf: target)) == origin.outputHash else { return nil }
+          LocalImageConversion.hash(try LocalImageConversion.read(target, limit: origin.bytes)) == origin.outputHash else { return nil }
     return target
   }
   static func install(_ file: URL, id: UUID, path: [String], directory: URL) throws -> URL {

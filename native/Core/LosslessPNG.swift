@@ -81,10 +81,10 @@ enum LosslessPNG {
     let result = profile.withUnsafeBytes { icc in
       exif.withUnsafeBytes { metadata in
         FLWebPEncode(rgba, Int32(width), Int32(height), icc.bindMemory(to: UInt8.self).baseAddress, profile.count,
-          metadata.bindMemory(to: UInt8.self).baseAddress, exif.count, &size)
+          metadata.bindMemory(to: UInt8.self).baseAddress, exif.count, { Task.isCancelled ? 0 : 1 }, &size)
       }
     }
-    guard let result else { throw Failure.invalid }
+    guard let result else { try Task.checkCancellation(); throw Failure.invalid }
     defer { FLImageFree(result) }
     try Task.checkCancellation()
     let output = Data(bytes: result, count: size)

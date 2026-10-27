@@ -49,6 +49,26 @@ final class LocalImageConversionTests: XCTestCase {
     XCTAssertEqual(CGImageSourceCreateImageAtIndex(decoded, 0, nil)?.width, 64)
   }
 
+  func testEXIFOrientationSurvivesConversion() throws {
+    // Little-endian TIFF with one orientation entry (rotate 90 degrees).
+    let exif = Data([73, 73, 42, 0, 8, 0, 0, 0, 1, 0, 18, 1, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0])
+    let encoded = try LosslessPNG.encode(png(extra: chunk("eXIf", exif)))
+    let decoded = try XCTUnwrap(CGImageSourceCreateWithData(encoded as CFData, nil))
+    let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(decoded, 0, nil) as? [CFString: Any])
+    XCTAssertEqual((properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue, 6)
+  }
+
+  func testNativeEncoderCancellationProducesNoOutput() throws {
+    let pixels = Data(repeating: 127, count: 256 * 256 * 4)
+    var count = 0
+    let result = pixels.withUnsafeBytes {
+      FLWebPEncode($0.bindMemory(to: UInt8.self).baseAddress, 256, 256, nil, 0, nil, 0, { 0 }, &count)
+    }
+    if let result { FLImageFree(result) }
+    XCTAssertNil(result)
+    XCTAssertEqual(count, 0)
+  }
+
   func testReplacementPreservesArrivalAndOldQueuePath() throws {
     try fixture { root, catalog in
       let file = root.appendingPathComponent("image.png")

@@ -15,6 +15,14 @@ enum LocalImageConversion {
   }
   enum Failure: Error { case changed }
   static func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+  static func read(_ file: URL, limit: Int) throws -> Data {
+    guard limit >= 0, limit <= LosslessPNG.maximumBytes else { throw Failure.changed }
+    let handle = try FileHandle(forReadingFrom: file)
+    defer { try? handle.close() }
+    let data = try handle.read(upToCount: limit + 1) ?? Data()
+    guard data.count <= limit else { throw Failure.changed }
+    return data
+  }
 
   /// Resolve old queue/gallery paths only to a file carrying our exact origin tag.
   static func resolved(_ file: URL) -> URL {
@@ -34,7 +42,7 @@ enum LocalImageConversion {
     guard file.pathExtension.lowercased() == "png" else { return nil }
     let values = try file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey, .creationDateKey])
     guard values.isRegularFile == true, let bytes = values.fileSize, bytes > 0, bytes <= LosslessPNG.maximumBytes else { return nil }
-    let data = try Data(contentsOf: file)
+    let data = try read(file, limit: bytes)
     guard data.count == bytes else { throw Failure.changed }
     let digest = hash(data)
     let destination = file.deletingPathExtension().appendingPathExtension("webp")
@@ -42,14 +50,14 @@ enum LocalImageConversion {
     func unchanged() throws {
       try Task.checkCancellation()
       guard try catalog.url(for: path) == file,
-            try hash(Data(contentsOf: file)) == digest else { throw Failure.changed }
+            try hash(read(file, limit: bytes)) == digest else { throw Failure.changed }
     }
     if FileManager.default.fileExists(atPath: destination.path) {
       guard let metadata = LocalFileMetadata.read(LocalFileMetadata.conversionKey, at: destination),
             let origin = try? JSONDecoder().decode(Origin.self, from: metadata),
             origin.name == file.lastPathComponent, origin.hash == digest, origin.bytes == bytes,
             (try? catalog.url(for: Array(path.dropLast()) + [destination.lastPathComponent])) == destination else { return nil }
-      let existing = try Data(contentsOf: destination)
+      let existing = try read(destination, limit: bytes)
       guard existing.count < bytes, hash(existing) == origin.outputHash else { return nil }
       try unchanged()
       try FileManager.default.removeItem(at: file)
@@ -64,7 +72,7 @@ enum LocalImageConversion {
     try output.write(to: staging, options: .withoutOverwriting)
     let handle = try FileHandle(forWritingTo: staging)
     try handle.synchronize(); try handle.close()
-    guard hash(try Data(contentsOf: staging)) == hash(output) else { throw Failure.changed }
+    guard hash(try read(staging, limit: output.count)) == hash(output) else { throw Failure.changed }
     var attributes: [FileAttributeKey: Any] = [:]
     if let date = values.creationDate { attributes[.creationDate] = date }
     if let date = values.contentModificationDate { attributes[.modificationDate] = date }

@@ -45,6 +45,19 @@ final class LocalFileCatalogTests: XCTestCase {
     }
   }
 
+  func testHistoricalFilesUseCreationDateAndEqualDatesUseNaturalNames() throws {
+    try fixture { root, catalog in
+      for name in ["Photo10.png", "Photo2.png"] {
+        let file = root.appendingPathComponent(name)
+        try Data([1]).write(to: file)
+        try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSince1970: 1000)], ofItemAtPath: file.path)
+      }
+      let files = try catalog.entries()
+      XCTAssertEqual(files.map(\.name), ["Photo2.png", "Photo10.png"])
+      XCTAssertEqual(files.first?.added, Date(timeIntervalSince1970: 1000))
+    }
+  }
+
   func testRejectsTraversalAndRemoteRoots() throws {
     try fixture { _, catalog in
       for path in [[".."], ["."], [""], ["sub/file"], ["sub\\file"], ["bad\0file"]] {

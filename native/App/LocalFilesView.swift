@@ -1,4 +1,5 @@
 import Combine
+import ImageIO
 import QuickLookThumbnailing
 import SwiftUI
 import UniformTypeIdentifiers
@@ -178,8 +179,18 @@ private struct LocalFileThumbnail: View {
         let result = try? await withTaskCancellationHandler(operation: {
           try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
         }, onCancel: { QLThumbnailGenerator.shared.cancel(request) })
-        guard !Task.isCancelled, let result else { return }
-        let thumbnail = result.uiImage
+        guard !Task.isCancelled else { return }
+        var thumbnail = result?.uiImage
+        if thumbnail == nil, LocalMediaKind.kind(url) == .image {
+          let worker = Task.detached(priority: .utility) { () -> CGImage? in
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+            return CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+              kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: 104] as CFDictionary)
+          }
+          let decoded = await worker.value
+          if let decoded { thumbnail = UIImage(cgImage: decoded) }
+        }
+        guard !Task.isCancelled, let thumbnail else { return }
         Self.cache.setObject(thumbnail, forKey: key as NSString, cost: 104 * 104 * 4)
         image = thumbnail
       }

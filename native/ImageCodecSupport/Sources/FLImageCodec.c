@@ -78,9 +78,14 @@ finish:
   free(scanlines); return rgba;
 }
 
+static int encodingProgress(int percent, const WebPPicture *picture) {
+  (void)percent;
+  const FLImageContinue *callback = picture->user_data;
+  return !callback || !*callback || (*callback)();
+}
 uint8_t *FLWebPEncode(const uint8_t *rgba, int width, int height,
                      const uint8_t *icc, size_t iccSize, const uint8_t *exif, size_t exifSize,
-                     size_t *outputSize) {
+                     FLImageContinue shouldContinue, size_t *outputSize) {
   *outputSize = 0;
   if (!rgba || !validSize(width, height)) return NULL;
   WebPConfig config;
@@ -92,6 +97,7 @@ uint8_t *FLWebPEncode(const uint8_t *rgba, int width, int height,
   WebPMemoryWriterInit(&writer);
   picture.use_argb = 1; picture.width = width; picture.height = height;
   picture.writer = WebPMemoryWrite; picture.custom_ptr = &writer;
+  picture.progress_hook = encodingProgress; picture.user_data = &shouldContinue;
   WebPMux *mux = NULL;
   WebPData assembled = {0};
   uint8_t *output = NULL, *decoded = NULL;
