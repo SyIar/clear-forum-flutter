@@ -23,6 +23,7 @@ struct ReaderView: View {
   @State private var loadedGeneration = -1
   @State private var selectingPage = false
   @State private var presentation: ReaderPresentation?
+  @State private var verificationAttempts: Set<String> = []
   @State private var media: MediaViewerItem?
   @State private var imageSheet: ImageViewerPresentation?
   @State private var clearSession = false
@@ -325,6 +326,14 @@ struct ReaderView: View {
           presentation = nil
           session.endBrowsing()
           loadedGeneration = session.generation
+          if item.isVerification, captured == nil {
+            loading = false
+            if page == nil { error = AppText.error(ReaderFailure.verification) }
+            else if let edge = [ReaderEdge.previous, .next].first(where: { readingPages.target($0) == item.url }) {
+              edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.error(ReaderFailure.verification))
+            }
+            return
+          }
           if let captured, let address = captured["url"] as? String, let target = URL(string: address),
              session.site.accepts(target), let html = captured["html"] as? String {
             if session.site == .south, captured["hasPurchases"] as? Bool == true || captured["hasPoll"] as? Bool == true {
@@ -336,6 +345,12 @@ struct ReaderView: View {
               requestID = UUID(); completedRequestID = requestID; forceNextLoad = false; loading = false
               loadedGeneration = session.generation
               session.pages.store(parsed)
+              if item.isVerification, page != nil,
+                 let edge = [ReaderEdge.previous, .next].first(where: { readingPages.target($0).map { SitePolicy.pageCacheKey($0) == SitePolicy.pageCacheKey(target) } == true }) {
+                error = nil; edgeFailure = nil; edgeLoading = edge; pendingPage = parsed; scrollPhase = .idle
+                applyAdjacentPage()
+                return
+              }
               page = parsed; readingPages.reset(parsed); url = target; error = nil
               library.remember(parsed, session: session)
               proxy.scrollTo("top", anchor: .top)
@@ -429,7 +444,23 @@ struct ReaderView: View {
     session.beginBrowsing()
     presentation = .browser(target)
   }
-  private func reload() { guard !purchasing else { return }; setBottomPanel(nil); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
+  private func recoverVerification(_ failure: Error, for target: URL) {
+    guard failure as? ReaderFailure == .verification, session.site == .simp,
+          isVisible, scenePhase == .active, presentation == nil, !purchasing,
+          !showingDiagnostics, !selectingPage, media == nil, imageSheet == nil,
+          external == nil, destination == nil, gofile == nil, hostedFiles == nil,
+          !showingDownloads, SimpSitePolicy.readable(target),
+          verificationAttempts.insert(SitePolicy.pageCacheKey(target)).inserted else { return }
+    setBottomPanel(nil)
+    cancelAdjacent()
+    presentation = .verification(target)
+    session.beginBrowsing()
+    // Retain visible pages while WebKit verifies an adjacent page. The normal
+    // generation invalidation must not throw away the current scroll window.
+    loadedGeneration = session.generation
+    loading = false
+  }
+  private func reload() { guard !purchasing else { return }; verificationAttempts.remove(SitePolicy.pageCacheKey(current)); setBottomPanel(nil); savePosition(); cancelAdjacent(); forceNextLoad = true; requestID = UUID() }
   private func go(to target: URL, returnAnchor: String? = nil) {
     guard !purchasing, session.site.accepts(target), returnAnchor != nil || SitePolicy.pageCacheKey(target) != SitePolicy.pageCacheKey(current) else { return }
     pendingReturnAnchor = returnAnchor
@@ -439,6 +470,7 @@ struct ReaderView: View {
     cancelAdjacent()
     forceNextLoad = false
     url = target
+    verificationAttempts.remove(SitePolicy.pageCacheKey(target))
     requestID = UUID()
   }
   private func navigate(_ url: URL) {
@@ -527,6 +559,7 @@ struct ReaderView: View {
     } catch {
       guard !Task.isCancelled, requestID == expected, epoch == session.generation else { return nil }
       self.error = AppText.error(error)
+      recoverVerification(error, for: current)
     }
     return nil
   }
@@ -581,6 +614,7 @@ struct ReaderView: View {
         guard !Task.isCancelled, token == edgeRequestID, expected == requestID, epoch == session.generation else { return }
         edgeFailure = ReaderEdgeFailure(edge: edge, message: AppText.error(error))
         lastEdgeEvent = "Failed \(edge): \(AppText.error(error))"
+        recoverVerification(error, for: target)
       }
     }
   }
@@ -650,8 +684,16 @@ struct ReaderView: View {
 
 enum ReaderPresentation: Identifiable {
   case browser(URL)
+  case verification(URL)
+  var url: URL {
+    switch self { case .browser(let url), .verification(let url): return url }
+  }
+  var isVerification: Bool {
+    if case .verification = self { return true }
+    return false
+  }
   var id: String {
-    switch self { case .browser(let url): return "browser:" + url.absoluteString }
+    (isVerification ? "verification:" : "browser:") + url.absoluteString
   }
 }
 struct ReaderController: UIViewControllerRepresentable {
@@ -659,10 +701,8 @@ struct ReaderController: UIViewControllerRepresentable {
   let session: ForumSession
   let completion: ([String: Any]?) -> Void
   func makeUIViewController(context: Context) -> UINavigationController {
-    switch presentation {
-    case .browser(let url):
-      return UINavigationController(rootViewController: ForumBrowserController(url: url, session: session, completion: completion))
-    }
+    UINavigationController(rootViewController: ForumBrowserController(url: presentation.url, session: session,
+      automaticallyReads: presentation.isVerification, completion: completion))
   }
   func updateUIViewController(_ controller: UINavigationController, context: Context) {}
 }
