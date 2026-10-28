@@ -1,16 +1,5 @@
 import SwiftUI
 
-struct LibraryCheckProgress {
-  var running = false
-  var total = 0
-  var completed = 0
-  var updated = 0
-  var failed = 0
-  var finishedAt: Date?
-  var skippedFresh = false
-  var currentTitle: String?
-}
-
 struct LibraryUpdateFailure: Identifiable {
   let id: String
   let title: String
@@ -26,7 +15,12 @@ extension LibraryStore {
       document.following.first { refreshingAuthors.contains($0.id) }?.name
   }
   var updateFailures: [LibraryUpdateFailure] {
-    document.readingBooks.compactMap { book in
+    let threads = checkProgress.threadFailures.keys.sorted().map { key in
+      let page = (document.bookmarks + document.recent).first { SitePolicy.threadKey($0.url) == key }
+      return LibraryUpdateFailure(id: key, title: page?.title ?? key,
+        message: checkProgress.threadFailures[key]?.localizedDescription ?? "")
+    }
+    return threads + document.readingBooks.compactMap { book in
       bookErrors[book.id].map { LibraryUpdateFailure(id: book.id, title: book.title, message: $0) }
     } + document.following.compactMap { author in
       authorErrors[author.id].map { LibraryUpdateFailure(id: author.id, title: author.name, message: $0) }

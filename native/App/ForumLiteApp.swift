@@ -176,8 +176,17 @@ final class LibraryStore: ObservableObject {
       }
     }
     guard site.supportsThreadUpdates, checkMaximum, ready, page.kind == .posts, let key = SitePolicy.threadKey(page.url) else { return }
+    visitTasks[key]?.cancel()
+    visitTasks[key] = nil
+    let token = UUID()
+    visitTokens[key] = token
+    checkProgress.supersedeThread(key)
     let state = document.threads[key]
-    if !LibraryRefreshPolicy.isDue(checkedAt: state?.checkedAt, attemptedAt: state?.attemptedAt, manual: false) {
+    let hasMaximum = page.maximumPostNumber.map { $0 >= 0 } == true && SouthSitePolicy.authorID(page.url) == nil &&
+      URLComponents(url: page.url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "order" }) != true
+    // An already loaded live page is not another scheduled update request.
+    // Failed attempts must not suppress recording its successful response.
+    if !hasMaximum, !LibraryRefreshPolicy.isDue(checkedAt: state?.checkedAt, attemptedAt: nil, manual: false) {
       if let maximum = state?.latestMaximum {
         // Opening a cached update marks that snapshot read without extending its freshness.
         change { $0.threads[key, default: ThreadReadState()].seenMaximum = maximum }
@@ -185,26 +194,30 @@ final class LibraryStore: ObservableObject {
       return
     }
     change { $0.threads[key, default: ThreadReadState()].attemptedAt = Date() }
-    visitTasks[key]?.cancel()
-    let token = UUID()
-    visitTokens[key] = token
     visitTasks[key] = Task { [weak self] in
       do {
         let latest = try await session.latestThreadPage(from: page)
         guard let maximum = latest.maximumPostNumber else { throw ReaderFailure.unsupported }
         guard let self, !Task.isCancelled, self.visitTokens[key] == token else { return }
+        let checkedAt = Date()
         self.change {
           $0.recordLatestPage(latest)
-          $0.threads[key, default: ThreadReadState()].opened(maximum: maximum)
+          $0.threads[key, default: ThreadReadState()].opened(maximum: maximum, at: checkedAt)
         }
+        guard self.document.threads[key]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
+        self.resolveThreadFailure(key)
         self.threadRefreshPhases[key] = .checked
         self.visitTasks[key] = nil
       } catch {
         guard let self, self.visitTokens[key] == token else { return }
         self.visitTasks[key] = nil
-        if !Task.isCancelled { self.refreshMessage = AppText.text("Could not record this thread's latest post number. Reopen it to try again.") }
+        if !Task.isCancelled, !(error is CancellationError) { self.refreshMessage = AppText.text("Could not record this thread's latest post number. Reopen it to try again.") }
       }
     }
+  }
+  private func resolveThreadFailure(_ key: String) {
+    checkProgress.resolveThread(key)
+    if checkProgress.failed == 0, !refreshing, authorErrors.isEmpty { refreshMessage = nil }
   }
   func recordVisiblePosts(_ ids: Set<String>, in page: ForumPage) {
     guard ready else { return }
@@ -233,7 +246,6 @@ final class LibraryStore: ObservableObject {
     checkProgress = LibraryCheckProgress(running: true, total: targets.count + authors.count)
     defer { refreshing = false; checkProgress.running = false; checkProgress.currentTitle = nil; checkProgress.finishedAt = Date() }
     var checked = 0
-    var failed = 0
     for (index, url) in targets.enumerated() {
       defer { checkProgress.completed += 1 }
       if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
@@ -244,6 +256,7 @@ final class LibraryStore: ObservableObject {
       let state = document.threads[key]
       guard LibraryRefreshPolicy.isDue(checkedAt: state?.checkedAt, attemptedAt: state?.attemptedAt, manual: manual) else { continue }
       change { $0.threads[key, default: ThreadReadState()].attemptedAt = Date() }
+      let attempt = checkProgress.beginThread(key)
       threadRefreshPhases[key] = .checking
       checkProgress.currentTitle = (document.bookmarks + document.recent).first { SitePolicy.threadKey($0.url) == key }?.title
       defer { if threadRefreshPhases[key] == .checking { threadRefreshPhases.removeValue(forKey: key) } }
@@ -265,18 +278,21 @@ final class LibraryStore: ObservableObject {
           $0.threads[key, default: ThreadReadState()].checked(maximum: maximum, at: checkedAt)
         }
         guard document.threads[key]?.checkedAt == checkedAt else { throw ReaderFailure.storage }
+        resolveThreadFailure(key)
         threadRefreshPhases[key] = previousMaximum.map { maximum > $0 } == true ? .updated : .checked
         if threadRefreshPhases[key] == .updated { checkProgress.updated += 1 }
         checked += 1
       } catch {
-        if Task.isCancelled { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
+        if Task.isCancelled || error is CancellationError { refreshMessage = AppText.text("Refresh paused. Existing records are kept."); return }
+        // A late failure cannot overwrite a successful live read or a newer visit.
+        guard visitTokens[key] == token, visitTasks[key] == nil,
+              checkProgress.failThread(key, attempt: attempt, reason: error as? ReaderFailure ?? .network) else { continue }
         threadRefreshPhases[key] = .failed
-        checkProgress.failed += 1
         if let failure = error as? ReaderFailure, [.login, .verification, .rateLimit].contains(failure) {
-          refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
+          // The failed thread and its reason are shown together in update details.
+          refreshMessage = nil
           return
         }
-        failed += 1
       }
     }
     var authorsChecked = 0
@@ -287,7 +303,6 @@ final class LibraryStore: ObservableObject {
       checkProgress.currentTitle = author.name
       if let failure = await refreshAuthor(author.id, session: session, manual: manual) {
         checkProgress.failed += 1
-        failed += 1
         if [.login, .verification, .rateLimit].contains(failure) {
           refreshMessage = failure.localizedDescription + AppText.text(" Existing records are kept.")
           return
@@ -295,7 +310,7 @@ final class LibraryStore: ObservableObject {
       } else { authorsChecked += 1; if authorRefreshPhases[author.id] == .updated { checkProgress.updated += 1 } }
     }
     let summary = authorsChecked == 0 ? AppText.format("Checked %@ threads.", String(describing: checked)) : AppText.format("Checked %@ threads and %@ followed authors.", String(describing: checked), String(describing: authorsChecked))
-    refreshMessage = failed == 0 ? nil : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: failed))
+    refreshMessage = checkProgress.failed == 0 ? nil : summary + AppText.format(" %@ could not be checked; previous records are kept.", String(describing: checkProgress.failed))
   }
   func follow(_ post: ForumPost, session: ForumSession) {
     guard session.site == site, site == .south, let id = post.authorID else { return }
