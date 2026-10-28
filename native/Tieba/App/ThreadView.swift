@@ -73,9 +73,9 @@ struct ThreadView: View {
           ToolbarItemGroup(placement: .topBarTrailing) {
             if !reader { Button(tr("reply"), systemImage: "square.and.pencil") { app.requireLogin { reply = ReplyContext(thread: id, forum: result.forum ?? Forum()) } }.disabled(result.forum == nil) }
             Menu {
-              Toggle(tr("onlyAuthor"), isOn: $onlyAuthor)
-              Toggle(tr("newestFirst"), isOn: $reverse)
-              Toggle(tr("readerMode"), isOn: $reader)
+              Toggle(isOn: $onlyAuthor) { Label(tr("onlyAuthor"), systemImage: "person.fill") }
+              Toggle(isOn: $reverse) { Label(tr("newestFirst"), systemImage: "arrow.up.arrow.down") }
+              Toggle(isOn: $reader) { Label(tr("readerMode"), systemImage: "book") }
               Button(tr(saved ? "unsavePost" : "savePost"), systemImage: saved ? "bookmark.slash" : "bookmark") { perform { try await app.api.bookmark(thread: id, post: visiblePost, remove: saved); saved.toggle() } }
               Button(tr("jumpPage"), systemImage: "number") { jumpValue = String(page); jump = true }
               Button(tr("backToTop"), systemImage: "arrow.up") { rememberReturn(); withAnimation { proxy.scrollTo("top") } }

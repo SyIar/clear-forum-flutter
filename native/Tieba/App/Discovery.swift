@@ -75,7 +75,16 @@ struct SearchView: View {
       .onChange(of: kind) { _, _ in if !submitted.isEmpty { page = 1; request = UUID() } }
       .onChange(of: sort) { _, _ in page = 1; request = UUID() }
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) { if kind == "threads" { Menu { Picker(tr("sort"), selection: $sort) { Text(tr("relevance")).tag(0); Text(tr("latestPost")).tag(1) } } label: { Image(systemName: "line.3.horizontal.decrease") } } }
+        ToolbarItem(placement: .topBarTrailing) {
+          if kind == "threads" {
+            Menu {
+              Picker(tr("sort"), selection: $sort) {
+                Label(tr("relevance"), systemImage: "text.magnifyingglass").tag(0)
+                Label(tr("latestPost"), systemImage: "clock").tag(1)
+              }
+            } label: { Image(systemName: "line.3.horizontal.decrease") }
+          }
+        }
         Pagination(page: page, more: threads.hasMore && kind == "threads", loading: loading, previous: { page -= 1; request = UUID() }, refresh: { request = UUID() }, next: { page += 1; request = UUID() })
       }
   }

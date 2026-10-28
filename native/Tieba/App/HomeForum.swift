@@ -2,6 +2,7 @@ import ForumUI
 import SwiftUI
 
 struct HomeView: View {
+  let openForum: (String) -> Void
   @EnvironmentObject private var app: AppState
   @EnvironmentObject private var settings: Preferences
   @State private var loading = false
@@ -25,7 +26,7 @@ struct HomeView: View {
           NavigationLink(value: Route.search("")) { Image(systemName: "magnifyingglass") }
           Menu {
             Button(tr("openForum"), systemImage: "plus") { open = true }
-            Button(tr(settings.flag("listSingle") ? "gridView" : "listView"), systemImage: "square.grid.2x2") { settings.set("listSingle", !settings.flag("listSingle")) }
+            Button(tr(settings.flag("listSingle") ? "gridView" : "listView"), systemImage: settings.flag("listSingle") ? "square.grid.2x2" : "list.bullet") { settings.set("listSingle", !settings.flag("listSingle")) }
             Button(tr("signAll"), systemImage: "checkmark.circle") { app.requireLogin { checkIn = true } }.disabled(app.signing)
           } label: { Image(systemName: "ellipsis") }
         }
@@ -43,13 +44,15 @@ struct HomeView: View {
     let visible = values.filter { !app.library.blocked(forum: $0.name) }
     if settings.flag("listSingle") { ForEach(visible, id: \.name) { ForumRow(forum: $0) } }
     else { LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 14) { ForEach(visible, id: \.name) { forum in
-      NavigationLink(value: Route.forum(forum.name)) {
+      // List decorates embedded navigation links with row disclosure indicators.
+      // Push through the owning stack so grid tiles stay plain and back tracking works.
+      Button { openForum(forum.name) } label: {
         VStack(spacing: 7) {
           AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(systemName: "bubble.left.and.bubble.right.fill").appFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
           Text(forum.name).tiebaFont(.subheadline).lineLimit(1)
           if forum.following { Text(tr(forum.signed ? "checkedIn" : "notCheckedIn")).appFont(.caption2).foregroundStyle(.secondary) }
-        }.frame(maxWidth: .infinity).padding(.vertical, 7)
-      }.buttonStyle(.plain).contextMenu { Button(tr("pin")) { app.updateLibrary { $0.togglePin(forum) } } }
+        }.frame(maxWidth: .infinity).padding(.vertical, 7).contentShape(Rectangle())
+      }.buttonStyle(.plain).contextMenu { Button(tr("pin"), systemImage: "pin") { app.updateLibrary { $0.togglePin(forum) } } }
     } } }
   }
   private func load() async { loading = true; error = nil; defer { loading = false }; do { try await app.refreshForums() } catch { self.error = error.localizedDescription } }
@@ -138,8 +141,11 @@ struct ForumView: View {
             Menu {
               NavigationLink(value: Route.search(name)) { Label(tr("searchInForum"), systemImage: "magnifyingglass") }
               NavigationLink(value: Route.info(feed.forum?.id ?? "", name)) { Label(tr("forumInfo"), systemImage: "info.circle") }
-              Picker(tr("sort"), selection: $sort) { Text(tr("latestReply")).tag(0); Text(tr("latestPost")).tag(1) }
-              Toggle(tr("digest"), isOn: $digest)
+              Picker(tr("sort"), selection: $sort) {
+                Label(tr("latestReply"), systemImage: "bubble.left.and.bubble.right").tag(0)
+                Label(tr("latestPost"), systemImage: "clock").tag(1)
+              }
+              Toggle(isOn: $digest) { Label(tr("digest"), systemImage: "star") }
               Button(tr("pin"), systemImage: "pin") { if let forum = feed.forum { app.updateLibrary { $0.togglePin(forum) } } }
               Button(tr("backToTop"), systemImage: "arrow.up") { withAnimation { proxy.scrollTo("top", anchor: .top) } }
             } label: { Image(systemName: "ellipsis") }

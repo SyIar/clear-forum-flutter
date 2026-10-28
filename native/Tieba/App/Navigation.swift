@@ -45,7 +45,9 @@ struct AppRoot: View {
     Group {
       if app.ready {
         TabView(selection: $selectedTab) {
-          navigation(tab: 0) { HomeView() }.tabItem { Label(tr("home"), systemImage: "house") }.tag(0)
+          navigation(tab: 0) {
+            HomeView { name in paths[0, default: []].append(.forum(name)) }
+          }.tabItem { Label(tr("home"), systemImage: "house") }.tag(0)
           if !settings.flag("hideExplore") { navigation(tab: 1) { ExploreView() }.tabItem { Label(tr("explore"), systemImage: "safari") }.tag(1) }
           navigation(tab: 2) { InboxView() }.tabItem { Label(tr("notifications"), systemImage: "bell") }.tag(2)
           navigation(tab: 3) { MeView() }.tabItem { Label(tr("me"), systemImage: "person.crop.circle") }.tag(3)
