@@ -245,10 +245,13 @@ struct ReaderView: View {
         else { ReaderEdgeIndicator(edge: .previous, loading: edgeLoading == .previous, failure: edgeFailure) { retryAdjacent(.previous) } }
       }
       .task(id: requestID) {
-        guard completedRequestID != requestID else { return }
+        let refreshOnEntry = session.site == .south && session.offlineThreadID == nil
+        guard completedRequestID != requestID || refreshOnEntry else { return }
         let expected = requestID
-        let force = forceNextLoad
+        let restorePosition = forceNextLoad || completedRequestID == requestID
+        let force = forceNextLoad || refreshOnEntry
         let previousID = visibleID
+        if refreshOnEntry { cancelAdjacent() }
         _ = await load(force: force)
         guard !Task.isCancelled, expected == requestID else { return }
         forceNextLoad = false
@@ -256,7 +259,7 @@ struct ReaderView: View {
         guard error == nil else { return }
         // A fresh entry starts at its title. Only an explicit fragment or a
         // refresh has a requested anchor; cached visibility must not skip it.
-        let anchor = pendingReturnAnchor ?? (force ? previousID ?? "top" : current.fragment ?? "top")
+        let anchor = pendingReturnAnchor ?? (restorePosition ? previousID ?? "top" : current.fragment ?? "top")
         if pendingReturnAnchor != nil { pendingReturnAnchor = nil; returnPoint = nil }
         let visible = page.map { library.document.visibleContent(in: $0) }
         if let first = pinnedThreads.first, anchor == "south-pinned-more" || pinnedThreads.contains(where: { $0.id == anchor }) {
@@ -274,7 +277,9 @@ struct ReaderView: View {
       .overlay(alignment: .bottom) { bottomControls(proxy: proxy) }
       .onAppear {
         isVisible = true
-        if page == nil { completedRequestID = nil; requestID = UUID() }
+        if page == nil, session.site != .south || session.offlineThreadID != nil {
+          completedRequestID = nil; requestID = UUID()
+        }
       }
       .onDisappear { bottomPanel = nil; purchaseTask?.cancel(); cancelAdjacent(); savePosition(); isVisible = false }
       .onChange(of: purchasing) { _, value in if value { setBottomPanel(nil) } }

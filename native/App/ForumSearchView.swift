@@ -112,6 +112,9 @@ struct ForumSearchView: View {
         Button { openBrowser() } label: { Image(systemName: "safari") }.accessibilityLabel(AppText.text("Open forum search in Site browser"))
       }
     }
+    .task {
+      if session.site == .south || session.site == .bookhouse, let page { load(page.url) }
+    }
     .onDisappear { cancel() }
     .fullScreenCover(item: $browser) { item in
       ReaderController(presentation: item, session: session) { captured in

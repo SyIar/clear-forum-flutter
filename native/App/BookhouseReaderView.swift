@@ -78,7 +78,13 @@ struct BookhouseReaderView: View {
       .environment(\.readingAppearance, settings.value.normalized)
       .background { ExternalBrowserPresenter(url: $external) }
       .sheet(item: $image) { ImageViewerSheet(source: $0.source).environmentObject(session) }
-      .task { if page == nil { pendingCachedMatch = initialCachedMatch; await load(initialURL) } }
+      .task {
+        let anchor = page == nil ? nil : visibleID
+        if page == nil { pendingCachedMatch = initialCachedMatch }
+        savePosition()
+        cancelAdjacent()
+        await load(current, refresh: initialCachedMatch == nil, entryRefresh: true, preserving: anchor)
+      }
       .onAppear { readerVisible = true; if let book { offline.resume(book, session: session) }; prefetchNextChapter() }
       .onDisappear {
         readerVisible = false
@@ -332,12 +338,12 @@ struct BookhouseReaderView: View {
     operation?.cancel()
     operation = Task { await load(url, refresh: refresh) }
   }
-  @MainActor private func load(_ url: URL, refresh: Bool = false) async {
+  @MainActor private func load(_ url: URL, refresh: Bool = false, entryRefresh: Bool = false, preserving anchor: String? = nil) async {
     let token = UUID(); requestID = token
     loading = true; error = nil; failedTarget = nil
     defer { if requestID == token { loading = false } }
     do {
-      let snapshot = refresh ? nil : session.pages.value(for: url)
+      let snapshot = refresh && !entryRefresh ? nil : session.pages.value(for: url)
       let loaded: ForumPage
       if let match = pendingCachedMatch {
         guard let book, book.id == match.bookID, let cached = await offline.page(url, book: book) else {
@@ -345,9 +351,21 @@ struct BookhouseReaderView: View {
         }
         loaded = cached; session.pages.store(cached)
       }
-      else if let snapshot { loaded = snapshot.page }
+      else if !refresh, let snapshot { loaded = snapshot.page }
       else if !refresh, let book, let saved = await offline.page(url, book: book) { loaded = saved; session.pages.store(saved) }
-      else { loaded = try await session.load(url, cacheResult: true) }
+      else {
+        do {
+          loaded = try await session.load(url, cacheResult: true)
+          if let key = BookhouseSitePolicy.threadKey(url) { capturedReadPages.remove(key) }
+        } catch {
+          // Entry refreshes must not remove offline reading when connectivity fails.
+          // Authentication, verification and parsing failures still remain visible.
+          guard entryRefresh, !Task.isCancelled, !(error is CancellationError),
+                (error as? ReaderFailure) == .network || ((error as? URLError).map { $0.code != .cancelled } ?? false),
+                let book, let saved = await offline.page(url, book: book) else { throw error }
+          loaded = saved; session.pages.store(saved)
+        }
+      }
       guard !Task.isCancelled, requestID == token else { return }
       if let book, !book.accepts(loaded) { throw BookhouseFollowingFailure.author }
       page = loaded
@@ -374,6 +392,7 @@ struct BookhouseReaderView: View {
         pendingChapter = nil
         pendingCachedMatch = nil
       }
+      if let anchor { visibleID = anchor }
       if let anchor = pendingReturnAnchor { visibleID = anchor; pendingReturnAnchor = nil; returnPoint = nil }
       latestVisibleIDs = []
       scheduleRestore(visibleID)

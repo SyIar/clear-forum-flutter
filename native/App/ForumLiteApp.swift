@@ -494,7 +494,7 @@ struct HomeView: View {
       }
       .modifier(LibraryUpdateRefresh(library: library, session: session))
       .task {
-        guard session.site.supportsThreadUpdates, !checkedUpdatesOnLaunch else { return }
+        guard session.site.supportsThreadUpdates, session.site != .simp || !checkedUpdatesOnLaunch else { return }
         checkedUpdatesOnLaunch = true
         await library.refresh(session: session, manual: false)
       }
