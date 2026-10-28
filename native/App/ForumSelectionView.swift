@@ -5,7 +5,6 @@ struct ForumSelectionView: View {
   let openDownloader: () -> Void
   @EnvironmentObject private var wallpaper: DailyWallpaperStore
   @Environment(\.scenePhase) private var scenePhase
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var external: URL?
 
   var body: some View {
@@ -48,7 +47,9 @@ struct ForumSelectionView: View {
       }.frame(maxWidth: 520).padding(.horizontal, 20).padding(.top, 28).padding(.bottom, 20)
         .frame(maxWidth: .infinity)
     }.scrollIndicators(.hidden)
-      .background { backdrop.ignoresSafeArea() }
+      .background { ForumSelectionBackdrop().ignoresSafeArea() }
+      // The moving page must not expose a default white navigation surface.
+      .containerBackground(.clear, for: .navigation)
       .toolbar(.hidden, for: .navigationBar)
       .background { ExternalBrowserPresenter(url: $external) }
       .task(id: scenePhase) {
@@ -63,7 +64,14 @@ struct ForumSelectionView: View {
       .padding(.horizontal, 20).padding(.vertical, 12).frame(maxWidth: .infinity)
   }
 
-  private var backdrop: some View {
+}
+
+// Also rendered behind the navigation host, outside its animated page bounds.
+struct ForumSelectionBackdrop: View {
+  @EnvironmentObject private var wallpaper: DailyWallpaperStore
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
     GeometryReader { geometry in
       ZStack {
         LinearGradient(colors: [Color(red: 0.09, green: 0.2, blue: 0.32),

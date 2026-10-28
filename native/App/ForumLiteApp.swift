@@ -26,6 +26,9 @@ struct ForumLiteApp: App {
         root: forumNavigation.environment(\.locale, AppText.locale),
         module: TiebaModuleView(session: tieba) { showingTieba = false }.environment(\.locale, AppText.locale))
         .ignoresSafeArea()
+        .background {
+          ForumSelectionBackdrop().environmentObject(wallpaper).ignoresSafeArea()
+        }
         .environment(\.locale, AppText.locale)
         .background { GofileDownloadSurfaces(manager: gofileDownloads) }
         .overlay(alignment: .trailing) {

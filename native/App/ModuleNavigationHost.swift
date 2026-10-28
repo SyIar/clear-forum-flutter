@@ -16,6 +16,8 @@ struct ModuleNavigationHost<Root: View, Module: View>: UIViewControllerRepresent
     navigation.setNavigationBarHidden(true, animated: false)
     navigation.delegate = coordinator
     navigation.loadViewIfNeeded()
+    // Keep the stationary wallpaper visible beyond interactive transition corners.
+    navigation.view.backgroundColor = .clear
     navigation.interactivePopGestureRecognizer?.delegate = coordinator
     // Leave content-area gestures to the selected module's navigation stack.
     navigation.interactiveContentPopGestureRecognizer?.isEnabled = false
@@ -41,11 +43,13 @@ struct ModuleNavigationHost<Root: View, Module: View>: UIViewControllerRepresent
       self.owner = owner
       root = UIHostingController(rootView: owner.root)
       super.init()
+      root.view.backgroundColor = .clear
     }
     func synchronize() {
       guard let navigation, !transitioning, navigation.transitionCoordinator == nil else { return }
       if owner.isPresented, module == nil {
         let controller = UIHostingController(rootView: owner.module)
+        controller.view.backgroundColor = .clear
         module = controller
         navigation.pushViewController(controller, animated: !UIAccessibility.isReduceMotionEnabled)
       } else if !owner.isPresented, module != nil {
