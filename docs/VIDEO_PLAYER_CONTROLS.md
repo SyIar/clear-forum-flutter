@@ -1,5 +1,47 @@
 # Video player controls
 
+## Gallery gestures (2026-10-10)
+
+Forum image sheets use horizontal native paging instead of left/right arrow
+buttons. Paging commits the title and share target together, and a cancelled
+swipe keeps the original selection. A zoomed image keeps horizontal dragging
+until it is zoomed out; downward sheet resizing/dismissal remains native.
+Only the selected image and immediate neighbors stay in the controller cache;
+neighbors retain previews and release full-resolution images and transfers.
+Previous/next accessibility actions remain available without visible arrows.
+
+In the local video gallery, tapping the canvas toggles the header, fullscreen
+button, play button, time, and progress slider together. Hidden controls neither
+intercept touches nor remain in the accessibility tree. Tapping again restores
+them without pausing or seeking. The slider still owns scrubbing exclusively;
+horizontal file paging and downward dismissal continue to use canvas drags.
+VoiceOver can activate the video canvas to restore controls. Remote videos
+continue using AVKit's existing transport controls.
+
+Device acceptance: swipe both ways and cancel a partial swipe; test the first,
+last, and single-image cases, a slow image load, zoom/pan and sharing after a
+swipe; hide/reveal video controls while playing and paused; scrub, then change
+files or dismiss. CI compilation does not replace these touch checks.
+
+## Local gallery live scrubbing (2026-10-02)
+
+The downloaded-file viewer updates the AVPlayer picture while the progress
+slider is dragged. Playback pauses during dragging; after the final frame is
+resolved, it resumes only if it was playing before the drag. Seeking remains
+exclusive to the slider, preserving horizontal gallery paging and downward
+dismissal on the canvas.
+
+Use one outstanding seek and retain only the latest requested time, following
+[Apple QA1820](https://developer.apple.com/library/archive/qa/qa1820/_index.html).
+This avoids repeated cancellation and a backlog of obsolete seeks. Exact seeks
+show the requested frame; decoding speed still depends on the video format and
+keyframe spacing. There is no generated thumbnail strip or network prefetch.
+
+Core tests cover coalescing, release ordering, duplicate targets, accessibility
+changes, invalidation and failed callbacks. Switching files, closing the viewer,
+or backgrounding invalidates pending callbacks, so they cannot resume a hidden
+player. Actual frame latency and gesture feel require device testing.
+
 ## Layout
 
 - Keep the NavigationStack system back button and interactive return gesture.

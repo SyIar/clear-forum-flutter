@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 import WebKit
 import QuickLook
@@ -27,12 +26,18 @@ struct GofileBrowserView: View {
         }
       } else if let error = session.error {
         Section {
-          Label(error, forumSymbol: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
-          Button(AppText.text("Open website"), forumSymbol: "globe") { session.showWebsite() }
+          Label(error, systemImage: "exclamationmark.triangle").appFont(.subheadline).foregroundStyle(.secondary)
+          Button(AppText.text("Open website"), systemImage: "safari") { session.showWebsite() }
         }
       }
       if session.loading { HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear) }
       if let listing = session.listing, session.failure == nil, session.error == nil {
+        Section {
+          FileListingHeader(title: listing.title, count: listing.entries.count,
+            canDownload: listing.entries.contains { $0.folder || !TorrentMetadata.isTorrent(name: $0.name, mime: $0.mime) }, disabled: session.loading) {
+            batch = downloads.batch(url: session.requestedURL, listing: listing)
+          }
+        }
         Section {
           ForEach(entries) { entry in
             HStack(spacing: 12) {
@@ -45,7 +50,7 @@ struct GofileBrowserView: View {
                 }, unavailable: entry.unavailable)
               } else {
                 Button {
-                  if let file = downloads.download(for: entry)?.savedFiles[entry.id] {
+                  if let file = downloads.download(for: entry)?.localFile(entry.id) {
                     session.preview = GofileLocalFile(url: file)
                   } else { session.open(entry) }
                 } label: { entryLabel(entry) }.buttonStyle(.plain)
@@ -58,26 +63,19 @@ struct GofileBrowserView: View {
       }
     }
     .listStyle(.insetGrouped)
-    .navigationTitle(session.listing?.title ?? "Gofile").navigationBarTitleDisplayMode(.inline)
+    .navigationTitle("Gofile").navigationBarTitleDisplayMode(.inline)
     .toolbarRole(.editor)
     .searchable(text: $search, prompt: AppText.text("Find files on this page"))
     .toolbar {
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button(AppText.text("Download all"), forumSymbol: "arrow.down.document") {
-          session.suspendThumbnails()
-          if let listing = session.listing {
-            batch = GofileDownloadManager.shared.batch(url: session.requestedURL, listing: listing)
-          }
-          showingBatch = true
-        }.disabled(session.loading || session.failure != nil || session.listing == nil || session.hasDownloads)
-        Button(AppText.text("Open website"), forumSymbol: "globe") { session.showWebsite() }
-        Button(AppText.text("Refresh"), forumSymbol: "arrow.clockwise") { session.load() }.disabled(session.loading)
+        Button(AppText.text("Open website"), systemImage: "safari") { session.showWebsite() }
+        Button(AppText.text("Refresh"), systemImage: "arrow.clockwise") { session.load() }.disabled(session.loading)
       }
       if let listing = session.listing, listing.pages > 1 {
         ToolbarItemGroup(placement: .bottomBar) {
-          Button(AppText.text("Previous"), forumSymbol: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
+          Button(AppText.text("Previous"), systemImage: "chevron.left") { session.load(page: listing.page - 1) }.disabled(listing.page <= 1 || session.loading)
           Text("\(listing.page) / \(listing.pages)").monospacedDigit()
-          Button(AppText.text("Next"), forumSymbol: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
+          Button(AppText.text("Next"), systemImage: "chevron.right") { session.load(page: listing.page + 1) }.disabled(listing.page >= listing.pages || session.loading)
         }
       }
     }
@@ -100,7 +98,7 @@ struct GofileBrowserView: View {
       if !visible { session.resumeThumbnails() }
     }
     .navigationDestination(item: $session.preview) { file in
-      GofileQuickLook(file: file.url).navigationTitle(AppText.text("Preview")).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
+      LocalFilePreview(file: file.url)
     }
     .navigationDestination(item: $session.video) { source in
       GofileVideoView(source: source).navigationTitle(AppText.text("Video")).navigationBarTitleDisplayMode(.inline).toolbar(.hidden, for: .bottomBar)
@@ -121,24 +119,13 @@ struct GofileBrowserView: View {
   }
   private func downloadButton(_ entry: GofileEntry) -> some View {
     let task = downloads.download(for: entry)
-    let file = task?.savedFiles[entry.id]
-    return Button {
+    let file = task?.localFile(entry.id)
+    return FileDownloadAction(exists: task != nil, running: task?.running == true && task?.isCurrent(entry) == true,
+      completed: file != nil, progress: task?.progress) {
       if let file { session.export = GofileLocalFile(url: file) }
-      else if let task { batch = task; showingBatch = true }
+      else if task != nil { VideoDownloadManager.shared.showingManager = true }
       else { _ = downloads.download(url: session.requestedURL, entry: entry) }
-    } label: {
-      ZStack {
-        if task?.running == true {
-          if let fraction = task?.progress {
-            Circle().stroke(.blue.opacity(0.15), lineWidth: 2.5)
-            Circle().trim(from: 0, to: fraction).stroke(.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).rotationEffect(.degrees(-90))
-            Text("\(Int(fraction * 100))").font(.system(size: 10, weight: .semibold)).monospacedDigit()
-          } else { ProgressView() }
-        } else { Image(forumSymbol: file != nil ? "square.and.arrow.up" : task == nil ? "arrow.down" : "info.circle", size: 17).font(.body.weight(.medium)) }
-      }.frame(width: 28, height: 28).padding(6)
-    }.buttonStyle(.glass).buttonBorderShape(.circle)
-      .accessibilityLabel(file != nil ? AppText.text("Save to Files") : task == nil ? AppText.text("Download file") : AppText.text("Downloads"))
-      .disabled(entry.unavailable && task == nil)
+    }.disabled(entry.unavailable && task == nil)
   }
 }
 
@@ -150,7 +137,7 @@ private struct GofileThumbnail: View {
     ZStack {
       RoundedRectangle(cornerRadius: 10).fill(Color(uiColor: .tertiarySystemFill))
       if let image { Image(uiImage: image).resizable().scaledToFill() }
-      else { Image(forumSymbol: entry.symbol, size: 22).font(.title2).foregroundStyle(.blue) }
+      else { Image(systemName: entry.symbol).font(.title2).foregroundStyle(.blue) }
     }.frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 10))
       .task(id: "\(session.revision):\(entry.thumbnail?.absoluteString ?? entry.id)") { image = await session.thumbnail(entry) }
       .accessibilityHidden(true)
@@ -201,7 +188,7 @@ struct GofileModalRoot: View {
   var body: some View {
     NavigationStack {
       GofileBrowserView(url: url).toolbar {
-        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), forumSymbol: "chevron.left", action: close) }
+        ToolbarItem(placement: .topBarLeading) { Button(AppText.text("Back"), systemImage: "chevron.left", action: close) }
       }
     }.appFont(.body)
       .environment(\.locale, AppText.locale)

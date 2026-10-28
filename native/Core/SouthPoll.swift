@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSoup
 
-struct SouthPollOption: Identifiable, Equatable {
+struct SouthPollOption: Identifiable, Equatable, Codable {
   let id: Int
   let title: String
   let votes: Int?
@@ -9,7 +9,7 @@ struct SouthPollOption: Identifiable, Equatable {
 }
 
 // Display metadata only. Form tokens and vote actions are never retained here.
-struct SouthPoll: Equatable {
+struct SouthPoll: Equatable, Codable {
   let options: [SouthPollOption]
   let participants: Int?
   let maximumChoices: Int?

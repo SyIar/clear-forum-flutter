@@ -2,6 +2,7 @@ import ForumUI
 import SwiftUI
 
 struct HomeView: View {
+  let openForum: (String) -> Void
   @EnvironmentObject private var app: AppState
   @EnvironmentObject private var settings: Preferences
   @State private var loading = false
@@ -22,18 +23,18 @@ struct HomeView: View {
     }.navigationTitle(tr("appTitle"))
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
-          NavigationLink(value: Route.search("")) { Image(forumSymbol: "magnifyingglass") }
+          NavigationLink(value: Route.search("")) { Image(systemName: "magnifyingglass") }
           Menu {
-            Button(tr("openForum"), forumSymbol: "plus") { open = true }
-            Button(tr(settings.flag("listSingle") ? "gridView" : "listView"), forumSymbol: "square.grid.2x2") { settings.set("listSingle", !settings.flag("listSingle")) }
-            Button(tr("signAll"), forumSymbol: "checkmark.circle") { app.requireLogin { checkIn = true } }.disabled(app.signing)
-          } label: { Image(forumSymbol: "ellipsis") }
+            Button(tr("openForum"), systemImage: "plus") { open = true }
+            Button(tr(settings.flag("listSingle") ? "gridView" : "listView"), systemImage: settings.flag("listSingle") ? "square.grid.2x2" : "list.bullet") { settings.set("listSingle", !settings.flag("listSingle")) }
+            Button(tr("signAll"), systemImage: "checkmark.circle") { app.requireLogin { checkIn = true } }.disabled(app.signing)
+          } label: { Image(systemName: "ellipsis") }
         }
       }.task { await load(); await automaticCheckIn() }.refreshable { await load() }
       .forumConfirmation(tr("signAllConfirm"), isPresented: $checkIn, actions: { [
           ForumDialogAction(tr("confirm")) { Task { await app.signAll() } }
         ] })
-    .forumPrompt(tr("openForum"), isPresented: $open, text: $query, placeholder: tr("forumName"), submit: tr("open")) {
+    .forumPrompt(tr("openForum"), isPresented: $open, text: $query, placeholder: tr("forumName"), submit: tr("open"), cancel: tr("cancel")) {
       if let url = URL(string: query), let route = Route.link(url) { target = route }
       else if !query.trimmingCharacters(in: .whitespaces).isEmpty { target = .forum(query.trimmingCharacters(in: .whitespaces)) }
     }
@@ -43,13 +44,15 @@ struct HomeView: View {
     let visible = values.filter { !app.library.blocked(forum: $0.name) }
     if settings.flag("listSingle") { ForEach(visible, id: \.name) { ForumRow(forum: $0) } }
     else { LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 14) { ForEach(visible, id: \.name) { forum in
-      NavigationLink(value: Route.forum(forum.name)) {
+      // List decorates embedded navigation links with row disclosure indicators.
+      // Push through the owning stack so grid tiles stay plain and back tracking works.
+      Button { openForum(forum.name) } label: {
         VStack(spacing: 7) {
-          AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(forumSymbol: "bubble.left.and.bubble.right.fill", size: 22).appFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
+          AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(systemName: "bubble.left.and.bubble.right.fill").appFont(.title2) }.frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 14))
           Text(forum.name).tiebaFont(.subheadline).lineLimit(1)
           if forum.following { Text(tr(forum.signed ? "checkedIn" : "notCheckedIn")).appFont(.caption2).foregroundStyle(.secondary) }
-        }.frame(maxWidth: .infinity).padding(.vertical, 7)
-      }.buttonStyle(.plain).contextMenu { Button(tr("pin")) { app.updateLibrary { $0.togglePin(forum) } } }
+        }.frame(maxWidth: .infinity).padding(.vertical, 7).contentShape(Rectangle())
+      }.buttonStyle(.plain).contextMenu { Button(tr("pin"), systemImage: "pin") { app.updateLibrary { $0.togglePin(forum) } } }
     } } }
   }
   private func load() async { loading = true; error = nil; defer { loading = false }; do { try await app.refreshForums() } catch { self.error = error.localizedDescription } }
@@ -99,10 +102,10 @@ struct ForumView: View {
                 if index > 0 { Divider().padding(.leading, 38) }
                 NavigationLink(value: Route.thread(item.id, "", 1, false)) {
                   HStack(spacing: 10) {
-                    Image(forumSymbol: "pin.fill", size: 12).appFont(.caption).foregroundStyle(settings.accent)
+                    Image(systemName: "pin.fill").appFont(.caption).foregroundStyle(settings.accent)
                     Text(item.title).tiebaFont(.subheadline).foregroundStyle(Color(uiColor: .label)).lineLimit(1)
                     Spacer(minLength: 0)
-                    Image(forumSymbol: "chevron.right", size: 11).appFont(.caption2).foregroundStyle(Color(uiColor: .tertiaryLabel))
+                    Image(systemName: "chevron.right").appFont(.caption2).foregroundStyle(Color(uiColor: .tertiaryLabel))
                   }.padding(12).contentShape(Rectangle())
                 }.buttonStyle(.plain)
               }
@@ -136,13 +139,16 @@ struct ForumView: View {
         .toolbar {
           ToolbarItem(placement: .topBarTrailing) {
             Menu {
-              NavigationLink(value: Route.search(name)) { Label(tr("searchInForum"), forumSymbol: "magnifyingglass") }
-              NavigationLink(value: Route.info(feed.forum?.id ?? "", name)) { Label(tr("forumInfo"), forumSymbol: "info.circle") }
-              Picker(tr("sort"), selection: $sort) { Text(tr("latestReply")).tag(0); Text(tr("latestPost")).tag(1) }
-              Toggle(tr("digest"), isOn: $digest)
-              Button(tr("pin"), forumSymbol: "pin") { if let forum = feed.forum { app.updateLibrary { $0.togglePin(forum) } } }
-              Button(tr("backToTop"), forumSymbol: "arrow.up") { withAnimation { proxy.scrollTo("top", anchor: .top) } }
-            } label: { Image(forumSymbol: "ellipsis") }
+              NavigationLink(value: Route.search(name)) { Label(tr("searchInForum"), systemImage: "magnifyingglass") }
+              NavigationLink(value: Route.info(feed.forum?.id ?? "", name)) { Label(tr("forumInfo"), systemImage: "info.circle") }
+              Picker(tr("sort"), selection: $sort) {
+                Label(tr("latestReply"), systemImage: "bubble.left.and.bubble.right").tag(0)
+                Label(tr("latestPost"), systemImage: "clock").tag(1)
+              }
+              Toggle(isOn: $digest) { Label(tr("digest"), systemImage: "star") }
+              Button(tr("pin"), systemImage: "pin") { if let forum = feed.forum { app.updateLibrary { $0.togglePin(forum) } } }
+              Button(tr("backToTop"), systemImage: "arrow.up") { withAnimation { proxy.scrollTo("top", anchor: .top) } }
+            } label: { Image(systemName: "ellipsis") }
           }
           Pagination(page: feed.currentPage, more: feed.canGoForward, loading: busy,
                      previous: { go(to: feed.currentPage - 1) }, refresh: { refresh() }, next: { go(to: feed.currentPage + 1) })
@@ -166,7 +172,7 @@ struct ForumView: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: 10) {
         AsyncImage(url: safeURL(forum.avatar)) { image in image.resizable().scaledToFill() } placeholder: {
-          Image(forumSymbol: "bubble.left.and.bubble.right.fill").foregroundStyle(settings.accent)
+          Image(systemName: "bubble.left.and.bubble.right.fill").foregroundStyle(settings.accent)
         }.frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 12))
         VStack(alignment: .leading, spacing: 4) {
           Text(forum.name.isEmpty ? name : forum.name).tiebaFont(.headline).foregroundStyle(Color(uiColor: .label))
@@ -183,11 +189,11 @@ struct ForumView: View {
       HStack {
         Button(tr(forum.following ? "unfollow" : "follow")) {
           perform { try await app.api.follow(forum, enabled: !forum.following); refresh() }
-        }.buttonStyle(.glass).disabled(action)
+        }.buttonStyle(.bordered).disabled(action)
         Spacer(minLength: 12)
-        Button(tr((signed || forum.signed) ? "checkedIn" : "checkIn"), forumSymbol: (signed || forum.signed) ? "checkmark.circle.fill" : "checkmark.circle") {
+        Button(tr((signed || forum.signed) ? "checkedIn" : "checkIn"), systemImage: (signed || forum.signed) ? "checkmark.circle.fill" : "checkmark.circle") {
           perform { try await app.sign(forum); signed = true; feed.markSigned() }
-        }.buttonStyle(.glassProminent).disabled(signed || forum.signed || action)
+        }.buttonStyle(.borderedProminent).disabled(signed || forum.signed || action)
       }.appFont(.subheadline)
     }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
       .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))

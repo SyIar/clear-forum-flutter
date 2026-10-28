@@ -19,7 +19,8 @@ struct ForumTagStrip: View {
         ForEach(tags) { tag in
           Button { navigate(tag.url) } label: {
             Text(tag.title).forumFont(.caption2, weight: .semibold).lineLimit(1)
-              .forumTagSurface()
+              .padding(.horizontal, 8).padding(.vertical, 4)
+              .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
           }.buttonStyle(.plain).accessibilityLabel(AppText.format("Filter by %@", String(describing: tag.title)))
         }
       }.padding(.vertical, 2)
@@ -42,15 +43,16 @@ struct ForumEntryCard: View {
       if !entry.tags.isEmpty { ForumTagStrip(tags: entry.tags, navigate: navigate) }
       Button { navigate(entry.url) } label: {
         HStack(spacing: 10) {
-          if bookTitle != nil { Image(forumSymbol: "book").foregroundStyle(.blue) }
+          if bookTitle != nil { Image(systemName: "book").foregroundStyle(.blue) }
           else if let thumbnail = entry.thumbnail { ForumThumbnail(url: thumbnail, compact: entry.pinned) }
-          else { Image(forumSymbol: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
+          else { Image(systemName: entry.pinned ? "pin.fill" : (isForum ? "folder" : "text.bubble")).foregroundStyle(.blue) }
           VStack(alignment: .leading, spacing: 4) {
             if let tags = bookTitle?.tags, !tags.isEmpty {
               ScrollView(.horizontal) {
                 HStack(spacing: 5) {
                   ForEach(tags, id: \.self) { tag in
-                    Text(tag).forumFont(.caption2, weight: .semibold).forumTagSurface()
+                    Text(tag).forumFont(.caption2, weight: .semibold).padding(.horizontal, 8).padding(.vertical, 4)
+                      .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
                   }
                 }
               }.scrollIndicators(.hidden)
@@ -75,10 +77,10 @@ struct ForumEntryCard: View {
             }
           }.frame(maxWidth: .infinity, alignment: .leading)
           Spacer(minLength: 0)
-          Image(forumSymbol: "chevron.right", size: 12).font(.caption).foregroundStyle(.tertiary)
+          Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
       }.buttonStyle(.plain)
-    }.padding(ForumDesignSystem.spacing.cardPadding).forumCardSurface()
+    }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
   }
 }
 
@@ -94,7 +96,7 @@ struct ForumThumbnail: View {
       Color(uiColor: .tertiarySystemFill)
       if let image { Image(uiImage: image).resizable().scaledToFill() }
       else if loading { ProgressView().controlSize(.small) }
-      else { Image(forumSymbol: "photo", size: 12).font(.caption).foregroundStyle(.secondary) }
+      else { Image(systemName: "photo").font(.caption).foregroundStyle(.secondary) }
     }.frame(width: compact ? 28 : 72, height: compact ? 28 : 50)
       .clipShape(RoundedRectangle(cornerRadius: compact ? 6 : 9))
       .accessibilityHidden(true)
@@ -120,14 +122,18 @@ struct PostCard: View {
   let purchase: (SouthPurchaseOffer) -> Void
   let purchasing: Bool
   var authorFilterActive = false
+  var isOriginalPoster = false
   var openAvatar: (() -> Void)?
   var selectText: (() -> Void)?
   var body: some View {
-    VStack(alignment: .leading, spacing: ForumDesignSystem.spacing.md) {
-      HStack(spacing: ForumDesignSystem.spacing.md) {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(spacing: 12) {
         PostAvatar(url: post.avatar, author: post.author)
         VStack(alignment: .leading, spacing: 3) {
-          Text(post.author).forumFont(.subheadline, weight: .bold)
+          HStack(spacing: 4) {
+            Text(post.author).forumFont(.subheadline, weight: .bold)
+            if isOriginalPoster { ForumOriginalPosterBadge(label: AppText.text("Original poster")) }
+          }
           if openAvatar == nil, post.authorID != nil || !post.date.isEmpty {
             HStack(spacing: 6) {
               if let id = post.authorID { Text(AppText.format("UID %@", String(describing: id))) }
@@ -159,8 +165,8 @@ struct PostCard: View {
         source.gallery = imageGallery(in: post.blocks)
         openImage(source)
       }, purchase: purchase, purchasing: purchasing)
-    }.padding(ForumDesignSystem.spacing.cardPadding).frame(maxWidth: .infinity, alignment: .leading)
-      .forumCardSurface()
+    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
   }
 }
 
@@ -219,8 +225,9 @@ struct RichBodyView: View {
   @ScaledMetric(relativeTo: .body) private var novelLineSpacing: CGFloat = 7
   @ScaledMetric(relativeTo: .body) private var novelParagraphSpacing: CGFloat = 14
   @Environment(\.readerBodyStyle) private var bodyStyle
+  @Environment(\.readingAppearance) private var appearance
   @EnvironmentObject private var session: ForumSession
-  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (20.0 / 17.0) : textSize }
+  private var bodyTextSize: CGFloat { bodyStyle == .novel ? textSize * (appearance.fontSize / 17.0) : textSize }
   let blocks: [BodyBlock]
   let posters: PosterStore
   let navigate: (URL) -> Void
@@ -242,7 +249,7 @@ struct RichBodyView: View {
     return result
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing : 10) {
+    VStack(alignment: .leading, spacing: bodyStyle == .novel ? novelParagraphSpacing * appearance.paragraphSpacing / 14 : 10) {
       ForEach(groups) { group in
         if group.blocks[0].kind == .image {
           if group.blocks.count == 1 { image(group.blocks[0], grid: false) }
@@ -269,7 +276,11 @@ struct RichBodyView: View {
         }
       }
     case .link:
-      if let url = block.url { CompactLink(url: url, label: block.label, navigate: navigate) }
+      if let url = block.url {
+        if session.site == .south, SouthAttachment(url: url) != nil {
+          SouthAttachmentDownload(url: url, name: block.label)
+        } else { CompactLink(url: url, label: block.label, navigate: navigate) }
+      }
     case .media:
       MediaRow(block: block, posters: posters, play: play)
     case .quote:
@@ -291,13 +302,13 @@ struct RichBodyView: View {
     case .purchase:
       if let offer = block.purchase {
         HStack(spacing: 12) {
-          Image(forumSymbol: "lock.fill").foregroundStyle(.secondary)
+          Image(systemName: "lock.fill").foregroundStyle(.secondary)
           Text(AppText.format("%@ SP", String(describing: offer.priceText))).appFont(.subheadline, weight: .semibold)
           Spacer(minLength: 0)
           Button { purchase(offer) } label: {
             if purchasing { ProgressView().controlSize(.small) }
             else { Text(offer.isFree ? AppText.text("Unlock free") : AppText.text("Buy")) }
-          }.appFont(.body).buttonStyle(.glass).disabled(purchasing)
+          }.appFont(.body).buttonStyle(.bordered).disabled(purchasing)
         }.padding(12).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
       }
     }
@@ -307,7 +318,7 @@ struct RichBodyView: View {
     else if let url = standaloneLink(runs) { CompactLink(url: url, label: runs.map(\.text).joined(), navigate: navigate) }
     else {
       Text(attributed(runs)).font(Font(MixedScriptFont.font(size: bodyTextSize, bold: false)))
-        .lineSpacing(bodyStyle == .novel ? novelLineSpacing : 2)
+        .lineSpacing(bodyStyle == .novel ? novelLineSpacing * appearance.lineSpacing / 7 : 2)
         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -332,13 +343,13 @@ struct CompactLink: View {
   var body: some View {
     Button { navigate(url) } label: {
       HStack(spacing: 5) {
-        Image(forumSymbol: "link", size: 11).font(.system(size: 11))
+        Image(systemName: "link").font(.system(size: 11))
         Text(ExternalLinkPresentation.title(url: url, label: label, site: session.site))
           .forumFont(.caption).lineLimit(1).truncationMode(.middle)
-        Image(forumSymbol: "arrow.up.right", size: 9).font(.system(size: 9))
-      }.padding(.horizontal, ForumDesignSystem.spacing.sm).padding(.vertical, 6)
-        .background(ForumDesignSystem.surface, in: RoundedRectangle(cornerRadius: ForumDesignSystem.radius.md, style: .continuous))
-    }.buttonStyle(.plain).foregroundStyle(ForumDesignSystem.primary)
+        Image(systemName: "arrow.up.right").font(.system(size: 9))
+      }.padding(.horizontal, 8).padding(.vertical, 6)
+        .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }.buttonStyle(.plain).foregroundStyle(Color.accentColor)
       .accessibilityLabel(label.isEmpty ? url.absoluteString : label)
   }
 }
@@ -359,7 +370,7 @@ struct MediaRow: View {
           Image(uiImage: poster).resizable().scaledToFill()
             .frame(width: 150, height: 84).clipped()
         }
-        Image(forumSymbol: "play.fill", size: 18).font(.system(size: 18, weight: .semibold))
+        Image(systemName: "play.fill").font(.system(size: 18, weight: .semibold))
           .offset(x: 1).frame(width: 40, height: 40).foregroundStyle(.white)
           .background(.black.opacity(0.48), in: Circle())
           .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1))
@@ -391,6 +402,7 @@ struct MediaRow: View {
 
 @MainActor
 final class ImageStore {
+  let offlineThreadID: String?
   private let cache = NSCache<NSURL, UIImage>()
   private var tasks: [URL: Task<UIImage?, Never>] = [:]
   private var generation = 0
@@ -400,7 +412,10 @@ final class ImageStore {
     diagnosticEvents.append(ReaderDiagnostics.address(url.absoluteString) + " | " + message)
     diagnosticEvents = Array(diagnosticEvents.suffix(40))
   }
-  init() { cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80 }
+  init(offlineThreadID: String? = nil) {
+    self.offlineThreadID = offlineThreadID
+    cache.totalCostLimit = 64 * 1024 * 1024; cache.countLimit = 80
+  }
   func releaseCachedImages() {
     generation += 1
     diagnosticEvents.removeAll()
@@ -413,6 +428,19 @@ final class ImageStore {
     if let task = tasks[url] { return await task.value }
     let epoch = generation
     let task = Task { () -> UIImage? in
+      if let offlineThreadID {
+        guard let file = try? await SouthOfflineStore.shared.repository.imageFile(url, threadID: offlineThreadID) else { return nil }
+        return await Task.detached(priority: .utility) {
+          guard let source = CGImageSourceCreateWithURL(file as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 2048,
+                  kCGImageSourceShouldCacheImmediately: true
+                ] as CFDictionary) else { return nil as UIImage? }
+          return UIImage(cgImage: image)
+        }.value
+      }
       guard MediaPolicy.allowed(url) else { record("Rejected image URL", url: url); return nil }
       var request = URLRequest(url: url, timeoutInterval: 25)
       request.httpShouldHandleCookies = false
@@ -483,7 +511,7 @@ struct RemoteImageView: View {
               .frame(width: bounds.size.width, height: bounds.size.height).clipped()
           }
         } else if loading { ProgressView() }
-        else { Button(AppText.text("Retry image"), forumSymbol: "arrow.clockwise") { attempt += 1 }.appFont(.caption) }
+        else { Button(AppText.text("Retry image"), systemImage: "arrow.clockwise") { attempt += 1 }.appFont(.caption) }
       }
       .clipShape(RoundedRectangle(cornerRadius: 10))
       .contentShape(Rectangle())

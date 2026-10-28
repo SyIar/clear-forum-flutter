@@ -45,13 +45,15 @@ struct AppRoot: View {
     Group {
       if app.ready {
         TabView(selection: $selectedTab) {
-          navigation(tab: 0) { HomeView() }.tabItem { Label(tr("home"), forumSymbol: "house") }.tag(0)
-          if !settings.flag("hideExplore") { navigation(tab: 1) { ExploreView() }.tabItem { Label(tr("explore"), forumSymbol: "safari") }.tag(1) }
-          navigation(tab: 2) { InboxView() }.tabItem { Label(tr("notifications"), forumSymbol: "bell") }.tag(2)
-          navigation(tab: 3) { MeView() }.tabItem { Label(tr("me"), forumSymbol: "person.crop.circle") }.tag(3)
+          navigation(tab: 0) {
+            HomeView { name in paths[0, default: []].append(.forum(name)) }
+          }.tabItem { Label(tr("home"), systemImage: "house") }.tag(0)
+          if !settings.flag("hideExplore") { navigation(tab: 1) { ExploreView() }.tabItem { Label(tr("explore"), systemImage: "safari") }.tag(1) }
+          navigation(tab: 2) { InboxView() }.tabItem { Label(tr("notifications"), systemImage: "bell") }.tag(2)
+          navigation(tab: 3) { MeView() }.tabItem { Label(tr("me"), systemImage: "person.crop.circle") }.tag(3)
         }.id(app.accountEpoch)
       } else {
-        ForumUnavailableView(tr("initializationFailed"), forumSymbol: "exclamationmark.lock", description: Text(app.error ?? ""))
+        ContentUnavailableView(tr("initializationFailed"), systemImage: "lock.trianglebadge.exclamationmark", description: Text(app.error ?? ""))
           .overlay(alignment: .bottom) {
             HStack {
               Button(tr("backToForums"), action: exitTieba)
@@ -75,7 +77,7 @@ struct AppRoot: View {
     .onChange(of: settings.flag("hideExplore")) { _, hidden in
       if hidden && selectedTab == 1 { selectedTab = 0 }
     }
-    .overlay { if validating { ProgressView(tr("loading")).padding(24).glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20)) } }
+    .overlay { if validating { ProgressView(tr("loading")).padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) } }
     .sheet(isPresented: $app.login) {
       BaiduBrowser(session: nil) { result in
         app.login = false
@@ -113,7 +115,7 @@ struct AppRoot: View {
         .navigationDestination(for: Route.self) { Destination(route: $0) }
         .toolbar {
           ToolbarItem(placement: .topBarLeading) {
-            Button(action: exitTieba) { Image(forumSymbol: "chevron.left") }
+            Button(action: exitTieba) { Image(systemName: "chevron.left") }
               .accessibilityLabel(tr("backToForums"))
           }
         }
@@ -149,8 +151,8 @@ struct LoadState: View {
   var retry: () -> Void
   var body: some View {
     if loading { ProgressView(tr("loading")).frame(maxWidth: .infinity).padding(30) }
-    else if let error { ContentUnavailableView { Label(tr("networkError"), forumSymbol: "wifi.exclamationmark") } description: { Text(error) } actions: { Button(tr("retry"), action: retry).buttonStyle(.glass) } }
-    else if empty { ForumUnavailableView(tr("emptyTitle"), forumSymbol: "tray", description: Text(tr("emptyBody"))) }
+    else if let error { ContentUnavailableView { Label(tr("networkError"), systemImage: "wifi.exclamationmark") } description: { Text(error) } actions: { Button(tr("retry"), action: retry).buttonStyle(.bordered) } }
+    else if empty { ContentUnavailableView(tr("emptyTitle"), systemImage: "tray", description: Text(tr("emptyBody"))) }
   }
 }
 
@@ -164,13 +166,13 @@ struct Pagination: ToolbarContent {
   var jump: (() -> Void)? = nil
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .bottomBar) {
-      Button(tr("back"), forumSymbol: "chevron.left", action: previous).disabled(page <= 1 || loading)
+      Button(tr("back"), systemImage: "chevron.left", action: previous).disabled(page <= 1 || loading)
       Button { jump?() } label: { Text("\(tr("page")) \(page)").appFont(.subheadline, weight: .semibold).monospacedDigit() }.disabled(jump == nil || loading)
-      Button(tr("loadMore"), forumSymbol: "chevron.right", action: next).disabled(!more || loading)
+      Button(tr("loadMore"), systemImage: "chevron.right", action: next).disabled(!more || loading)
     }
     ToolbarSpacer(.flexible, placement: .bottomBar)
     ToolbarItem(placement: .bottomBar) {
-      Button(tr("refresh"), forumSymbol: "arrow.clockwise", action: refresh).disabled(loading)
+      Button(tr("refresh"), systemImage: "arrow.clockwise", action: refresh).disabled(loading)
     }
   }
 }
@@ -179,7 +181,7 @@ struct Avatar: View {
   let user: UserProfile
   var size: CGFloat = 32
   var body: some View {
-    AsyncImage(url: safeURL(user.avatar)) { image in image.resizable().scaledToFill() } placeholder: { Image(forumSymbol: "person.crop.circle.fill").resizable().foregroundStyle(.secondary) }
+    AsyncImage(url: safeURL(user.avatar)) { image in image.resizable().scaledToFill() } placeholder: { Image(systemName: "person.crop.circle.fill").resizable().foregroundStyle(.secondary) }
       .frame(width: size, height: size).clipShape(Circle())
   }
 }
@@ -189,7 +191,7 @@ struct ForumRow: View {
   var body: some View {
     NavigationLink(value: Route.forum(forum.name)) {
       HStack(spacing: 12) {
-        AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(forumSymbol: "bubble.left.and.bubble.right.fill").foregroundStyle(.blue) }.frame(width: 42, height: 42).clipShape(RoundedRectangle(cornerRadius: 12))
+        AsyncImage(url: safeURL(forum.avatar)) { $0.resizable().scaledToFill() } placeholder: { Image(systemName: "bubble.left.and.bubble.right.fill").foregroundStyle(.blue) }.frame(width: 42, height: 42).clipShape(RoundedRectangle(cornerRadius: 12))
         VStack(alignment: .leading, spacing: 3) {
           Text(forum.name).foregroundStyle(.primary)
           HStack(spacing: 8) {
@@ -200,8 +202,8 @@ struct ForumRow: View {
         }
       }.padding(.vertical, 3)
     }.contextMenu {
-      Button(tr(app.library.pins.contains { $0.name == forum.name } ? "unpin" : "pin"), forumSymbol: "pin") { app.updateLibrary { $0.togglePin(forum) } }
-      Button(tr("hide"), forumSymbol: "eye.slash") { app.updateLibrary { $0.addBlock(kind: "forum", value: forum.name, label: forum.name) } }
+      Button(tr(app.library.pins.contains { $0.name == forum.name } ? "unpin" : "pin"), systemImage: "pin") { app.updateLibrary { $0.togglePin(forum) } }
+      Button(tr("hide"), systemImage: "eye.slash") { app.updateLibrary { $0.addBlock(kind: "forum", value: forum.name, label: forum.name) } }
     }
   }
 }
@@ -233,7 +235,7 @@ struct ThreadCard: View {
                 Text(thread.author.name.isEmpty ? tr("unknownUser") : thread.author.name).tiebaFont(.caption).lineLimit(1)
                 if !thread.forum.name.isEmpty { Text("\u{00B7} " + thread.forum.name).tiebaFont(.caption).lineLimit(1) }
                 Spacer(minLength: 0)
-                Image(forumSymbol: "bubble.right"); Text(thread.replies.formatted())
+                Image(systemName: "bubble.right"); Text(thread.replies.formatted())
               }.appFont(.caption).foregroundStyle(.secondary)
             }
           }.foregroundStyle(Color(uiColor: .label)).frame(maxWidth: .infinity, alignment: .leading)
@@ -241,9 +243,9 @@ struct ThreadCard: View {
             .background(standalone ? Color(uiColor: .secondarySystemGroupedBackground) : .clear, in: RoundedRectangle(cornerRadius: 16))
             .contentShape(Rectangle())
         }.buttonStyle(.plain).contextMenu {
-          NavigationLink(value: Route.user(thread.author.id)) { Label(tr("viewProfile"), forumSymbol: "person") }
-          Button(tr("hide"), forumSymbol: "eye.slash") { app.updateLibrary { $0.addBlock(kind: "thread", value: thread.id, label: thread.title) } }
-          ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(thread.id)")!) { Label(tr("share"), forumSymbol: "square.and.arrow.up") }
+          NavigationLink(value: Route.user(thread.author.id)) { Label(tr("viewProfile"), systemImage: "person") }
+          Button(tr("hide"), systemImage: "eye.slash") { app.updateLibrary { $0.addBlock(kind: "thread", value: thread.id, label: thread.title) } }
+          ShareLink(item: URL(string: "https://tieba.baidu.com/p/\(thread.id)")!) { Label(tr("share"), systemImage: "square.and.arrow.up") }
         }
       }
     }

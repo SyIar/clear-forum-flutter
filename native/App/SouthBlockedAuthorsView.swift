@@ -4,13 +4,12 @@ import SwiftUI
 struct SouthBlockedAuthorsView: View {
   @ObservedObject var library: LibraryStore
   @Environment(\.dismiss) private var nativeDismiss
-  @Environment(\.forumDismiss) private var forumDismiss
-  private func dismiss() { if forumDismiss.available { forumDismiss() } else { nativeDismiss() } }
+  private func dismiss() { nativeDismiss() }
   var body: some View {
     NavigationStack {
       List {
         if library.document.blockedAuthors.isEmpty {
-          ForumUnavailableView(AppText.text("No blocked authors"), forumSymbol: "person.crop.circle.badge.checkmark")
+          ContentUnavailableView(AppText.text("No blocked authors"), systemImage: "person.crop.circle.badge.checkmark")
         }
         ForEach(library.document.blockedAuthors.keys.sorted(), id: \.self) { id in
           HStack {

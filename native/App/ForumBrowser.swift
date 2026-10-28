@@ -54,16 +54,21 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   private var observation: NSKeyValueObservation?
   private var finished = false
   private var capturing = false
+  private let automaticallyReads: Bool
+  private var verificationEncountered = false
+  private var verificationTask: Task<Void, Never>?
+  private var verificationDeadline: Date?
+  private var navigationID = UUID()
   private var rewrittenThread: URL?
   private var rewriteAttempts = 0
-  init(url: URL, session: ForumSession, completion: @escaping ([String: Any]?) -> Void) { site = session.site; initialURL = SouthSitePolicy.canonicalThreadURL(url); self.session = session; self.completion = completion; super.init(nibName: nil, bundle: nil) }
+  init(url: URL, session: ForumSession, automaticallyReads: Bool = false, completion: @escaping ([String: Any]?) -> Void) { site = session.site; initialURL = SouthSitePolicy.canonicalThreadURL(url); self.session = session; self.automaticallyReads = automaticallyReads; self.completion = completion; super.init(nibName: nil, bundle: nil) }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func viewDidLoad() {
     super.viewDidLoad()
     title = site.host
     view.backgroundColor = .systemBackground
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: AppText.text("Done"), style: .plain, target: self, action: #selector(close))
-    let copy = UIBarButtonItem(image: ForumIcons.image( "ladybug"), style: .plain, target: self, action: #selector(copyPageHTML))
+    let copy = UIBarButtonItem(image: UIImage(systemName: "ladybug"), style: .plain, target: self, action: #selector(copyPageHTML))
     copy.accessibilityLabel = AppText.text("Copy page HTML")
     navigationItem.rightBarButtonItems = [UIBarButtonItem(title: AppText.text("Read page"), style: .done, target: self, action: #selector(readPage)), copy]
     let configuration = WKWebViewConfiguration()
@@ -91,9 +96,18 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     }
   }
   @objc private func close() { finish(nil) }
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    if automaticallyReads || verificationEncountered { monitorVerification() }
+  }
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    verificationTask?.cancel(); verificationTask = nil
+  }
   private func finish(_ page: [String: Any]?) {
     guard !finished else { return }
     finished = true
+    verificationTask?.cancel(); verificationTask = nil
     webView.stopLoading()
     Task { @MainActor in
       // Finish a cookie-store round trip before handing control back to the reader.
@@ -104,15 +118,78 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   @objc private func readPage() {
     guard !capturing, let url = webView.url, site.accepts(url) else { notice(AppText.text("Open a forum or thread before choosing Read page.")); return }
     capturing = true
+    let expectedNavigation = navigationID
     // Keep login/logout structure for the parser, but never copy entered form values.
-    let script = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,textarea,select,svg,noscript').forEach(e=>e.remove());root.querySelectorAll('input').forEach(e=>{const marker=document.createElement('input');for(const name of ['name','type']){if(e.hasAttribute(name))marker.setAttribute(name,e.getAttribute(name));}e.replaceWith(marker);});return {url:location.href,html:root.outerHTML,hasPurchases:!!root.querySelector('h6.quote.jumbotron input[type=button]'),hasPoll:!!root.querySelector('form[name=vote]')};})()"#
-    webView.evaluateJavaScript(script) { [weak self] value, error in
+    webView.evaluateJavaScript(Self.captureScript) { [weak self] value, error in
       guard let self = self else { return }
-      self.capturing = false
-      guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), self.site.accepts(finalURL) else { self.notice(AppText.text("This page is not ready for clean view. Finish loading or sign in and try again.")); return }
-      self.finish(page)
+      guard !self.finished, error == nil, let page = value as? [String: Any], let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024, let address = page["url"] as? String, let finalURL = URL(string: address), self.site.accepts(finalURL) else { self.capturing = false; self.notice(AppText.text("This page is not ready for clean view. Finish loading or sign in and try again.")); return }
+      Task { @MainActor in
+        var challenge = false
+        if self.site == .simp {
+          challenge = (try? await Task.detached(priority: .utility) { try SimpBrowserVerification.required(html) }.value) == true
+        }
+        self.capturing = false
+        guard !self.finished, expectedNavigation == self.navigationID else { return }
+        if challenge {
+          self.verificationEncountered = true
+          self.monitorVerification()
+          self.notice(AppText.text("Complete the site's verification in Site browser, then choose Read page."))
+        } else { self.finish(page) }
+      }
     }
   }
+  // Observe a normal WebKit navigation. Never solve a CAPTCHA or replay a POST.
+  // The browser itself executes the site's scripts using the existing data store.
+  private func monitorVerification() {
+    guard site == .simp, verificationTask == nil, !finished else { return }
+    let deadline = verificationDeadline ?? Date().addingTimeInterval(90)
+    verificationDeadline = deadline
+    guard Date() < deadline else { return }
+    verificationTask = Task { [weak self] in
+      for _ in 0..<90 {
+        do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
+        guard let self, !self.finished else { return }
+        guard Date() < deadline else { self.verificationTask = nil; return }
+        self.inspectVerificationPage()
+      }
+      self?.verificationTask = nil
+    }
+  }
+  private func inspectVerificationPage() {
+    guard site == .simp, !finished, !capturing, !webView.isLoading,
+          UIApplication.shared.applicationState == .active, viewIfLoaded?.window != nil,
+          presentedViewController == nil, let address = webView.url, site.sameOrigin(address) else { return }
+    let expectedNavigation = navigationID
+    capturing = true
+    webView.evaluateJavaScript(Self.captureScript) { [weak self] value, error in
+      guard let self else { return }
+      guard !self.finished, error == nil, let page = value as? [String: Any],
+            let html = page["html"] as? String, html.utf8.count <= 8 * 1024 * 1024,
+            let address = page["url"] as? String, let url = URL(string: address), self.site.sameOrigin(url) else {
+        self.capturing = false; return
+      }
+      let expectedURL = self.initialURL
+      Task { @MainActor in
+        let result = await Task.detached(priority: .utility) { () -> (challenge: Bool, readable: Bool) in
+          let challenge = (try? SimpBrowserVerification.required(html)) == true
+          let readable = !challenge && SimpBrowserVerification.canResume(expected: expectedURL, actual: url) &&
+            (try? ForumParser().parse(html, url: url)) != nil
+          return (challenge, readable)
+        }.value
+        self.capturing = false
+        guard !self.finished, expectedNavigation == self.navigationID, !self.webView.isLoading,
+              UIApplication.shared.applicationState == .active, self.viewIfLoaded?.window != nil,
+              self.presentedViewController == nil else { return }
+        if result.challenge {
+          self.verificationEncountered = true
+          self.monitorVerification()
+        } else if result.readable, self.automaticallyReads || self.verificationEncountered {
+          self.finish(page)
+        }
+      }
+    }
+  }
+  private static let captureScript = #"(()=>{const root=document.documentElement.cloneNode(true);root.querySelectorAll('script,style,object,embed,textarea,select,svg,noscript').forEach(e=>e.remove());root.querySelectorAll('input').forEach(e=>{const marker=document.createElement('input');for(const name of ['name','type']){if(e.hasAttribute(name))marker.setAttribute(name,e.getAttribute(name));}e.replaceWith(marker);});return {url:location.href,html:root.outerHTML,hasPurchases:!!root.querySelector('h6.quote.jumbotron input[type=button]'),hasPoll:!!root.querySelector('form[name=vote]')};})()"#
   @objc private func copyPageHTML() {
     guard !capturing, !finished, let url = webView.url, site.sameOrigin(url) else { return }
     capturing = true
@@ -131,7 +208,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
   }
   private func notice(_ text: String) {
     guard presentedViewController == nil, !finished else { return }
-    ForumDialogs.notice(title: AppText.text("Site browser"), message: text, close: AppText.text("OK"))
+    ForumDialogs.notice(from: self, title: AppText.text("Site browser"), message: text, close: AppText.text("OK"))
   }
   private func openExternal(_ url: URL) {
     guard !finished, presentedViewController == nil, let browser = ExternalBrowser.make(url) else { return }
@@ -181,5 +258,7 @@ final class ForumBrowserController: UIViewController, WKNavigationDelegate, WKUI
     }
     return nil
   }
+  func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { navigationID = UUID() }
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { inspectVerificationPage() }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { notice(AppText.text("Could not load this page. Check the connection and try again.")) } }
 }

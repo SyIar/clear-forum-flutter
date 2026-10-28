@@ -59,7 +59,7 @@ enum GofilePolicy {
   }
 }
 
-struct GofileEntry: Identifiable, Hashable {
+struct GofileEntry: Identifiable, Hashable, Codable {
   let id: String
   let name: String
   let folder: Bool
@@ -73,7 +73,7 @@ struct GofileEntry: Identifiable, Hashable {
   var symbol: String { folder ? "folder.fill" : mime.hasPrefix("image/") ? "photo" : isVideo ? "play.rectangle" : "doc" }
 }
 
-struct GofileListing {
+struct GofileListing: Codable {
   let id: String
   let title: String
   let entries: [GofileEntry]
@@ -120,7 +120,7 @@ struct GofileListing {
   }
 }
 
-enum GofileFailure: Error, LocalizedError, Equatable {
+enum GofileFailure: Error, LocalizedError, Equatable, Codable {
   case stale, website, access, notFound, expired, premium, unavailable
   case password(wrong: Bool)
   case rateLimited(Date)

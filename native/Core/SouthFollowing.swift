@@ -18,7 +18,9 @@ extension LibraryDocument {
       $0.followedAt == $1.followedAt ? $0.id < $1.id : $0.followedAt > $1.followedAt
     }
   }
-  var hasRefreshTargets: Bool { site.supportsThreadUpdates && (!trackedThreads.isEmpty || !following.isEmpty) }
+  var hasRefreshTargets: Bool {
+    site == .bookhouse ? !readingBooks.isEmpty : site.supportsThreadUpdates && (!trackedThreads.isEmpty || !following.isEmpty)
+  }
   func followsAuthor(_ id: String) -> Bool { site == .south && followedAuthors[id] != nil }
   mutating func followAuthor(id: String, name: String, avatar: URL? = nil, at date: Date = Date()) {
     guard site == .south, SouthSitePolicy.validAuthorID(id), !blocksAuthor(id) else { return }

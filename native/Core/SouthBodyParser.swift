@@ -3,6 +3,32 @@ import SwiftSoup
 
 struct SouthBodyParser {
   private func text(_ node: Element?) -> String { (try? node?.text()) ?? "" }
+  private func attachmentBlocks(_ node: Element, page: URL) throws -> [BodyBlock]? {
+    guard node.id().range(of: #"^att_[0-9]+$"#, options: .regularExpression) != nil,
+          node.parents().contains(where: { $0.hasClass("tpc_content") }) else { return nil }
+    let identifier = String(node.id().dropFirst(4))
+    let anchors = try node.select("a[href]").array()
+    guard anchors.count == 1, let anchor = anchors.first, anchor.id() == "fg_" + identifier,
+          let url = SouthSitePolicy.resolve(try anchor.attr("href"), from: page), SouthSitePolicy.sameOrigin(url),
+          let attachment = SouthAttachment(url: url), attachment.attachmentID == identifier,
+          !text(anchor).isEmpty, !node.hasAttr("hidden") else { return nil }
+    // The tiny zip.gif is a file-type decoration, not a post image. Keep the
+    // original filename and URL as one link, with the website's size/count below.
+    func metadata(_ child: Node) -> String {
+      if child === anchor { return "" }
+      if let value = child as? TextNode { return value.getWholeText() }
+      guard let element = child as? Element,
+            !["img", "script", "style", "input", "noscript"].contains(element.tagName()), !element.hasAttr("hidden") else { return "" }
+      return element.getChildNodes().map(metadata).joined(separator: " ")
+    }
+    let details = metadata(node)
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .replacingOccurrences(of: #"^\s*\u9644\u4ef6\s*[:\uFF1A]\s*"#, with: "", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    var blocks = [BodyBlock(kind: .link, label: text(anchor), url: url)]
+    if !details.isEmpty { blocks.append(BodyBlock(kind: .paragraph, runs: [TextRun(text: details)])) }
+    return blocks
+  }
   private func contentChildren(_ node: Element, page: URL) -> [Node] {
     let children = node.getChildNodes()
     // Only omit PHPWind's generated prefix on an uploaded-image attachment.
@@ -33,6 +59,7 @@ struct SouthBodyParser {
     return w / h
   }
   func parseBody(_ root: Element, page: URL) throws -> [BodyBlock] {
+    if let attachment = try attachmentBlocks(root, page: page) { return attachment }
     var blocks: [BodyBlock] = []
     var runs: [TextRun] = []
     var literalRuns = Set<Int>()
@@ -51,6 +78,9 @@ struct SouthBodyParser {
       }
       guard let node = node as? Element else { return }
       let tag = node.tagName()
+      if let attachment = try attachmentBlocks(node, page: page) {
+        flush(); blocks += attachment; return
+      }
       if let purchase = SouthPurchase.offer(node, page: page) {
         flush()
         blocks.append(BodyBlock(kind: .purchase, purchase: purchase))

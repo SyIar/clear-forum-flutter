@@ -4,13 +4,11 @@ import SwiftUI
 struct InfoButton: View {
   let title: String
   let message: String
-  var iconSize: CGFloat = 17
   @State private var showingInfo = false
 
   var body: some View {
     Button { showingInfo = true } label: {
-      Image(forumSymbol: "info.circle", size: iconSize).font(.body)
-        .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+      Image(systemName: "info.circle")
     }.buttonStyle(.borderless)
       .accessibilityLabel(AppText.format("%@ information", String(describing: title)))
       .forumAlert(title, isPresented: $showingInfo, actions: {

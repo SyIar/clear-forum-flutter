@@ -35,6 +35,14 @@ final class VideoDownloadManager: ObservableObject {
       lastProgressUpdate = Date(); objectWillChange.send(); return
     }
     objectWillChange.send()
+    var retainedBytes: Int64 = 0
+    var retainedCount = 0
+    for item in items.sorted(by: { $0.created > $1.created }) where item.phase == .saved {
+      guard let file = item.exportFile else { continue }
+      let size = Int64((try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+      if retainedCount >= 3 || size > 1_073_741_824 - retainedBytes { item.removeExportCopy() }
+      else { retainedCount += 1; retainedBytes += size }
+    }
     save()
     if inBackground {
       if !items.contains(where: \.occupiesSlot) { endBackgroundTask() }

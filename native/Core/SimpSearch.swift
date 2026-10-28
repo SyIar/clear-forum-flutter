@@ -32,10 +32,8 @@ enum SimpSearch {
   }
 
   static func validate(_ doc: Document, url: URL, status: Int) throws {
-    let title = (try doc.select("title").text()).lowercased()
     if status == 429 { throw ReaderFailure.rateLimit }
-    let challenge = try !doc.select("#challenge-running,#challenge-form,.cf-turnstile").isEmpty()
-    if title.contains("just a moment") || title.contains("attention required") || challenge { throw ReaderFailure.verification }
+    if try SimpBrowserVerification.required(doc) { throw ReaderFailure.verification }
     let template = try doc.select("html").first()?.attr("data-template") ?? ""
     if status == 401 || template == "login" || ForumSite.simp.isLogin(url) { throw ReaderFailure.login }
     if status == 403 { throw ReaderFailure.forbidden }

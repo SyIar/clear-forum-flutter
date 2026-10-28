@@ -7,11 +7,18 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private static var active: GofileFileTransfer?
   private static var cooldown = Date.distantPast
   private static var wake: DispatchWorkItem?
+  private static var recovery = Set<UUID>()
+  static func reserveRecovery(_ id: UUID) { recovery.insert(id) }
+  static func releaseRecovery(_ id: UUID) { recovery.remove(id); startNext() }
   static func slowDown(until date: Date) {
     cooldown = max(cooldown, date)
   }
-  private let cookies: [HTTPCookie]
-  private let userAgent: String
+  private var cookies: [HTTPCookie]
+  private var userAgent: String
+  private let checkpointID: UUID?
+  private var checkpoint: FileTransferCheckpoint?
+  private var resumed = false
+  private var cancelling = false
   private let name: String
   private let expectedBytes: Int64?
   private let mime: String
@@ -23,11 +30,16 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
   private var task: URLSessionDownloadTask?
   private var redirects = 0
   private let prepare: (() async throws -> HostedFileRequest)?
+  private let authorize: (() async -> [HTTPCookie])?
+  // Authenticated forum requests use foreground sessions so every redirect can
+  // be checked and receive freshly scoped cookies. Resume data is still kept.
+  private var usesBackgroundSession: Bool { checkpointID != nil && authorize == nil }
   private var preparing: Task<Void, Never>?
   private var hosted: HostedFileRequest?
   private var fileSize: Int64? { hosted?.size ?? expectedBytes }
   init(name: String, expectedBytes: Int64?, mime: String, cookies: [HTTPCookie], userAgent: String,
-       limit: Int64 = GofilePolicy.fileLimit, prepare: (() async throws -> HostedFileRequest)? = nil,
+       limit: Int64 = GofilePolicy.fileLimit, checkpointID: UUID? = nil,
+       authorize: (() async -> [HTTPCookie])? = nil, prepare: (() async throws -> HostedFileRequest)? = nil,
        activity: @escaping (FileTransferActivity) -> Void = { _ in },
        progress: @escaping (Double?) -> Void,
        completion: @escaping (Result<URL, Error>) -> Void) {
@@ -35,7 +47,9 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     self.cookies = cookies; self.userAgent = userAgent; self.limit = limit
     self.progress = progress; self.completion = completion
     self.prepare = prepare
+    self.authorize = authorize
     self.activity = activity
+    self.checkpointID = checkpointID
   }
   func start(_ url: URL) {
     activity(.waiting)
@@ -51,16 +65,38 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       return
     }
     wake?.cancel(); wake = nil
-    let (transfer, url) = waiting.removeFirst()
+    // Reattach the system's existing transfer before starting newly queued files.
+    let index: Int
+    if !recovery.isEmpty {
+      guard let found = waiting.firstIndex(where: { $0.0.checkpointID.map { recovery.contains($0) } == true }) else { return }
+      index = found
+    } else { index = 0 }
+    let (transfer, url) = waiting.remove(at: index)
     active = transfer; transfer.prepareAndBegin(url)
   }
   private func prepareAndBegin(_ url: URL) {
+    if let checkpointID, let saved = try? FileDownloadStore.load(FileTransferCheckpoint.self, name: checkpointID.uuidString),
+       saved.hosted?.accepts(saved.url) ?? GofilePolicy.fileURL(saved.url),
+       authorize == nil || saved.hosted?.url == url {
+      checkpoint = saved; hosted = saved.hosted; cookies = saved.cookies.compactMap(\.cookie); userAgent = saved.userAgent
+      if authorize == nil { begin(saved.url); return }
+    }
     guard let prepare else { begin(url); return }
     activity(.resolving)
     preparing = Task { @MainActor [weak self] in
       guard let self else { return }
       do {
         let resolved = try await prepare()
+        if let authorize {
+          let fresh = await authorize()
+          // Opaque resume data embeds request headers. Never reuse it after
+          // logout/account changes; start this attachment with the new login.
+          if HTTPCookie.requestHeaderFields(with: fresh) != HTTPCookie.requestHeaderFields(with: self.cookies) {
+            self.checkpoint?.data = nil
+          }
+          self.cookies = fresh
+          self.checkpoint?.cookies = fresh.map(VideoDownloadCookie.init)
+        }
         try Task.checkCancellation()
         guard self.completion != nil else { return }
         self.hosted = resolved
@@ -78,19 +114,46 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
        let available = values.volumeAvailableCapacityForImportantUsage, expectedBytes > max(0, available - 64 * 1024 * 1024) {
       fail(AppText.text("There is not enough free space for this file.")); return
     }
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.httpCookieStorage = nil; configuration.httpShouldSetCookies = false
+    let configuration: URLSessionConfiguration
+    if let checkpointID, usesBackgroundSession {
+      configuration = .background(withIdentifier: FileBackgroundEvents.identifier(checkpointID))
+      configuration.sessionSendsLaunchEvents = true; configuration.isDiscretionary = false
+    } else { configuration = .ephemeral }
+    if let checkpointID {
+      if checkpoint == nil { checkpoint = FileTransferCheckpoint(url: url, hosted: hosted, cookies: cookies.map(VideoDownloadCookie.init), userAgent: userAgent) }
+      do { try FileDownloadStore.save(checkpoint, name: checkpointID.uuidString) }
+      catch { finish(.failure(error)); return }
+    }
+    // Background redirects are handled by the system. Let its cookie jar apply
+    // domain/path rules instead of forwarding a hand-built Cookie header.
+    let systemCookies = usesBackgroundSession && hosted == nil
+    configuration.httpCookieStorage = systemCookies ? HTTPCookieStorage.shared : nil
+    configuration.httpShouldSetCookies = systemCookies
+    if systemCookies {
+      for cookie in cookies where MediaPolicy.cookieMatches(cookie, url) { HTTPCookieStorage.shared.setCookie(cookie) }
+    }
     configuration.urlCredentialStorage = nil; configuration.urlCache = nil
     configuration.timeoutIntervalForRequest = 60; configuration.timeoutIntervalForResource = 7200
     session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
-    task = session?.downloadTask(with: request(url))
-    activity(.downloading)
-    task?.resume()
+    session?.getAllTasks { [weak self] tasks in
+      DispatchQueue.main.async {
+        guard let self, self.completion != nil, !self.cancelling else { return }
+        if let existing = tasks.compactMap({ $0 as? URLSessionDownloadTask }).first {
+          self.task = existing; self.resumed = true
+        } else if let data = self.checkpoint?.data {
+          self.task = self.session?.downloadTask(withResumeData: data); self.resumed = true
+        } else { self.task = self.session?.downloadTask(with: self.request(url)) }
+        self.activity(.downloading); self.task?.resume()
+      }
+    }
   }
   private func request(_ url: URL) -> URLRequest {
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-    request.httpShouldHandleCookies = false
-    for (key, value) in HTTPCookie.requestHeaderFields(with: hosted == nil ? cookies.filter { MediaPolicy.cookieMatches($0, url) } : []) {
+    request.httpShouldHandleCookies = usesBackgroundSession && hosted == nil
+    let scoped: [HTTPCookie]
+    if authorize != nil { scoped = cookies.filter { SouthSitePolicy.matches($0, url: url) } }
+    else { scoped = hosted == nil && checkpointID == nil ? cookies.filter { MediaPolicy.cookieMatches($0, url) } : [] }
+    for (key, value) in HTTPCookie.requestHeaderFields(with: scoped) {
       request.setValue(value, forHTTPHeaderField: key)
     }
     request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
@@ -98,7 +161,22 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
     return request
   }
-  func cancel() { finish(.failure(CancellationError())) }
+  func cancel() {
+    guard !cancelling, completion != nil else { return }
+    cancelling = true
+    guard checkpointID != nil, let task else { finish(.failure(CancellationError())); return }
+    task.cancel(byProducingResumeData: { [weak self] data in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.keepResumeData(data); self.finish(.failure(CancellationError()))
+      }
+    })
+  }
+  private func keepResumeData(_ data: Data?) {
+    guard let checkpointID, var checkpoint else { return }
+    checkpoint.data = data; self.checkpoint = checkpoint
+    try? FileDownloadStore.save(checkpoint, name: checkpointID.uuidString)
+  }
   private func fail(_ message: String) { finish(.failure(MediaFileError(message: message))) }
   private func finish(_ result: Result<URL, Error>) {
     guard let completion else { return }
@@ -106,9 +184,18 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
     if case .failure(let error) = result, let date = (error as? GofileFailure)?.retryDate { Self.slowDown(until: date) }
     if case .failure(let error) = result, let date = (error as? HostedFileFailure)?.retryDate { Self.slowDown(until: date) }
     preparing?.cancel(); preparing = nil
-    session?.invalidateAndCancel(); session = nil; task = nil
+    if case .failure = result, !cancelling { task?.cancel() }
+    session?.finishTasksAndInvalidate(); session = nil; task = nil
+    if checkpointID != nil, hosted == nil {
+      for cookie in cookies {
+        for stored in HTTPCookieStorage.shared.cookies ?? [] where stored.name == cookie.name && stored.domain == cookie.domain && stored.path == cookie.path && stored.value == cookie.value {
+          HTTPCookieStorage.shared.deleteCookie(stored)
+        }
+      }
+    }
     Self.waiting.removeAll { $0.0 === self }
     if Self.active === self { Self.active = nil }
+    if let checkpointID { Self.recovery.remove(checkpointID) }
     completion(result)
     Self.startNext()
   }
@@ -160,10 +247,12 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       let error: String?
       if let hosted {
         guard hosted.accepts(url) else { throw HostedFileFailure.access }
-        error = HostedFilePolicy.responseError(status: response.statusCode, mime: response.mimeType,
+        error = HostedFilePolicy.responseError(status: DownloadQueuePolicy.completedResponse(status: response.statusCode,
+          contentRange: response.value(forHTTPHeaderField: "Content-Range"), bytes: bytes, resumed: resumed), mime: response.mimeType,
                                               bytes: bytes, expected: fileSize, prefix: prefix)
       } else {
-        error = GofilePolicy.responseError(status: response.statusCode, url: url, mime: response.mimeType, expectedMIME: mime,
+        error = GofilePolicy.responseError(status: DownloadQueuePolicy.completedResponse(status: response.statusCode,
+          contentRange: response.value(forHTTPHeaderField: "Content-Range"), bytes: bytes, resumed: resumed), url: url, mime: response.mimeType, expectedMIME: mime,
                                            bytes: bytes, expectedBytes: expectedBytes, prefix: prefix, limit: limit)
       }
       if let error {
@@ -178,13 +267,23 @@ final class GofileFileTransfer: NSObject, URLSessionDownloadDelegate {
       finish(.success(file))
     } catch {
       if let directory { try? FileManager.default.removeItem(at: directory) }
+      if let checkpointID { FileDownloadStore.remove(checkpointID.uuidString) }
       finish(.failure(error))
     }
   }
   func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-    guard let error, completion != nil else { return }
+    guard let error, completion != nil, !cancelling else { return }
+    let failure = error as NSError
+    if resumed, failure.userInfo[NSURLSessionDownloadTaskResumeData] == nil, failure.code != NSURLErrorCancelled {
+      if let checkpointID { FileDownloadStore.remove(checkpointID.uuidString) }
+      fail(AppText.text("The saved connection expired. Continue to restart this file.")); return
+    }
+    keepResumeData(failure.userInfo[NSURLSessionDownloadTaskResumeData] as? Data)
     if (error as NSError).code == NSURLErrorCancelled { finish(.failure(CancellationError())) }
     else { fail(AppText.text("The file could not finish downloading. Check the connection and try again.")) }
+  }
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    if let checkpointID { DispatchQueue.main.async { FileBackgroundEvents.eventsReady(checkpointID) } }
   }
   static func remove(_ file: URL) {
     let parent = file.deletingLastPathComponent()

@@ -11,10 +11,8 @@ struct SimpForumParser {
     try heading?.select(".labelLink,.label-append").remove()
     let title = text(heading)
     let template = try doc.select("html").first()?.attr("data-template") ?? ""
-    let pageTitle = text(try doc.select("title").first()).lowercased()
     if status == 429 { throw ReaderFailure.rateLimit }
-    if (try !doc.select("#challenge-running,#challenge-form,.cf-turnstile").isEmpty() && title.isEmpty) ||
-        pageTitle.contains("just a moment") || pageTitle.contains("attention required") { throw ReaderFailure.verification }
+    if try SimpBrowserVerification.required(doc) { throw ReaderFailure.verification }
     if status == 401 || template == "login" || url.path.hasPrefix("/login") { throw ReaderFailure.login }
     if status == 403 { throw ReaderFailure.forbidden }
     guard (200..<300).contains(status) else { throw ReaderFailure.network }

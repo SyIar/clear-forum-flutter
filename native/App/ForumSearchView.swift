@@ -1,4 +1,3 @@
-import ForumUI
 import SwiftUI
 
 struct ForumSearchView: View {
@@ -33,12 +32,12 @@ struct ForumSearchView: View {
     List {
       Section {
         HStack {
-          Image(forumSymbol: "magnifyingglass").foregroundStyle(.secondary)
+          Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
           TextField(AppText.text("Keywords"), text: $keywords)
             .textInputAutocapitalization(.never).autocorrectionDisabled()
             .submitLabel(.search).focused($editing).onSubmit { search() }
           if !keywords.isEmpty {
-            Button { keywords = "" } label: { Image(forumSymbol: "xmark.circle.fill").foregroundStyle(.secondary) }
+            Button { keywords = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
               .buttonStyle(.plain).accessibilityLabel(AppText.text("Clear keywords"))
           }
         }
@@ -93,14 +92,14 @@ struct ForumSearchView: View {
         if page.pageCount > 1 {
           Section {
             HStack {
-              Button { if let previous = page.previous { load(previous) } } label: { Image(forumSymbol: "chevron.left") }
+              Button { if let previous = page.previous { load(previous) } } label: { Image(systemName: "chevron.left") }
                 .accessibilityLabel(AppText.text("Previous results")).disabled(loading || page.previous == nil)
               Spacer()
               // Bookhouse provides previous/next links, not a reliable total count.
               Text(session.site == .bookhouse ? AppText.format("Page %@", String(page.pageNumber)) : "\(page.pageNumber) / \(page.pageCount)")
                 .monospacedDigit().foregroundStyle(.secondary)
               Spacer()
-              Button { if let next = page.next { load(next) } } label: { Image(forumSymbol: "chevron.right") }
+              Button { if let next = page.next { load(next) } } label: { Image(systemName: "chevron.right") }
                 .accessibilityLabel(AppText.text("Next results")).disabled(loading || page.next == nil)
             }.buttonStyle(.borderless)
           }
@@ -110,8 +109,11 @@ struct ForumSearchView: View {
     .navigationTitle(AppText.text("Search")).navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button { openBrowser() } label: { Image(forumSymbol: "safari") }.accessibilityLabel(AppText.text("Open forum search in Site browser"))
+        Button { openBrowser() } label: { Image(systemName: "safari") }.accessibilityLabel(AppText.text("Open forum search in Site browser"))
       }
+    }
+    .task {
+      if session.site == .south || session.site == .bookhouse, let page { load(page.url) }
     }
     .onDisappear { cancel() }
     .fullScreenCover(item: $browser) { item in
