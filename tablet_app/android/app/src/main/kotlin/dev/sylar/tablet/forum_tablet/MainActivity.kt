@@ -13,6 +13,7 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        DownloadService.resumeImageOptimizations(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.sylar.tablet/downloads").setMethodCallHandler { call, result ->
             try {
                 when (call.method) {

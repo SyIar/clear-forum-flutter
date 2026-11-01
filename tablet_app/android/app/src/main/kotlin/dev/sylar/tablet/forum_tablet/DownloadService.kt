@@ -170,6 +170,7 @@ class DownloadService : Service() {
             finalTarget.setLastModified(System.currentTimeMillis())
             update(this, id) {
                 it.put("state", "complete").put("cookie", "").put("url", "")
+                    .put("optimizePending", finalTarget.extension.equals("png", true))
                     .put("path", finalTarget.path).put("name", finalTarget.name)
             }
             LocalFileTools.automaticallyConvert(this, finalTarget)
@@ -286,8 +287,22 @@ class DownloadService : Service() {
             val items = read(context)
             items.filter { it.optString("state") == "complete" && it.optString("path") == original }.forEach {
                 it.put("path", output.path).put("name", output.name).put("received", output.length()).put("total", output.length())
+                    .put("optimizePending", false)
             }
             write(context, items)
+        }
+        fun finishImageOptimization(context: Context, original: String) = synchronized(LOCK) {
+            val items = read(context)
+            items.filter { it.optString("state") == "complete" && it.optString("path") == original }
+                .forEach { it.put("optimizePending", false) }
+            write(context, items)
+        }
+        fun resumeImageOptimizations(context: Context) {
+            val pending = synchronized(LOCK) {
+                read(context).filter { it.optString("state") == "complete" && it.optBoolean("optimizePending") }
+                    .map { File(it.getString("path")) }
+            }
+            pending.forEach { LocalFileTools.automaticallyConvert(context, it) }
         }
         fun refreshLink(context: Context, args: Map<*, *>) {
             val url = URI(args["url"] as String)

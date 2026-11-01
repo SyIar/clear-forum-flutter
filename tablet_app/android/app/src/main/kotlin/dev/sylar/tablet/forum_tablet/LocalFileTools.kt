@@ -26,6 +26,7 @@ object LocalFileTools {
     private val stateLock = Any()
     private var state: Map<String, Any> = mapOf("state" to "idle")
     private val sourceLocks = mutableSetOf<String>()
+    private val pendingImages = mutableSetOf<String>()
     fun status(): Map<String, Any> = synchronized(stateLock) { state.toMap() }
     fun busy(path: String): Boolean = synchronized(stateLock) {
         sourceLocks.any { it == path || it.startsWith(path + File.separator) || path.startsWith(it + File.separator) }
@@ -91,12 +92,20 @@ object LocalFileTools {
     fun automaticallyConvert(context: Context, file: File) {
         if (!file.extension.equals("png", true)) return
         val app = context.applicationContext
+        synchronized(stateLock) { if (!pendingImages.add(file.path)) return }
         executor.execute {
             synchronized(stateLock) { sourceLocks.add(file.path) }
-            try { convert(app, DownloadService.directory(app), file) }
+            try {
+                val recovered = resolved(app, file.path)
+                if (recovered != file.path) DownloadService.relocate(app, file.path, File(recovered))
+                else convert(app, DownloadService.directory(app), file)
+            }
             catch (_: Exception) { /* A failed optimization always retains the original. */ }
             catch (_: OutOfMemoryError) { /* Keep large images intact under memory pressure. */ }
-            finally { synchronized(stateLock) { sourceLocks.remove(file.path) } }
+            finally {
+                DownloadService.finishImageOptimization(app, file.path)
+                synchronized(stateLock) { sourceLocks.remove(file.path); pendingImages.remove(file.path) }
+            }
         }
     }
 

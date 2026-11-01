@@ -135,6 +135,9 @@ do not describe the new APKs as device-tested until that check actually happens.
   Unknown metadata and animated/transparent images remain untouched. An atomic
   provenance journal permits recovery without overwriting unrelated WebP files.
   Successful replacements retain arrival order and update completed task paths.
+  New PNG downloads persist a pending-optimization marker. If Android stops the
+  process after download completion, opening the app resumes that optimization;
+  old downloads without this marker are changed only by the manual batch action.
 - File jobs survive closing the file browser; progress remains available when
   reopening it. These jobs are process-owned, not persisted/resumable across an
   Android process kill. Interrupted extraction retains the original archive;
