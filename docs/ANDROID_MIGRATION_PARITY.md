@@ -85,8 +85,9 @@ This is a corrective migration milestone, not a declaration of full parity.
   Read pages are cached; cache-all continues outside its drawer and pending jobs
   resume when reopening the book. Refresh success throttling is one hour here too.
 - Diagnostics expose recent page state and sanitized DOM for copying. Executable
-  content, forms, credential values and credential URL parameters are removed
-  from the diagnostic copy.
+  content, form controls and credential values are removed. Page addresses and
+  DOM URLs redact non-routing parameters; inert form containers retain their
+  post content, including lazy image source attributes.
 - Existing app IDs, signing identity and preference keys remain unchanged.
   This change does not reset any installed account, history or download data.
 
