@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_tablet/download_ui.dart';
 import 'package:forum_tablet/downloads.dart';
+import 'package:forum_tablet/media_viewer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +29,46 @@ void main() {
     () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(DownloadManager.channel, null),
   );
+
+  testWidgets('an open gallery follows a converted PNG path', (tester) async {
+    late Directory folder;
+    late File output;
+    await tester.runAsync(() async {
+      folder = await Directory.systemTemp.createTemp('gallery-conversion-');
+      final recorder = ui.PictureRecorder();
+      ui.Canvas(recorder).drawColor(const Color(0xff112233), ui.BlendMode.src);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(2, 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      output = File('${folder.path}/converted.webp');
+      await output.writeAsBytes(bytes!.buffer.asUint8List());
+      image.dispose();
+      picture.dispose();
+    });
+    addTearDown(() => folder.delete(recursive: true));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          DownloadManager.channel,
+          (call) async => call.method == 'resolvePath' ? output.path : null,
+        );
+    await tester.pumpWidget(
+      MaterialApp(home: MediaViewer(items: ['${folder.path}/original.png'])),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is FileImage &&
+            (widget.image as FileImage).file.path == output.path,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'encrypted ZIP prompt passes password only to the transient job',

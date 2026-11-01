@@ -383,7 +383,9 @@ class FileJobStatus extends StatelessWidget {
                 const SizedBox(height: 6),
                 if (running) ...[
                   LinearProgressIndicator(
-                    value: total > 0 ? (completed / total).clamp(0, 1) : null,
+                    value: !extract && total > 0
+                        ? (completed / total).clamp(0, 1)
+                        : null,
                   ),
                   const SizedBox(height: 6),
                   Text('$completed / $total'),

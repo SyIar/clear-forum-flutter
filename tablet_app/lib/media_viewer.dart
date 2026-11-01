@@ -18,6 +18,23 @@ bool isVideo(String path) => RegExp(
   caseSensitive: false,
 ).hasMatch(path);
 
+/// A gallery may still hold the PNG path when background conversion finishes.
+Widget _convertedImageFallback(String original) => FutureBuilder<String>(
+  future: DownloadManager.instance.resolvedPath(original),
+  builder: (context, snapshot) {
+    final resolved = snapshot.data;
+    if (resolved != null && resolved != original) {
+      return Image.file(
+        File(resolved),
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) =>
+            const Icon(Icons.broken_image_outlined, color: Colors.white),
+      );
+    }
+    return const Icon(Icons.broken_image_outlined, color: Colors.white);
+  },
+);
+
 class MediaViewer extends StatefulWidget {
   const MediaViewer({
     super.key,
@@ -92,10 +109,8 @@ class _MediaViewerState extends State<MediaViewer> {
                       : Image.file(
                           File(path),
                           fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const Icon(
-                            Icons.broken_image_outlined,
-                            color: Colors.white,
-                          ),
+                          errorBuilder: (_, _, _) =>
+                              _convertedImageFallback(path),
                         ),
                 ),
               );

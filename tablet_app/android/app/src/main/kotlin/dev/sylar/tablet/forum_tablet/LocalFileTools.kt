@@ -36,7 +36,7 @@ object LocalFileTools {
         if (operation !in setOf("extract", "convert")) throw FileToolFailure("Unsupported operation")
         val app = context.applicationContext
         val source = checked(DownloadService.directory(app), File(path))
-        if (DownloadService.busyPath(app, source.path)) throw FileToolFailure("File is downloading")
+        if (source.isFile && DownloadService.busyPath(app, source.path)) throw FileToolFailure("File is downloading")
         val secret = password?.toCharArray()
         synchronized(stateLock) {
             if (state["state"] == "running") {
@@ -64,6 +64,7 @@ object LocalFileTools {
                     var converted = 0
                     var saved = 0L
                     var failed = 0
+                    progress(0, sources.size)
                     for ((index, file) in sources.withIndex()) {
                         val result = try {
                             if (DownloadService.busyPath(app, file.canonicalPath)) null else convert(app, root, file)
@@ -162,6 +163,7 @@ object LocalFileTools {
                     declared += header.uncompressedSize
                 }
                 if (parent.usableSpace < declared + 16 * 1024 * 1024) throw FileToolFailure("Insufficient free space")
+                onProgress(0, headers.size)
                 var written = 0L
                 for ((index, header) in headers.withIndex()) {
                     val target = File(staging, header.fileName.replace('\\', '/')).canonicalFile
