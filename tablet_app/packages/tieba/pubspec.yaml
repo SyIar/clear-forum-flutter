@@ -1,0 +1,40 @@
+name: tieba_lite
+description: An independent native Flutter adaptation of Tieba Lite for iOS.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+  flutter: '>=3.47.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.11.1
+  crypto: ^3.0.7
+  pointycastle: ^4.0.0
+  archive: ^4.3.0
+  intl: ^0.20.3
+  protobuf: ^6.1.0
+  fixnum: ^1.1.1
+  image: ^4.5.4
+  flutter_secure_storage: ^11.2.0
+  shared_preferences: ^2.5.5
+  flutter_inappwebview: ^6.1.5
+  cached_network_image: ^4.0.2
+  flutter_cache_manager: ^3.4.5
+  connectivity_plus: ^7.3.1
+  video_player: ^2.14.0
+  just_audio: ^0.10.6
+  image_picker: ^1.2.3
+  share_plus: ^13.3.0
+  url_launcher: ^6.3.2
+  path_provider: ^2.1.6
+  app_links: ^7.2.1
+  gal: ^2.3.3
+
+flutter:
+  uses-material-design: true

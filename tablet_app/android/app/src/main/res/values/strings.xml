@@ -1,0 +1,5 @@
+<resources>
+    <string name="download_channel">Downloads</string>
+    <string name="download_queued">Preparing download</string>
+    <string name="download_running">Downloading in the background</string>
+</resources>
