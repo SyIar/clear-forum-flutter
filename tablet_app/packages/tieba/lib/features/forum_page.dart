@@ -170,7 +170,7 @@ class _ForumPageState extends State<ForumPage> {
         headerBuilder: (context, result) => Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -179,16 +179,18 @@ class _ForumPageState extends State<ForumPage> {
                       UserAvatar(
                         url: forum.avatar,
                         name: forum.name,
-                        radius: 34,
+                        radius: 24,
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               forum.name,
-                              style: Theme.of(context).textTheme.headlineSmall
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                             const SizedBox(height: 4),
@@ -219,7 +221,9 @@ class _ForumPageState extends State<ForumPage> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       FilledButton.tonalIcon(
                         onPressed: _busy || forum.id.isEmpty
@@ -242,7 +246,6 @@ class _ForumPageState extends State<ForumPage> {
                               : context.l10n.follow,
                         ),
                       ),
-                      const SizedBox(width: 10),
                       OutlinedButton.icon(
                         onPressed: _busy || forum.isSigned || forum.id.isEmpty
                             ? null
@@ -265,7 +268,10 @@ class _ForumPageState extends State<ForumPage> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 12, 10),
-              child: Row(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   ChoiceChip(
                     label: Text(context.l10n.general),
@@ -275,7 +281,6 @@ class _ForumPageState extends State<ForumPage> {
                       _reload();
                     },
                   ),
-                  const SizedBox(width: 8),
                   ChoiceChip(
                     label: Text(context.l10n.digest),
                     selected: _digest,
@@ -284,7 +289,6 @@ class _ForumPageState extends State<ForumPage> {
                       _reload();
                     },
                   ),
-                  const Spacer(),
                   PopupMenuButton<int>(
                     initialValue: _sort,
                     onSelected: (value) {

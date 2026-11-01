@@ -140,9 +140,14 @@ class ThreadCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onForumTap, onAuthorTap;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) =>
+        _buildCard(context, constraints.maxWidth < 340),
+  );
+
+  Widget _buildCard(BuildContext context, bool narrow) {
     final app = AppScope.of(context);
-    final compact = app.settings.getBool('compactCards');
+    final compact = narrow || app.settings.getBool('compactCards');
     return BlockedContent(
       blocked: app.local.blocksThread(thread),
       child: SurfaceCard(
@@ -217,9 +222,12 @@ class ThreadCard extends StatelessWidget {
                 ],
                 if (thread.images.isNotEmpty && !app.settings.hideMedia) ...[
                   const SizedBox(height: 12),
-                  ImageStrip(
-                    images: thread.images,
-                    thumbnails: thread.imageThumbnails,
+                  SizedBox(
+                    height: compact ? 100 : null,
+                    child: ImageStrip(
+                      images: thread.images,
+                      thumbnails: thread.imageThumbnails,
+                    ),
                   ),
                 ],
                 if (thread.videoUrl.isNotEmpty && !app.settings.hideMedia) ...[
@@ -239,40 +247,44 @@ class ThreadCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 14),
-                Row(
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 6,
                   children: [
                     if (thread.forum.name.isNotEmpty)
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: onForumTap,
-                          child: Text(
-                            thread.forum.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.colors.primary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      GestureDetector(
+                        onTap: onForumTap,
+                        child: Text(
+                          thread.forum.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      )
-                    else
-                      const Spacer(),
-                    Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 14,
-                      color: context.colors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      compactCount(thread.replyCount),
-                      style: TextStyle(
-                        color: context.colors.onSurfaceVariant,
-                        fontSize: 12,
                       ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 14,
+                          color: context.colors.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          compactCount(thread.replyCount),
+                          style: TextStyle(
+                            color: context.colors.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 14),
                     Text(
                       shortDate(context, thread.createdAt),
                       style: TextStyle(

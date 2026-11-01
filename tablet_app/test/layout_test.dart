@@ -8,6 +8,13 @@ import 'package:forum_tablet/session.dart';
 import 'package:forum_tablet/site.dart';
 import 'package:forum_tablet/strings.dart';
 import 'package:tieba_lite/tablet_bridge.dart';
+import 'package:tieba_lite/core/app_controller.dart';
+import 'package:tieba_lite/core/session_store.dart';
+import 'package:tieba_lite/core/settings_store.dart';
+import 'package:tieba_lite/core/local_store.dart';
+import 'package:tieba_lite/core/models.dart';
+import 'package:tieba_lite/l10n/app_localizations.dart';
+import 'package:tieba_lite/widgets/content_cards.dart';
 
 class FixtureSession extends ForumSession {
   FixtureSession(super.site);
@@ -37,6 +44,45 @@ class FixtureSession extends ForumSession {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(AppStrings.load);
+  testWidgets('Tieba cards fit the portrait directory at enlarged text size', (
+    tester,
+  ) async {
+    final app = AppController(
+      sessions: SessionStore(),
+      settings: SettingsStore(),
+      local: LocalStore(),
+    );
+    addTearDown(app.dispose);
+    await tester.pumpWidget(
+      AppScope(
+        controller: app,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+              child: SizedBox(
+                width: 218,
+                child: ThreadCard(
+                  thread: ThreadSummary(
+                    title: 'A long thread title in the directory',
+                    author: const UserProfile(name: 'A long user name'),
+                    forum: const Forum(name: 'A long forum name'),
+                    replyCount: 99999,
+                    createdAt: DateTime(2026, 10, 1),
+                  ),
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('Tieba thread pane retains its detail across tablet rotation', (
     tester,
   ) async {

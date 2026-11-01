@@ -111,6 +111,8 @@ class _SearchPageState extends State<SearchPage> {
           bottom: _query.isEmpty
               ? null
               : TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
                   tabs: scoped
                       ? [Tab(text: context.l10n.searchThreads)]
                       : [
