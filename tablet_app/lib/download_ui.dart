@@ -212,6 +212,30 @@ class FilesPane extends StatefulWidget {
 
 class _FilesPaneState extends State<FilesPane> {
   late Future<List<FileSystemEntity>> _entries = localFiles(widget.path);
+  late String _completed = _completionKey;
+  String get _completionKey => DownloadManager.instance.tasks
+      .where((task) => task.state == 'complete')
+      .map((task) => task.path)
+      .join('|');
+  @override
+  void initState() {
+    super.initState();
+    DownloadManager.instance.addListener(_downloadsChanged);
+  }
+
+  @override
+  void dispose() {
+    DownloadManager.instance.removeListener(_downloadsChanged);
+    super.dispose();
+  }
+
+  void _downloadsChanged() {
+    final completed = _completionKey;
+    if (completed == _completed) return;
+    _completed = completed;
+    if (mounted) _reload();
+  }
+
   void _reload() => setState(() => _entries = localFiles(widget.path));
   Future<void> _open(
     FileSystemEntity entry,

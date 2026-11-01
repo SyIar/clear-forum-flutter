@@ -728,48 +728,52 @@ class _ForumShellState extends State<ForumShell> {
           if (!popped) setState(() => _selected = null);
         },
         child: Scaffold(
-          appBar: AppBar(
-            title: Text(tr(widget.site.name)),
-            leading: !split && _selected != null
-                ? BackButton(onPressed: () => setState(() => _selected = null))
-                : null,
-            actions: [
-              IconButton(
-                tooltip: tr('Search'),
-                onPressed: _search,
-                icon: const Icon(Icons.search),
-              ),
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'browser') {
-                    _browser();
-                  } else {
-                    _search(link: true);
-                  }
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(
-                    value: 'browser',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.language),
-                      title: Text(tr('Browser')),
+          appBar: _tab == 2
+              ? null
+              : AppBar(
+                  title: Text(tr(widget.site.name)),
+                  leading: !split && _selected != null
+                      ? BackButton(
+                          onPressed: () => setState(() => _selected = null),
+                        )
+                      : null,
+                  actions: [
+                    IconButton(
+                      tooltip: tr('Search'),
+                      onPressed: _search,
+                      icon: const Icon(Icons.search),
                     ),
-                  ),
-                  PopupMenuItem(
-                    value: 'link',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.link),
-                      title: Text(tr('Open link')),
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'browser') {
+                          _browser();
+                        } else {
+                          _search(link: true);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'browser',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.language),
+                            title: Text(tr('Browser')),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'link',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.link),
+                            title: Text(tr('Open link')),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                ),
           body: SafeArea(
-            top: false,
+            top: _tab == 2,
             bottom: false,
             child: Row(
               children: [

@@ -48,6 +48,8 @@ flutter test --no-pub
 
 CI emits four unsigned ARM64 release APKs. Personal signing keys remain on the user's workstation and must never be committed or uploaded. Install signed artifacts with `adb install -r` to preserve application data.
 
+Android tooling is pinned to AGP 8.13.2, Gradle 8.13 and Kotlin 2.3.20. The stable InAppWebView plugin still uses a ProGuard default removed in AGP 9. This combination preserves the plugin without modifying the shared dependency cache. See the [AGP compatibility table](https://developer.android.com/build/releases/agp-8-13-0-release-notes).
+
 ## Sources and localization
 
 - Shared reader basis: `SyIar/clear-forum-flutter`, local deployed revision `6ffc1738757f5f536691fafd5f32cd613f365d12`.

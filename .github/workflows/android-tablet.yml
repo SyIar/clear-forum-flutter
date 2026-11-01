@@ -61,8 +61,10 @@ jobs:
         run: |
           APK=build/app/outputs/flutter-apk/app-${{ matrix.forum }}-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | head -10
           mkdir -p artifacts
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > artifacts/package.txt
+          head -10 artifacts/package.txt
+          grep -q "package: name='dev.sylar.tablet.${{ matrix.forum }}'" artifacts/package.txt
           cp "$APK" artifacts/
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" artifacts/
       - uses: actions/upload-artifact@v4

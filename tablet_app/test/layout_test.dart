@@ -100,6 +100,12 @@ void main() {
       expect(find.text('Open fixture'), findsOneWidget);
       expect(find.text('A readable paragraph.'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await tester.tap(find.text(tr('Downloads')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text(tr('Home')));
+      await tester.pumpAndSettle();
       tester.view.physicalSize = const Size(960, 640);
       await tester.pumpAndSettle();
       expect(find.text('Open fixture'), findsOneWidget);
