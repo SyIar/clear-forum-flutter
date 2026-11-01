@@ -26,6 +26,54 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
+  file-integration:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+      - name: Prepare Android integration host
+        working-directory: tablet_app
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build apk --debug --flavor south --target-platform android-x64 --no-pub
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: tablet_app/android
+          script: bash ./gradlew connectedSouthDebugAndroidTest -Ptarget-platform=android-x64 --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-file-integration-${{ github.run_number }}
+          path: |
+            tablet_app/build/app/reports/androidTests/
+            tablet_app/build/app/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14
   build:
     needs: verify
     runs-on: ubuntu-latest

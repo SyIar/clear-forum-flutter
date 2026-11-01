@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'adaptive.dart';
@@ -10,7 +11,7 @@ import 'strings.dart';
 
 Future<void> promptDownload(BuildContext context, {String initial = ''}) async {
   final field = TextEditingController(text: initial);
-  final value = await showDialog<String>(
+  final route = DialogRoute<String>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(tr('Add download')),
@@ -36,6 +37,8 @@ Future<void> promptDownload(BuildContext context, {String initial = ''}) async {
       ],
     ),
   );
+  final value = await Navigator.of(context, rootNavigator: true).push(route);
+  await route.completed;
   field.dispose();
   if (value == null || !context.mounted) return;
   try {
@@ -92,6 +95,8 @@ class DownloadsPage extends StatelessWidget {
                               final active =
                                   item.state == 'downloading' ||
                                   item.state == 'queued';
+                              final refreshing = manager.refreshingLinks
+                                  .contains(item.id);
                               return ListTile(
                                 leading: Icon(
                                   item.state == 'complete'
@@ -108,13 +113,14 @@ class DownloadsPage extends StatelessWidget {
                                   children: [
                                     const SizedBox(height: 6),
                                     Text(
-                                      '${tr(switch (item.state) {
-                                        'complete' => 'Complete',
-                                        'queued' => 'Queued',
-                                        'downloading' => 'Downloading',
-                                        'paused' => 'Paused',
-                                        _ => 'Failed',
-                                      })}  ${formatBytes(item.received)} / ${formatBytes(item.total)}',
+                                      '${tr(refreshing ? 'Refreshing download link' : switch (item.state) {
+                                              'complete' => 'Complete',
+                                              'queued' => 'Queued',
+                                              'downloading' => 'Downloading',
+                                              'paused' => 'Paused',
+                                              'expired' => 'Download link expired',
+                                              _ => 'Failed',
+                                            })}  ${formatBytes(item.received)} / ${formatBytes(item.total)}',
                                     ),
                                     if (active) ...[
                                       const SizedBox(height: 8),
@@ -127,7 +133,7 @@ class DownloadsPage extends StatelessWidget {
                                     ],
                                     if (item.error.isNotEmpty)
                                       Text(
-                                        item.error,
+                                        tr(item.error),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -138,7 +144,14 @@ class DownloadsPage extends StatelessWidget {
                                         File(item.path),
                                       ])
                                     : null,
-                                trailing: item.state == 'complete'
+                                trailing: refreshing
+                                    ? const SizedBox.square(
+                                        dimension: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : item.state == 'complete'
                                     ? null
                                     : IconButton(
                                         tooltip: tr(
@@ -176,12 +189,56 @@ Future<void> openFile(
   File file,
   List<FileSystemEntity> siblings,
 ) async {
+  final resolved = await DownloadManager.instance.resolvedPath(file.path);
+  if (!context.mounted) return;
+  if (resolved != file.path) {
+    file = File(resolved);
+    siblings = await localFiles(file.parent.path);
+    if (!context.mounted) return;
+  }
+  if (file.path.toLowerCase().endsWith('.zip')) {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                file.path.split(Platform.pathSeparator).last,
+                maxLines: 2,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_zip_outlined),
+              title: Text(tr('Extract ZIP')),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                promptFileJob(context, 'extract', file.path);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_new),
+              title: Text(tr('Open with another app')),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                DownloadManager.instance.openExternal(file.path);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    return;
+  }
   if (isImage(file.path) || isVideo(file.path)) {
     final media = siblings
         .whereType<File>()
         .where((f) => isImage(f.path) || isVideo(f.path))
         .map((f) => f.path)
         .toList();
+    if (!media.contains(file.path)) media.add(file.path);
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -203,6 +260,150 @@ Future<void> openFile(
   }
 }
 
+Future<void> promptFileJob(
+  BuildContext context,
+  String operation,
+  String path,
+) async {
+  final extract = operation == 'extract';
+  final password = TextEditingController();
+  final route = DialogRoute<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(tr(extract ? 'Extract ZIP' : 'Convert PNG images')),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tr(extract ? 'ZIP extraction hint' : 'Lossless conversion hint'),
+            ),
+            if (extract) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: password,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(
+                  labelText: tr('Password (optional)'),
+                ),
+                onSubmitted: (_) => Navigator.pop(context, true),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(tr('Cancel')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(tr(extract ? 'Extract ZIP' : 'Convert')),
+        ),
+      ],
+    ),
+  );
+  final accepted = await Navigator.of(context, rootNavigator: true).push(route);
+  await route.completed;
+  try {
+    if (accepted == true) {
+      await DownloadManager.instance.startFileJob(
+        operation,
+        path,
+        password: extract ? password.text : null,
+      );
+    }
+  } on PlatformException catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr(error.message ?? 'File operation failed'))),
+      );
+    }
+  } finally {
+    password.clear();
+    password.dispose();
+  }
+}
+
+class FileJobStatus extends StatelessWidget {
+  const FileJobStatus({super.key});
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: DownloadManager.instance,
+    builder: (context, _) {
+      final job = DownloadManager.instance.fileJob;
+      if (job.isEmpty || job['state'] == 'idle') return const SizedBox.shrink();
+      final running = job['state'] == 'running';
+      final failed = job['state'] == 'failed';
+      final extract = job['operation'] == 'extract';
+      final completed = (job['completed'] as num?)?.toInt() ?? 0;
+      final total = (job['total'] as num?)?.toInt() ?? 0;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      extract
+                          ? Icons.folder_zip_outlined
+                          : Icons.image_outlined,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${tr(extract ? 'Extract ZIP' : 'Convert PNG images')} · ${job['name']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (failed)
+                      TextButton(
+                        onPressed: () => promptFileJob(
+                          context,
+                          job['operation'] as String,
+                          job['source'] as String,
+                        ),
+                        child: Text(tr('Retry')),
+                      ),
+                    if (!running && !failed)
+                      const Icon(Icons.check_circle_outline, size: 20),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (running) ...[
+                  LinearProgressIndicator(
+                    value: total > 0 ? (completed / total).clamp(0, 1) : null,
+                  ),
+                  const SizedBox(height: 6),
+                  Text('$completed / $total'),
+                ] else if (failed)
+                  Text(tr(job['error'] as String? ?? 'File operation failed'))
+                else if (extract)
+                  Text(tr('ZIP extraction complete'))
+                else
+                  Text(
+                    '${tr('Converted')} ${job['converted'] ?? 0} · ${tr('Unchanged')} ${job['skipped'] ?? 0} · ${tr('Failed')} ${job['failed'] ?? 0} · ${tr('Saved space')} ${formatBytes((job['saved'] as num?)?.toInt() ?? 0)}',
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class FilesPane extends StatefulWidget {
   const FilesPane({super.key, required this.path});
   final String path;
@@ -213,10 +414,8 @@ class FilesPane extends StatefulWidget {
 class _FilesPaneState extends State<FilesPane> {
   late Future<List<FileSystemEntity>> _entries = localFiles(widget.path);
   late String _completed = _completionKey;
-  String get _completionKey => DownloadManager.instance.tasks
-      .where((task) => task.state == 'complete')
-      .map((task) => task.path)
-      .join('|');
+  String get _completionKey =>
+      '${DownloadManager.instance.fileJob['id']}:${DownloadManager.instance.fileJob['state']}|${DownloadManager.instance.tasks.where((task) => task.state == 'complete').map((task) => task.path).join('|')}';
   @override
   void initState() {
     super.initState();
@@ -291,18 +490,36 @@ class _FilesPaneState extends State<FilesPane> {
       ),
     );
     if (yes != true) return;
-    final root = Directory(DownloadManager.instance.directory!).absolute.path;
-    final resolved = await entry.resolveSymbolicLinks();
-    if (!resolved.startsWith('$root${Platform.pathSeparator}')) return;
-    if (DownloadManager.instance.tasks.any(
-      (t) =>
-          const ['downloading', 'queued'].contains(t.state) &&
-          (t.path == resolved ||
-              t.path.startsWith('$resolved${Platform.pathSeparator}')),
-    )) {
-      return;
+    try {
+      final root = Directory(DownloadManager.instance.directory!).absolute.path;
+      final resolved = await entry.resolveSymbolicLinks();
+      if (!resolved.startsWith('$root${Platform.pathSeparator}')) return;
+      final canDelete =
+          await DownloadManager.channel.invokeMethod<bool>('canDelete', {
+            'path': resolved,
+          }) ??
+          false;
+      if (!canDelete) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(tr('File is busy'))));
+        }
+        return;
+      }
+      await entry.delete(recursive: entry is Directory);
+    } on FileSystemException {
+      // A completed automatic conversion may already have replaced this entry.
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(tr('File not found'))));
+      }
+    } on PlatformException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr(error.message ?? 'File operation failed'))),
+        );
+      }
     }
-    await entry.delete(recursive: entry is Directory);
     if (mounted) _reload();
   }
 
@@ -332,6 +549,15 @@ class _FilesPaneState extends State<FilesPane> {
                   );
                 },
               ),
+            if (entry is File && entry.path.toLowerCase().endsWith('.zip'))
+              ListTile(
+                leading: const Icon(Icons.folder_zip_outlined),
+                title: Text(tr('Extract ZIP')),
+                onTap: () {
+                  Navigator.pop(context);
+                  promptFileJob(this.context, 'extract', entry.path);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
               title: Text(tr('Delete')),
@@ -349,7 +575,15 @@ class _FilesPaneState extends State<FilesPane> {
   Future<void> _storage() async {
     final files = await Directory(widget.path)
         .list(recursive: true, followLinks: false)
-        .where((e) => e is File && !e.path.endsWith('.part'))
+        .where(
+          (e) =>
+              e is File &&
+              !e.path.endsWith('.part') &&
+              !e.path
+                  .substring(widget.path.length + 1)
+                  .split(Platform.pathSeparator)
+                  .any((part) => part.startsWith('.')),
+        )
         .cast<File>()
         .toList();
     final sizes = <String, int>{};
@@ -400,6 +634,11 @@ class _FilesPaneState extends State<FilesPane> {
               ),
             ),
             IconButton(
+              tooltip: tr('Convert PNG images'),
+              onPressed: () => promptFileJob(context, 'convert', widget.path),
+              icon: const Icon(Icons.auto_fix_high_outlined),
+            ),
+            IconButton(
               tooltip: tr('Storage'),
               onPressed: _storage,
               icon: const Icon(Icons.data_usage_outlined),
@@ -412,6 +651,7 @@ class _FilesPaneState extends State<FilesPane> {
           ],
         ),
       ),
+      const FileJobStatus(),
       Expanded(
         child: FutureBuilder<List<FileSystemEntity>>(
           future: _entries,

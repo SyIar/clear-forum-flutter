@@ -27,6 +27,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -46,7 +47,12 @@ android {
     }
 }
 
-dependencies { implementation("androidx.core:core-ktx:1.17.0") }
+dependencies {
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("net.lingala.zip4j:zip4j:2.11.6")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+}
 
 kotlin {
     compilerOptions {

@@ -19,8 +19,15 @@ class DownloadItem {
       received = (data['received'] as num?)?.toInt() ?? 0,
       total = (data['total'] as num?)?.toInt() ?? -1,
       path = data['path'] as String? ?? '',
-      error = data['error'] as String? ?? '';
-  final String id, name, state, path, error;
+      error = data['error'] as String? ?? '',
+      sourcePage = Uri.tryParse('${data['sourcePage'] ?? ''}'),
+      remoteID = data['remoteID'] as String? ?? '',
+      refreshes = data['refreshes'] is num
+          ? (data['refreshes'] as num).toInt()
+          : 0;
+  final String id, name, state, path, error, remoteID;
+  final Uri? sourcePage;
+  final int refreshes;
   final int received, total;
 }
 
@@ -31,10 +38,25 @@ class FileRequest {
     this.referer,
     this.cookie,
     this.folder = '',
+    this.sourcePage,
+    this.remoteID = '',
   });
   final Uri url;
   final String name, folder;
   final String? referer, cookie;
+  final Uri? sourcePage;
+  final String remoteID;
+}
+
+FileRequest refreshedFile(DownloadItem item, List<FileRequest> files) {
+  final matches = files.where(
+    (file) =>
+        file.remoteID.isNotEmpty &&
+        file.remoteID == item.remoteID &&
+        file.sourcePage == item.sourcePage,
+  );
+  if (matches.length != 1) throw const FormatException('File identity changed');
+  return matches.single;
 }
 
 class DownloadManager extends ChangeNotifier {
@@ -45,6 +67,10 @@ class DownloadManager extends ChangeNotifier {
   List<DownloadItem> tasks = [];
   String? directory;
   bool resolving = false;
+  final Set<String> refreshingLinks = {};
+  Map<String, dynamic> fileJob = {};
+  bool _refreshing = false;
+  bool get fileJobRunning => fileJob['state'] == 'running';
   bool get supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   Future<void> init() async {
@@ -58,10 +84,31 @@ class DownloadManager extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    if (!supported) return;
-    final data = await channel.invokeListMethod<dynamic>('tasks') ?? [];
-    tasks = data.map((e) => DownloadItem(e as Map)).toList();
-    notifyListeners();
+    if (!supported || _refreshing) return;
+    _refreshing = true;
+    try {
+      final data = await channel.invokeListMethod<dynamic>('tasks') ?? [];
+      tasks = data.map((e) => DownloadItem(e as Map)).toList();
+      fileJob = Map<String, dynamic>.from(
+        await channel.invokeMapMethod('fileJobStatus') ?? {},
+      );
+      notifyListeners();
+      final expired = tasks
+          .where(
+            (item) =>
+                item.state == 'expired' &&
+                item.refreshes < 2 &&
+                item.remoteID.isNotEmpty,
+          )
+          .firstOrNull;
+      if (expired != null && refreshingLinks.isEmpty) {
+        unawaited(_refreshLink(expired));
+      }
+    } on PlatformException {
+      // Keep the last known queue during a transient service failure.
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> enqueue(FileRequest file) async {
@@ -75,6 +122,8 @@ class DownloadManager extends ChangeNotifier {
       'referer': file.referer,
       'cookie': file.cookie,
       'folder': file.folder,
+      'sourcePage': file.sourcePage?.toString(),
+      'remoteID': file.remoteID,
     });
     await refresh();
   }
@@ -94,9 +143,60 @@ class DownloadManager extends ChangeNotifier {
   }
 
   Future<void> action(String action, String id) async {
+    final item = tasks.where((t) => t.id == id).firstOrNull;
+    if (action == 'resume' &&
+        item != null &&
+        item.remoteID.isNotEmpty &&
+        item.sourcePage != null) {
+      await _refreshLink(item);
+      return;
+    }
     await channel.invokeMethod<void>(action, {'id': id});
     await refresh();
   }
+
+  Future<void> _refreshLink(DownloadItem item) async {
+    if (!refreshingLinks.add(item.id)) return;
+    notifyListeners();
+    try {
+      final file = refreshedFile(
+        item,
+        await HostResolver().resolve(item.sourcePage!),
+      );
+      await channel.invokeMethod<void>('refreshLink', {
+        'id': item.id,
+        'url': '${file.url}',
+        'referer': file.referer,
+        'cookie': file.cookie,
+        'remoteID': file.remoteID,
+      });
+    } catch (_) {
+      await channel.invokeMethod<void>('resolutionFailed', {'id': item.id});
+    } finally {
+      refreshingLinks.remove(item.id);
+      notifyListeners();
+      await refresh();
+    }
+  }
+
+  Future<void> startFileJob(
+    String operation,
+    String path, {
+    String? password,
+  }) async {
+    fileJob = Map<String, dynamic>.from(
+      await channel.invokeMapMethod('startFileJob', {
+            'operation': operation,
+            'path': path,
+            'password': password,
+          }) ??
+          {},
+    );
+    notifyListeners();
+  }
+
+  Future<String> resolvedPath(String path) async =>
+      await channel.invokeMethod<String>('resolvePath', {'path': path}) ?? path;
 
   Future<void> openExternal(String path) =>
       channel.invokeMethod<void>('openFile', {'path': path});
@@ -228,6 +328,8 @@ class HostResolver {
             ),
         name,
         referer: '$url',
+        sourcePage: url.removeFragment().replace(query: ''),
+        remoteID: 'filester:${url.pathSegments.last}',
       ),
     ];
   }
@@ -246,54 +348,38 @@ class HostResolver {
             url.resolve('/api/file/${f['id'] ?? id}?download'),
             '${f['name']}',
             folder: folder ? '${data['title'] ?? id}' : '',
+            sourcePage: url.resolve('/u/${f['id'] ?? id}'),
+            remoteID: 'pixeldrain:${f['id'] ?? id}',
           ),
         )
         .toList();
   }
 
   Future<List<FileRequest>> _gofile(Uri url) async {
-    final result = <FileRequest>[];
-    final visited = <String>{};
-    Future<void> folder(Uri page, int depth) async {
-      if (depth > 8 || result.length > 10000 || !visited.add('$page')) return;
-      final data = await captureGofile(page);
-      if (data['status'] != 'ok' || (data['pages'] as num? ?? 1) > 1) {
-        throw const FormatException('Open this Gofile folder in its website');
-      }
-      final cookies = await CookieManager.instance().getCookies(
-        url: WebUri('https://gofile.io/'),
-      );
-      final token = cookies
-          .where((c) => c.name == 'accountToken')
-          .firstOrNull
-          ?.value;
-      for (final child in (data['children'] as List? ?? []).whereType<Map>()) {
-        if (child['type'] == 'folder') {
-          await folder(
-            Uri.parse('https://gofile.io/d/${child['id']}'),
-            depth + 1,
-          );
-        } else {
-          final file = Uri.parse('${child['link']}');
-          if (file.scheme != 'https' || !_host(file, 'gofile.io')) {
-            throw const FormatException('Unrecognized Gofile server');
-          }
-          result.add(
-            FileRequest(
-              file,
-              '${child['name']}',
-              cookie: token == null ? null : 'accountToken=$token',
-              referer: 'https://gofile.io/',
-              folder: '${data['name'] ?? ''}',
-            ),
-          );
-        }
-      }
-    }
-
-    await folder(url, 0);
-    if (result.isEmpty) throw const FormatException('Empty file list');
-    return result;
+    final page = gofilePage(url);
+    final entries = await collectGofile(
+      page,
+      (url, page) => captureGofile(url, page: page),
+    );
+    final cookies = await CookieManager.instance().getCookies(
+      url: WebUri('https://gofile.io/'),
+    );
+    final token = cookies
+        .where((c) => c.name == 'accountToken')
+        .firstOrNull
+        ?.value;
+    return [
+      for (final child in entries)
+        FileRequest(
+          Uri.parse('${child['link']}'),
+          '${child['name']}',
+          cookie: token == null ? null : 'accountToken=$token',
+          referer: 'https://gofile.io/',
+          folder: '${child['folder']}',
+          sourcePage: Uri.parse('${child['sourcePage']}'),
+          remoteID: 'gofile:${child['id']}',
+        ),
+    ];
   }
 
   Future<List<FileRequest>> _bunkr(Uri url, int depth) async {
@@ -341,6 +427,8 @@ class HostResolver {
         file,
         doc.querySelector('h1')?.text.trim() ?? file.pathSegments.last,
         referer: '$url',
+        sourcePage: url.removeFragment().replace(query: ''),
+        remoteID: 'bunkr:$id',
       ),
     ];
   }
@@ -364,7 +452,12 @@ Future<List<FileSystemEntity>> localFiles(String path) async {
   if (!await directory.exists()) return [];
   final entries = await directory
       .list(followLinks: false)
-      .where((e) => !e.path.endsWith('.part') && e is! Link)
+      .where(
+        (e) =>
+            !e.path.endsWith('.part') &&
+            !e.path.split(Platform.pathSeparator).last.startsWith('.') &&
+            e is! Link,
+      )
       .toList();
   final dates = <String, DateTime>{};
   for (final e in entries) {

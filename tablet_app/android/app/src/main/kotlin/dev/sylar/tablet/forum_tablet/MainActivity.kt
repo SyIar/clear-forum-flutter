@@ -18,17 +18,27 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "directory" -> result.success(DownloadService.directory(this).path)
                     "tasks" -> result.success(DownloadService.tasks(this))
+                    "fileJobStatus" -> result.success(LocalFileTools.status())
+                    "startFileJob" -> result.success(LocalFileTools.start(this,
+                        call.argument<String>("operation")!!, call.argument<String>("path")!!, call.argument<String>("password")))
+                    "resolvePath" -> result.success(LocalFileTools.resolved(this, call.argument<String>("path")!!))
+                    "canDelete" -> {
+                        val file = LocalFileTools.checked(DownloadService.directory(this), File(call.argument<String>("path")!!))
+                        result.success(!LocalFileTools.busy(file.path) && !DownloadService.busyPath(this, file.path))
+                    }
+                    "refreshLink" -> { DownloadService.refreshLink(this, call.arguments as Map<*, *>); result.success(null) }
                     "enqueue" -> {
                         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 42)
                         }
                         DownloadService.enqueue(this, call.arguments as Map<*, *>); result.success(null)
                     }
-                    "pause", "resume", "remove" -> {
+                    "pause", "resume", "remove", "resolutionFailed" -> {
                         DownloadService.action(this, call.method, call.argument<String>("id")!!); result.success(null)
                     }
                     "openFile" -> {
-                        val file = File(call.argument<String>("path")!!).canonicalFile
+                        val file = LocalFileTools.checked(DownloadService.directory(this),
+                            File(LocalFileTools.resolved(this, call.argument<String>("path")!!)))
                         require(file.path.startsWith(DownloadService.directory(this).canonicalPath + File.separator))
                         val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
                         val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream"

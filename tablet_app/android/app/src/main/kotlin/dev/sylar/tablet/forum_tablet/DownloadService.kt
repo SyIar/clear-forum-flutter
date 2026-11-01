@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** The Android service owns transfers; Flutter routes never own their lifetime. */
 class DownloadService : Service() {
+    private class ExpiredLink : Exception("Download link expired")
+    private class ChangedValidator : Exception("Download changed; restarting")
     private val running = AtomicBoolean(false)
     @Volatile private var stopping = false
     @Volatile private var activeConnection: HttpURLConnection? = null
@@ -108,20 +110,28 @@ class DownloadService : Service() {
                     require(!(url.protocol == "https" && destination.protocol != "https")) { "Insecure redirect" }
                     next.disconnect(); url = destination; continue
                 }
+                if (code in setOf(401, 403, 410) && item.optString("sourcePage").isNotEmpty()) throw ExpiredLink()
+                if (code == 416 && offset > 0) throw ChangedValidator()
                 require(code == 200 || code == 206) { "HTTP $code" }
                 break
             }
             val response = connection ?: error("No response")
             val type = response.contentType.orEmpty().lowercase()
+            if (item.optString("sourcePage").isNotEmpty() && (type.contains("text/html") || type.contains("application/json"))) throw ExpiredLink()
             require(!type.contains("text/html") && !type.contains("application/json")) { "Server returned a page instead of a file" }
-            if (response.responseCode == 206) {
-                val start = Regex("bytes (\\d+)-").find(response.getHeaderField("Content-Range").orEmpty())?.groupValues?.get(1)?.toLongOrNull()
-                require(start == offset) { "Invalid resume response" }
-            } else { offset = 0 }
             val length = response.getHeaderFieldLong("Content-Length", -1)
+            if (response.responseCode == 206) {
+                val range = Regex("bytes (\\d+)-(\\d+)/(\\d+)").matchEntire(response.getHeaderField("Content-Range").orEmpty())
+                val start = range?.groupValues?.get(1)?.toLongOrNull()
+                val end = range?.groupValues?.get(2)?.toLongOrNull()
+                val full = range?.groupValues?.get(3)?.toLongOrNull()
+                require(start == offset && end != null && full != null && end >= offset && end == full - 1 &&
+                    (length < 0 || length == end - offset + 1)) { "Invalid resume response" }
+            } else { offset = 0 }
             val total = if (length >= 0) offset + length else -1
             require(length < 0 || target.parentFile!!.usableSpace > length + 1024 * 1024) { "Insufficient free space" }
             val tag = response.getHeaderField("ETag")?.takeUnless { it.startsWith("W/") } ?: response.getHeaderField("Last-Modified").orEmpty()
+            if (offset > 0 && tag != validator) throw ChangedValidator()
             update(this, id) { it.put("validator", tag).put("total", total).put("received", offset) }
             var received = offset
             var lastWrite = 0L
@@ -156,15 +166,20 @@ class DownloadService : Service() {
                     availableTarget(target.parentFile!!, safeName(suggested), read(this), id)
                 } else target
             }
-            require(partial.renameTo(finalTarget)) { "Could not save file" }
+            java.nio.file.Files.move(partial.toPath(), finalTarget.toPath())
             finalTarget.setLastModified(System.currentTimeMillis())
             update(this, id) {
                 it.put("state", "complete").put("cookie", "").put("url", "")
                     .put("path", finalTarget.path).put("name", finalTarget.name)
             }
+            LocalFileTools.automaticallyConvert(this, finalTarget)
         } catch (error: Exception) {
             update(this, id) {
-                if (it.optString("state") == "downloading") it.put("state", "failed").put("error", error.message?.take(160) ?: "Transfer failed")
+                if (it.optString("state") == "downloading") {
+                    if (error is ChangedValidator) it.put("state", "queued").put("validator", "").put("received", 0)
+                    else it.put("state", if (error is ExpiredLink) "expired" else "failed")
+                        .put("error", error.message?.take(160) ?: "Transfer failed")
+                }
             }
         } finally { connection?.disconnect(); activeConnection = null }
     }
@@ -202,7 +217,7 @@ class DownloadService : Service() {
         fun tasks(context: Context): List<Map<String, Any>> = synchronized(LOCK) {
             if (!serviceAlive) recover(context)
             read(context).filterNot { it.optBoolean("hidden") }.map { item ->
-                listOf("id","name","state","path","received","total","error").associateWith { key -> item.opt(key) ?: "" }
+                listOf("id","name","state","path","received","total","error","sourcePage","remoteID","refreshes").associateWith { key -> item.opt(key) ?: "" }
             }.reversed()
         }
         fun recover(context: Context) = synchronized(LOCK) {
@@ -247,6 +262,7 @@ class DownloadService : Service() {
             val target = availableTarget(folder, name, items)
             items.add(JSONObject().put("id", UUID.randomUUID().toString()).put("name", target.name).put("path", target.path)
                 .put("url", "$url").put("cookie", args["cookie"] ?: "").put("referer", args["referer"] ?: "")
+                .put("sourcePage", args["sourcePage"] ?: "").put("remoteID", args["remoteID"] ?: "").put("refreshes", 0)
                 .put("state", "queued").put("received", 0).put("total", -1).put("created", System.currentTimeMillis()))
             write(context, items)
             context.startForegroundService(Intent(context, DownloadService::class.java))
@@ -257,9 +273,33 @@ class DownloadService : Service() {
                     "pause" -> if (it.optString("state") in setOf("queued","downloading")) it.put("state", "paused")
                     "resume" -> if (it.optString("state") in setOf("paused","failed")) it.put("state", "queued")
                     "remove" -> if (it.optString("state") !in setOf("downloading","queued")) it.put("hidden", true)
+                    "resolutionFailed" -> if (it.optString("state") in setOf("expired", "paused", "failed")) it.put("state", "failed").put("error", "Could not refresh download link")
                 }
             }
             if (action == "resume") context.startForegroundService(Intent(context, DownloadService::class.java))
+        }
+        fun busyPath(context: Context, path: String): Boolean = synchronized(LOCK) {
+            read(context).any { it.optString("state") in setOf("queued", "downloading") &&
+                (it.optString("path") == path || it.optString("path").startsWith(path + File.separator)) }
+        }
+        fun relocate(context: Context, original: String, output: File) = synchronized(LOCK) {
+            val items = read(context)
+            items.filter { it.optString("state") == "complete" && it.optString("path") == original }.forEach {
+                it.put("path", output.path).put("name", output.name).put("received", output.length()).put("total", output.length())
+            }
+            write(context, items)
+        }
+        fun refreshLink(context: Context, args: Map<*, *>) {
+            val url = URI(args["url"] as String)
+            require(url.scheme in setOf("https", "http") && url.host != null && url.userInfo == null)
+            update(context, args["id"] as String) {
+                require(!it.optBoolean("hidden")) { "Transfer was removed" }
+                require(it.optString("state") in setOf("failed", "paused", "expired")) { "Transfer is active" }
+                require(it.optString("remoteID").isNotEmpty() && it.optString("remoteID") == args["remoteID"]) { "File identity changed" }
+                it.put("url", "$url").put("cookie", args["cookie"] ?: "").put("referer", args["referer"] ?: "")
+                    .put("refreshes", it.optInt("refreshes") + 1).put("state", "queued").put("error", "")
+            }
+            context.startForegroundService(Intent(context, DownloadService::class.java))
         }
     }
 }

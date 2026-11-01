@@ -93,11 +93,14 @@ This is a corrective migration milestone, not a declaration of full parity.
 
 ## Explicit remaining gaps
 
-- Full Gofile folder pagination, provider-refreshed expired download URLs,
-  torrent-to-magnet conversion, and native embedded-provider video resolution.
+- Torrent-to-magnet conversion, Fileditch metadata resolution, and native
+  embedded-provider video resolution.
   Existing direct download/browser paths are not equivalent to these workflows.
-- Local encrypted archive extraction and automatic/recursive lossless image
-  conversion have not yet been ported from the native implementation.
+- Live authenticated Gofile pagination and expired-link renewal still require
+  account acceptance. Renewal needs the app's Dart/WebView session; an expired
+  transfer waits while that session is unavailable instead of downloading HTML.
+- Local image conversion deliberately retains transparent, animated, tagged
+  metadata and non-sRGB PNGs. It is not full native PNG metadata parity.
 - The complete native reading-appearance system (CJK-only bundled serif,
   paragraph/line spacing preferences), novel cache quotas/eviction and complete
   legacy author-provenance migration remain incomplete.
@@ -115,3 +118,40 @@ Local verification uses Dart analysis and Flutter regression/widget tests only.
 Android compilation and APK validation are performed by the remote workflow
 `Four Android tablet apps`. The USB device list was empty during this milestone;
 do not describe the new APKs as device-tested until that check actually happens.
+
+## Download and local-file restoration
+
+- A ZIP opens an extraction/password dialog or an external-app chooser. The
+  shared Android worker supports plain, traditional encrypted and AES ZIPs
+  through [Zip4j](https://github.com/srikanth-lingala/zip4j). It validates paths,
+  duplicate entries, special file types, declared sizes and free storage before
+  publishing a new sibling folder. Existing folders and the archive are retained;
+  failures remove only the owned staging folder. Passwords are memory-only.
+- The local-files toolbar recursively converts eligible PNGs to Android
+  [lossless WebP](https://developer.android.com/reference/android/graphics/Bitmap.CompressFormat#WEBP_LOSSLESS).
+  Newly downloaded PNGs use the same serial worker automatically. Conversion
+  requires API 30+, an opaque 8-bit non-interlaced sRGB image, acceptable memory
+  bounds, matching decoded pixels, a smaller output and an unchanged source hash.
+  Unknown metadata and animated/transparent images remain untouched. An atomic
+  provenance journal permits recovery without overwriting unrelated WebP files.
+  Successful replacements retain arrival order and update completed task paths.
+- File jobs survive closing the file browser; progress remains available when
+  reopening it. These jobs are process-owned, not persisted/resumable across an
+  Android process kill. Interrupted extraction retains the original archive;
+  re-run the operation after restarting. Download transfers remain owned by the
+  existing Android foreground service.
+- Gofile observes bounded responses from its own website, validates folder/file
+  identity, collects all declared pages and subfolders, and publishes no partial
+  plan on access/pagination errors. No provider tokens are fabricated. Direct
+  CDN links normalize to their content IDs for resolution.
+- New Filester, Bunkr, Pixeldrain and Gofile queue entries retain provider identity
+  and source pages. Expired links can be resolved again without creating a second
+  task. Automatic renewal is bounded; explicit resume can retry. Resume validates
+  byte ranges and ETag/Last-Modified; changed validators restart instead of
+  appending mismatched bytes. Old queues remain readable; pre-migration entries
+  without source identity cannot gain provider refresh metadata retroactively.
+- CI additionally runs Kotlin Android instrumentation workflows on an API 35
+  emulator for real encrypted archives, unsafe paths, collision handling,
+  lossless pixel comparison, arrival times and conversion provenance. These are
+  device-platform integration checks, separate from local Dart tests and OPPO
+  hardware acceptance. No local Gradle commands are used.
