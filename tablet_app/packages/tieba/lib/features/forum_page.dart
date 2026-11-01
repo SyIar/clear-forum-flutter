@@ -77,7 +77,21 @@ class _ForumPageState extends State<ForumPage> {
   @override
   Widget build(BuildContext context) => TabletThreadHost(builder: _buildMaster);
 
-  Widget _buildMaster(BuildContext context) {
+  Widget _buildMaster(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) =>
+        _buildMasterPane(context, constraints.maxWidth < 340),
+  );
+
+  void _searchForum(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => SearchPage(forumName: widget.name),
+      ),
+    );
+  }
+
+  Widget _buildMasterPane(BuildContext context, bool narrow) {
     final app = AppScope.of(context);
     final forum = _forum ?? Forum(name: widget.name);
     final pinned = _pinnedThreads.where(_showThread).toList();
@@ -85,21 +99,19 @@ class _ForumPageState extends State<ForumPage> {
     return Scaffold(
       extendBodyBehindAppBar: usesNativeGlass,
       appBar: GlassAppBar(
-        title: Text(widget.name),
+        title: Text(widget.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => SearchPage(forumName: widget.name),
-              ),
+          if (!narrow)
+            IconButton(
+              onPressed: () => _searchForum(context),
+              icon: const Icon(Icons.search_rounded),
+              tooltip: context.l10n.searchInForum,
             ),
-            icon: const Icon(Icons.search_rounded),
-            tooltip: context.l10n.searchInForum,
-          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
+                case 'search':
+                  _searchForum(context);
                 case 'pin':
                   app.local.togglePinnedForum(forum);
                 case 'share':
@@ -118,6 +130,11 @@ class _ForumPageState extends State<ForumPage> {
               }
             },
             itemBuilder: (context) => [
+              if (narrow)
+                PopupMenuItem(
+                  value: 'search',
+                  child: Text(context.l10n.searchInForum),
+                ),
               PopupMenuItem(
                 value: 'pin',
                 child: Text(
