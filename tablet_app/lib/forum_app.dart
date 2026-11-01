@@ -80,7 +80,23 @@ class _ForumShellState extends State<ForumShell> {
   void initState() {
     super.initState();
     _masterScroll.addListener(_onScroll);
-    unawaited(_openList(widget.site.home));
+    unawaited(
+      _openList(widget.site.home).then((_) {
+        if (mounted) unawaited(_checkUpdates());
+      }),
+    );
+  }
+
+  Future<void> _checkUpdates() async {
+    if (widget.site.module == Module.bookhouse) {
+      await _books.updateAll();
+    } else {
+      await widget.library.check((url) async {
+        final capture = await _session.fetch(url);
+        if (capture.cached) throw const ReaderFailure(FailureKind.network);
+        return PageParser(widget.site).parse(capture.html, capture.url);
+      });
+    }
   }
 
   @override
@@ -352,16 +368,7 @@ class _ForumShellState extends State<ForumShell> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: FilledButton.icon(
-                    onPressed: widget.library.checking
-                        ? null
-                        : () => widget.library.check((url) async {
-                            final capture = await _session.fetch(url);
-                            if (capture.cached) {
-                              throw const ReaderFailure(FailureKind.network);
-                            }
-                            return PageParser(widget.site)
-                                .parse(capture.html, capture.url);
-                          }),
+                    onPressed: widget.library.checking ? null : _checkUpdates,
                     icon: const Icon(Icons.refresh),
                     label: Text(tr('Check updates')),
                   ),

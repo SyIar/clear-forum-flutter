@@ -294,7 +294,12 @@ class PageParser {
         )
         .map((a) => site.resolve(a.attributes['href'], url, internal: true))
         .nonNulls
-        .where((u) => u.path == url.path)
+        .where(
+          (u) =>
+              u.path == url.path &&
+              site.pageUrl(u, 1).replace(fragment: '') ==
+                  site.pageUrl(url, 1).replace(fragment: ''),
+        )
         .toList();
     final next = paging
         .where((u) => site.pageNumber(u) == current + 1)

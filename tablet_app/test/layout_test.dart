@@ -7,6 +7,7 @@ import 'package:forum_tablet/library.dart';
 import 'package:forum_tablet/session.dart';
 import 'package:forum_tablet/site.dart';
 import 'package:forum_tablet/strings.dart';
+import 'package:tieba_lite/tablet_bridge.dart';
 
 class FixtureSession extends ForumSession {
   FixtureSession(super.site);
@@ -36,6 +37,40 @@ class FixtureSession extends ForumSession {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(AppStrings.load);
+  testWidgets('Tieba thread pane retains its detail across tablet rotation', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(640, 960);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TabletThreadHost(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () =>
+                  ThreadPaneScope.of(context)!
+                      .open(const Scaffold(body: Text('Thread detail'))),
+              child: const Text('Directory'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Directory'));
+    await tester.pumpAndSettle();
+    for (final size in [
+      const Size(640, 960),
+      const Size(960, 640),
+      const Size(390, 844),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+      expect(find.text('Thread detail'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+  });
   for (final module in [Module.simp, Module.south, Module.bookhouse]) {
     testWidgets('${module.name} keeps list and reader visible after rotation', (
       tester,

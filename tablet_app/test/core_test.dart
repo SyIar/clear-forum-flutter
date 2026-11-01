@@ -31,10 +31,15 @@ void main() {
     for (final value in [
       'read.php?tid=1&action=delete',
       'read.php?tid=1&tid=2',
+      'read.php?tid-1-action-delete.html',
       'https://south-plus.net.evil.invalid/read.php?tid=1',
       'https://user@south-plus.net/read.php?tid=1',
     ]) {
-      expect(south.readable(south.home.resolve(value)), isFalse, reason: value);
+      expect(
+        south.readable(south.canonical(south.home.resolve(value))),
+        isFalse,
+        reason: value,
+      );
     }
   });
   test('South page 2 directory links resolve into readable routes', () {

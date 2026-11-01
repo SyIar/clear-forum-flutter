@@ -73,7 +73,12 @@ class _ThreadReaderState extends State<ThreadReader> {
       _loaded.clear();
     });
     try {
-      final initial = _usedCapture ? null : widget.capture;
+      final initial = _usedCapture
+          ? null
+          : widget.capture ??
+                (widget.books?.bookFor(widget.url) != null
+                    ? await widget.session.cached(widget.url)
+                    : null);
       _usedCapture = true;
       final capture = initial ?? await widget.session.fetch(widget.url);
       final page = PageParser(site).parse(capture.html, capture.url);
@@ -136,7 +141,10 @@ class _ThreadReaderState extends State<ThreadReader> {
     final generation = _generation;
     setState(() => _appending = true);
     try {
-      final capture = await widget.session.fetch(next);
+      final cached = widget.books?.bookFor(next) != null
+          ? await widget.session.cached(next)
+          : null;
+      final capture = cached ?? await widget.session.fetch(next);
       final page = PageParser(site).parse(capture.html, capture.url);
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -483,13 +491,17 @@ class _ThreadReaderState extends State<ThreadReader> {
                           ),
                           height: 1,
                         ),
-                        if (page.previous != null && page == _pages.first)
+                        if ((widget.books?.adjacent(page.url, -1) ??
+                                    page.previous) !=
+                                null &&
+                            page == _pages.first)
                           TextButton.icon(
-                            onPressed: () => widget.onLink(page.previous!),
-                            icon: const Icon(Icons.arrow_upward),
-                            label: Text(
-                              '${tr('Previous')} ${page.pageNumber - 1}',
+                            onPressed: () => widget.onLink(
+                              widget.books?.adjacent(page.url, -1) ??
+                                  page.previous!,
                             ),
+                            icon: const Icon(Icons.arrow_upward),
+                            label: Text(tr('Previous')),
                           ),
                         for (final post in page.posts)
                           Align(
