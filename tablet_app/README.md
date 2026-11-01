@@ -30,9 +30,11 @@ An Android foreground data-sync service owns serial transfers independently of F
 
 The service obeys Android foreground-service limits; a system timeout pauses the queue. This is not an unlimited background execution exemption. Notification permission is requested when adding a download. Export uses a scoped FileProvider.
 
-Supported link resolvers: direct HTTP(S) files, South attachments, Filester files/folders, Pixeldrain files/lists, Bunkr files/albums, and Gofile content observed from its website. Gofile folders spanning multiple API result pages currently require the website. Host formats can change independently of the app.
+Supported link resolvers: direct HTTP(S) files, South attachments, Filester files/folders, Pixeldrain files/lists, Bunkr files/albums, and Gofile content observed from its website. Gofile collects every declared page and nested folder before accepting the download plan. Provider links retain source identity for bounded expired-link renewal while the app session is available. Host formats can change independently of the app.
 
 The local library sorts by file arrival/completion time, collapses chains of single directories, previews images/videos with swipe navigation, provides storage analysis and explicit file/folder deletion, and exports to other Android apps.
+
+ZIP files support plain, traditional password and AES extraction with Zip4j (Apache-2.0). Extraction publishes a new sibling folder only after every entry succeeds. The local-files toolbar recursively optimizes eligible PNGs to lossless WebP after exact decoded-pixel and size checks; new PNG downloads do this automatically and retain a pending marker across process loss. Transparent images, animation, special metadata and wide-color inputs remain unchanged. See [migration acceptance details](../docs/ANDROID_MIGRATION_PARITY.md#download-and-local-file-restoration) for limitations and validation boundaries.
 
 ## Bookhouse
 

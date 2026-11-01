@@ -158,3 +158,14 @@ do not describe the new APKs as device-tested until that check actually happens.
   lossless pixel comparison, arrival times and conversion provenance. These are
   device-platform integration checks, separate from local Dart tests and OPPO
   hardware acceptance. No local Gradle commands are used.
+
+### Verified artifact milestone
+
+[CI build 12](https://github.com/SyIar/clear-forum-flutter/actions/runs/41315129665)
+validated application source `df8eaeb` with clean Dart analysis, 58 Flutter tests,
+six API 35 Android file integration tests, and all four ARM64 release builds.
+The downloaded APKs were signed with the existing installation key and checked
+for application IDs, version code 12, ZIP integrity and 16 KiB library alignment.
+The OPPO tablet was not connected; live authenticated providers and hardware
+acceptance remain unverified. Later documentation-only commits do not change
+these APKs.
