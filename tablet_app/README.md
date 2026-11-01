@@ -20,6 +20,10 @@ There is deliberately no downloader flavor. Each package has its own download qu
 - A navigation rail appears at 840 logical pixels. Narrow and split-screen windows use bottom navigation and one reading pane.
 - Reader and directory retain separate scroll controllers. Dialogs and drawers have bounded widths. The Android appearance uses Material 3 rather than the iOS glass layers.
 
+## Sign-in
+
+Simp and South expose dedicated sign-in controls in the toolbar, directory pane, settings, and reader error state. Authentication takes place on each site's real HTTPS login page in the same persistent Android WebView profile used by the reader and update checks. Passwords are neither collected by Flutter nor stored in app preferences. A verified account header returns to the app automatically and retries the previously requested directory and reader. Background responses started before sign-in cannot overwrite the new account state. Website verification pages do not count as a sign-out. Bookhouse has no account requirement; Tieba retains its separate Baidu login flow.
+
 ## Downloads
 
 An Android foreground data-sync service owns serial transfers independently of Flutter navigation. Records and partial files survive process loss; interrupted transfers become resumable paused records when the service restarts. Resume validates Content-Range and ETag/Last-Modified before appending. Credentials are forwarded only to the original transfer host and scheme. HTML/JSON error pages cannot be saved as successful downloads.

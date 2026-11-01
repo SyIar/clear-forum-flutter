@@ -9,6 +9,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
+import 'account.dart';
 import 'downloads.dart';
 import 'parsers.dart';
 import 'site.dart';
@@ -24,6 +25,23 @@ class PageCapture {
 class ForumSession {
   ForumSession(this.site);
   final ForumSite site;
+  final account = ValueNotifier(const ForumAccount(AccountStatus.unknown));
+  int _accountRevision = 0;
+  void authenticationBoundary() {
+    _accountRevision++;
+  }
+
+  ForumAccount observeAccount(Uri url, String source, {int? revision}) {
+    final observed = ForumAccount.inspect(site, url, source);
+    if ((revision == null || revision == _accountRevision) &&
+        observed.status != AccountStatus.unknown &&
+        (observed.status != account.value.status ||
+            observed.name != account.value.name)) {
+      account.value = observed;
+    }
+    return observed;
+  }
+
   Future<void> _tail = Future.value();
   static const desktopAgent =
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
@@ -71,6 +89,7 @@ class ForumSession {
   Future<PageCapture> _capture(Uri url) async {
     if (kIsWeb) throw const ReaderFailure(FailureKind.network);
     final result = Completer<PageCapture>();
+    final accountRevision = _accountRevision;
     InAppWebViewController? controller;
     bool reading = false;
     var lastFailure = const ReaderFailure(FailureKind.network);
@@ -92,10 +111,18 @@ class ForumSession {
           site.canonical(Uri.parse('$current')),
           content,
         );
+        observeAccount(document.url, content, revision: accountRevision);
+        if (site.isLogin(document.url)) {
+          result.completeError(const ReaderFailure(FailureKind.login));
+          return;
+        }
         try {
           PageParser(site).parse(content, document.url);
         } on ReaderFailure catch (failure) {
           lastFailure = failure;
+          if (failure.kind == FailureKind.login && !result.isCompleted) {
+            result.completeError(failure);
+          }
           return;
         }
         if (!result.isCompleted) result.complete(document);
@@ -243,6 +270,18 @@ class _SiteBrowserState extends State<SiteBrowser> {
                   },
                   onProgressChanged: (c, progress) {
                     if (mounted) setState(() => _progress = progress / 100);
+                  },
+                  onLoadStop: (c, u) async {
+                    try {
+                      final source = await c.evaluateJavascript(
+                        source: 'document.documentElement.outerHTML',
+                      );
+                      if (u != null && source is String) {
+                        widget.session.observeAccount(Uri.parse('$u'), source);
+                      }
+                    } catch (_) {
+                      // Navigation may replace the current JavaScript context.
+                    }
                   },
                   onDownloadStartRequest: (controller, request) async {
                     final url = Uri.parse('${request.url}');

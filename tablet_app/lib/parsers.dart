@@ -285,6 +285,12 @@ class PageParser {
       );
     }
     if (posts.isEmpty && entries.isEmpty) {
+      if (doc.querySelector(
+            'form[action*="login"] input[type="password"],form input[name="pwpwd"]',
+          ) !=
+          null) {
+        throw const ReaderFailure(FailureKind.login);
+      }
       throw const ReaderFailure(FailureKind.unsupported);
     }
     final current = site.pageNumber(url);

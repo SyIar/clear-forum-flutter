@@ -6,6 +6,15 @@ enum Module { tieba, simp, south, bookhouse }
 class ForumSite {
   const ForumSite(this.module);
   final Module module;
+  bool get supportsLogin => module == Module.simp || module == Module.south;
+  Uri get login =>
+      home.resolve(module == Module.simp ? '/login/' : '/login.php');
+  bool isLogin(Uri url) =>
+      supportsLogin &&
+      sameOrigin(url) &&
+      (module == Module.simp
+          ? url.path.startsWith('/login')
+          : url.path == '/login.php');
   static ForumSite get current => ForumSite(
     Module.values.byName(
       appFlavor ?? const String.fromEnvironment('FORUM', defaultValue: 'south'),

@@ -8,6 +8,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'adaptive.dart';
+import 'account.dart';
+import 'login.dart';
 import 'download_ui.dart';
 import 'downloads.dart';
 import 'library.dart';
@@ -71,10 +73,10 @@ class _ForumShellState extends State<ForumShell> {
   final List<ForumEntry> _entries = [];
   final Set<Uri> _loaded = {};
   ForumPage? _page;
-  Uri? _selected, _next;
+  Uri? _selected, _next, _listTarget;
   PageCapture? _selectedCapture;
   bool _busy = false, _more = false;
-  int _request = 0, _tab = 0;
+  int _request = 0, _tab = 0, _authGeneration = 0;
   String? _error;
   @override
   void initState() {
@@ -119,6 +121,7 @@ class _ForumShellState extends State<ForumShell> {
     setState(() {
       _busy = true;
       _error = null;
+      _listTarget = url;
     });
     try {
       final capture = await _session.fetch(url);
@@ -141,9 +144,15 @@ class _ForumShellState extends State<ForumShell> {
         _loaded.add(page.url);
       });
       if (_masterScroll.hasClients) _masterScroll.jumpTo(0);
-    } catch (_) {
+    } catch (error) {
       if (mounted && request == _request) {
-        setState(() => _error = tr('Page unavailable'));
+        setState(
+          () => _error = tr(
+            error is ReaderFailure && error.kind == FailureKind.login
+                ? 'Sign in required'
+                : 'Page unavailable',
+          ),
+        );
       }
     } finally {
       if (mounted && request == _request) setState(() => _busy = false);
@@ -249,7 +258,7 @@ class _ForumShellState extends State<ForumShell> {
       MaterialPageRoute(
         builder: (_) => SiteBrowser(
           session: _session,
-          url: target ?? _page?.url ?? widget.site.home,
+          url: target ?? _listTarget ?? _page?.url ?? widget.site.home,
         ),
       ),
     );
@@ -262,12 +271,54 @@ class _ForumShellState extends State<ForumShell> {
         _selectedCapture = capture;
       } else {
         _page = page;
+        _listTarget = page.url;
         _entries.clear();
         _entries.addAll(page.entries);
         _next = page.next;
       }
     });
   }
+
+  Future<void> _signIn() async {
+    final success = await forumSignIn(context, _session);
+    if (!mounted || !success) return;
+    setState(() {
+      _selectedCapture = null;
+      _authGeneration++;
+    });
+    await _openList(_listTarget ?? _page?.url ?? widget.site.home);
+  }
+
+  void _account() {
+    if (_session.account.value.signedIn) {
+      _browser(widget.site.home);
+    } else {
+      _signIn();
+    }
+  }
+
+  Widget _accountTile() => ValueListenableBuilder<ForumAccount>(
+    valueListenable: _session.account,
+    builder: (context, account, _) => ListTile(
+      leading: Icon(
+        account.signedIn ? Icons.account_circle : Icons.person_outline,
+      ),
+      title: Text(
+        account.signedIn && account.name.isNotEmpty
+            ? account.name
+            : tr(account.signedIn ? 'Account' : 'Login'),
+      ),
+      subtitle: Text(
+        tr(switch (account.status) {
+          AccountStatus.signedIn => 'Signed in',
+          AccountStatus.guest => 'Not signed in',
+          AccountStatus.unknown => 'Account status unknown',
+        }),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: _account,
+    ),
+  );
 
   Future<void> _search({bool link = false}) async {
     final field = TextEditingController();
@@ -315,7 +366,12 @@ class _ForumShellState extends State<ForumShell> {
     if (_stack.isEmpty) return;
     final old = _stack.removeLast();
     setState(() {
+      _request++;
+      _busy = false;
+      _more = false;
+      _error = null;
       _page = old;
+      _listTarget = old.url;
       _entries.clear();
       _entries.addAll(old.entries);
       _next = old.next;
@@ -503,6 +559,7 @@ class _ForumShellState extends State<ForumShell> {
 
   Widget _master() => Column(
     children: [
+      if (widget.site.supportsLogin) _accountTile(),
       if (widget.site.module == Module.bookhouse)
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 240),
@@ -535,7 +592,9 @@ class _ForumShellState extends State<ForumShell> {
               tooltip: tr('Refresh'),
               onPressed: _busy
                   ? null
-                  : () => _openList(_page?.url ?? widget.site.home),
+                  : () => _openList(
+                      _listTarget ?? _page?.url ?? widget.site.home,
+                    ),
               icon: const Icon(Icons.refresh),
             ),
           ],
@@ -543,6 +602,17 @@ class _ForumShellState extends State<ForumShell> {
       ),
       const Divider(height: 1),
       if (_busy) const LinearProgressIndicator(),
+      if (_error != null && _entries.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Text(_error!, textAlign: TextAlign.center),
+              if (widget.site.supportsLogin)
+                TextButton(onPressed: _signIn, child: Text(tr('Login'))),
+            ],
+          ),
+        ),
       Expanded(
         child: _entries.isEmpty
             ? Center(
@@ -559,6 +629,12 @@ class _ForumShellState extends State<ForumShell> {
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 16),
+                        if (widget.site.supportsLogin)
+                          FilledButton.icon(
+                            onPressed: _signIn,
+                            icon: const Icon(Icons.person_outline),
+                            label: Text(tr('Login')),
+                          ),
                         FilledButton.tonal(
                           onPressed: _browser,
                           child: Text(tr('Browser')),
@@ -646,6 +722,12 @@ class _ForumShellState extends State<ForumShell> {
   Widget _settings() => ListView(
     padding: const EdgeInsets.all(24),
     children: [
+      if (widget.site.supportsLogin) ...[
+        Text(tr('Account'), style: Theme.of(context).textTheme.titleLarge),
+        _accountTile(),
+        const Divider(),
+        const SizedBox(height: 20),
+      ],
       Text(tr('Reading'), style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 20),
       ListenableBuilder(
@@ -713,11 +795,12 @@ class _ForumShellState extends State<ForumShell> {
                 ),
               )
             : ThreadReader(
-                key: ValueKey(_selected),
+                key: ValueKey('$_selected:$_authGeneration'),
                 url: _selected!,
                 session: _session,
                 library: widget.library,
                 onLink: _link,
+                onSignIn: widget.site.supportsLogin ? _signIn : null,
                 capture: _selectedCapture,
                 books: widget.site.module == Module.bookhouse ? _books : null,
               ),
@@ -738,6 +821,21 @@ class _ForumShellState extends State<ForumShell> {
                         )
                       : null,
                   actions: [
+                    if (widget.site.supportsLogin)
+                      ValueListenableBuilder<ForumAccount>(
+                        valueListenable: _session.account,
+                        builder: (context, account, _) => TextButton.icon(
+                          onPressed: _account,
+                          icon: Icon(
+                            account.signedIn
+                                ? Icons.account_circle
+                                : Icons.person_outline,
+                          ),
+                          label: Text(
+                            tr(account.signedIn ? 'Account' : 'Login'),
+                          ),
+                        ),
+                      ),
                     IconButton(
                       tooltip: tr('Search'),
                       onPressed: _search,

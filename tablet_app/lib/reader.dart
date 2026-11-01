@@ -27,6 +27,7 @@ class ThreadReader extends StatefulWidget {
     required this.onLink,
     this.capture,
     this.books,
+    this.onSignIn,
   });
   final Uri url;
   final ForumSession session;
@@ -34,6 +35,7 @@ class ThreadReader extends StatefulWidget {
   final ValueChanged<Uri> onLink;
   final PageCapture? capture;
   final BookLibrary? books;
+  final VoidCallback? onSignIn;
 
   @override
   State<ThreadReader> createState() => _ThreadReaderState();
@@ -100,8 +102,10 @@ class _ThreadReaderState extends State<ThreadReader> {
     } catch (error) {
       if (mounted && generation == _generation) {
         setState(
-          () => _error =
-              error is ReaderFailure && error.kind == FailureKind.verification
+          () =>
+              _error = error is ReaderFailure && error.kind == FailureKind.login
+              ? tr('Sign in required')
+              : error is ReaderFailure && error.kind == FailureKind.verification
               ? tr('Login or verify in browser')
               : tr('Page unavailable'),
         );
@@ -446,6 +450,14 @@ class _ThreadReaderState extends State<ThreadReader> {
                           textAlign: TextAlign.center,
                         ),
                       ),
+                      if (widget.onSignIn != null) ...[
+                        FilledButton.icon(
+                          onPressed: widget.onSignIn,
+                          icon: const Icon(Icons.person_outline),
+                          label: Text(tr('Login')),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       FilledButton.tonalIcon(
                         onPressed: _browser,
                         icon: const Icon(Icons.language),

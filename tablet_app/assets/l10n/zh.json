@@ -14,5 +14,12 @@
   "chapterPattern":"(?:第\\s*)?(\\d+)\\s*(?:[-~—－至]\\s*(\\d+))?\\s*章",
   "chapterRangePattern":"[（(]\\s*(?:番外\\s*)?(\\d+)(?:\\s*[-~—－至]\\s*(\\d+))?\\s*[）)]",
   "extraPattern":"番外",
-  "sourceImageLabel":"图片"
+  "sourceImageLabel":"图片",
+  "Account":"账号",
+  "Signed in":"已登录",
+  "Not signed in":"未登录",
+  "Sign in required":"此页面需要先登录账号",
+  "Account status unknown":"登录状态待确认",
+  "Sign in not complete":"尚未检测到登录成功，请完成网站登录后再试。",
+  "Website sign in hint":"请在原网站完成登录和验证；成功后将自动返回，并刷新当前页面。账号密码只提交给原网站。"
 }
