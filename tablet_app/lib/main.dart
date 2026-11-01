@@ -24,7 +24,10 @@ Future<void> main() async {
         ? const TiebaLiteApp()
         : ForumTabletApp(
             site: site,
-            library: LibraryStore(await SharedPreferences.getInstance()),
+            library: LibraryStore(
+              await SharedPreferences.getInstance(),
+              site: site,
+            ),
           ),
   );
 }

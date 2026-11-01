@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'forum_identity.dart';
+import 'forum_search.dart';
+
 enum Module { tieba, simp, south, bookhouse }
 
 class ForumSite {
@@ -66,6 +69,8 @@ class ForumSite {
           't',
           'c[users]',
           'c[thread]',
+          'c[title_only]',
+          'o',
         ].contains(key),
       )) {
         return false;
@@ -76,10 +81,23 @@ class ForumSite {
           ).hasMatch(url.path);
     }
     if (module == Module.south) {
+      if (url.path == '/search.php') {
+        return ForumSearch.southParameters(url) != null;
+      }
       if (url.path == '/index.php') return q.isEmpty;
       if (url.path == '/u.php') {
-        return q.keys.every((k) => ['uid', 'action', 'page'].contains(k)) &&
-            (q['action'] == null || q['action'] == 'topic');
+        if (!url.query.contains('=') &&
+            !RegExp(
+              r'^(?:action-topic-)?uid-[1-9]\d*(?:-page-[1-9]\d*)?\.html$',
+            ).hasMatch(url.query)) {
+          return false;
+        }
+        final fields = parameters(url);
+        return fields.keys.every(
+              (k) => ['uid', 'action', 'page'].contains(k),
+            ) &&
+            validAuthor(fields['uid'] ?? '') &&
+            (fields['action'] == null || fields['action'] == 'topic');
       }
       if (!['/read.php', '/thread.php'].contains(url.path)) return false;
       if (!url.query.contains('=')) {
@@ -151,6 +169,23 @@ class ForumSite {
       return url;
     }
     url = url.replace(scheme: 'https', host: home.host);
+    if (module == Module.south && url.path == '/read.php') {
+      if (url.query.contains('=')) {
+        final hint = url.queryParameters['fpage'];
+        if (hint != null && RegExp(r'^(?:0|[1-9]\d{0,4})$').hasMatch(hint)) {
+          final fields = Map<String, String>.from(url.queryParameters)
+            ..remove('fpage');
+          url = url.replace(queryParameters: fields);
+        }
+      } else {
+        url = url.replace(
+          query: url.query.replaceFirst(
+            RegExp(r'-fpage-(?:0|[1-9]\d{0,4})(?=-|\.html$)'),
+            '',
+          ),
+        );
+      }
+    }
     if (module == Module.south &&
         (url.path == '/read.php' || url.path == '/thread.php') &&
         !url.query.contains('=')) {
@@ -190,20 +225,41 @@ class ForumSite {
 
   int pageNumber(Uri url) =>
       int.tryParse(
-        url.queryParameters['page'] ??
+        (module == Module.south && url.path == '/search.php'
+                ? (ForumSearch.southParameters(url)?['page'])
+                : null) ??
+            url.queryParameters['page'] ??
             url.queryParameters['p'] ??
             RegExp(r'(?:page-|/page-)(\d+)').firstMatch(url.toString())?[1] ??
             '',
       ) ??
       1;
   Uri pageUrl(Uri url, int page) {
+    if (module == Module.south && url.path == '/search.php') {
+      final fields = ForumSearch.southParameters(url);
+      if (fields != null) {
+        return url.replace(
+          queryParameters: {...fields, 'page': '$page'},
+          fragment: '',
+        );
+      }
+    }
     if (module == Module.simp) {
+      if (url.path.startsWith('/search/') ||
+          url.queryParameters.containsKey('page')) {
+        return url.replace(
+          queryParameters: {...url.queryParameters, 'page': '$page'},
+          fragment: '',
+        );
+      }
       return url.replace(
         path:
             '${url.path.replaceFirst(RegExp(r'/page-\d+/?$'), '').replaceFirst(RegExp(r'/$'), '')}/${page == 1 ? '' : 'page-$page'}',
       );
     }
-    if (module == Module.south && url.query.contains('-uid-')) {
+    if (module == Module.south &&
+        !url.query.contains('=') &&
+        url.query.endsWith('.html')) {
       final query = url.query
           .replaceFirst(RegExp(r'-page-\d+'), '')
           .replaceFirst('.html', '');

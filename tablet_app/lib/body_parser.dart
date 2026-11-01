@@ -3,6 +3,7 @@ import 'package:html/parser.dart' as html;
 
 import 'models.dart';
 import 'site.dart';
+import 'south_purchase.dart';
 
 class SimpParser {
   SimpParser(this.site);
@@ -59,6 +60,15 @@ class SimpParser {
         ForumPost(
           id: article.id,
           author: _text(article.querySelector('.message-name .username')),
+          authorID:
+              article
+                  .querySelector('.message-name .username')
+                  ?.attributes['data-user-id'] ??
+              '',
+          avatar: site.resolve(
+            article.querySelector('.message-avatar img')?.attributes['src'],
+            url,
+          ),
           date: attribution?.attributes['datetime'] ?? _text(attribution),
           number:
               article
@@ -91,10 +101,40 @@ class SimpParser {
           url: link,
           subtitle: _text(item.querySelector('.structItem-minor .username')),
           pinned: item.querySelector('.structItem-status--sticky') != null,
+          date:
+              item
+                  .querySelector('.structItem-startDate time')
+                  ?.attributes['datetime'] ??
+              '',
+          tags: item
+              .querySelectorAll('.structItem-title .labelLink')
+              .map(_text)
+              .where((s) => s.isNotEmpty)
+              .toList(),
+          thumbnail: _thumbnail(item, url),
         ),
       );
     }
     final forums = <ForumEntry>[];
+    if (template == 'search_results') {
+      for (final row in doc.querySelectorAll('.block-row .contentRow')) {
+        final link = row.querySelector('.contentRow-title a[href]');
+        final target = site.resolve(
+          link?.attributes['href'],
+          url,
+          internal: true,
+        );
+        if (target == null || !seen.add('$target')) continue;
+        threads.add(
+          ForumEntry(
+            title: _text(link),
+            url: target,
+            subtitle: _text(row.querySelector('.contentRow-minor')),
+            thumbnail: _thumbnail(row, url),
+          ),
+        );
+      }
+    }
     for (final node in doc.querySelectorAll('.node')) {
       final anchor = node.querySelector('.node-title a');
       final link = site.resolve(
@@ -117,7 +157,8 @@ class SimpParser {
     } else if (threads.isNotEmpty ||
         template == 'forum_view' ||
         template == 'watched_threads_list' ||
-        template == 'search_forum_view') {
+        template == 'search_forum_view' ||
+        template == 'search_results') {
       kind = PageKind.threads;
     } else if (forums.isNotEmpty || template == 'forum_list') {
       kind = PageKind.forums;
@@ -130,6 +171,34 @@ class SimpParser {
     if (kind == PageKind.threads && threadRows.isNotEmpty && threads.isEmpty) {
       throw const ReaderFailure(FailureKind.unsupported);
     }
+    final current =
+        int.tryParse(_text(doc.querySelector('.pageNav-page--current'))) ??
+        site.pageNumber(url);
+    final links = doc
+        .querySelectorAll(
+          '.pageNav-page a[href],.pageNavSimple-el--last,link[rel=last]',
+        )
+        .map((a) => site.resolve(a.attributes['href'], url, internal: true))
+        .nonNulls
+        .where(
+          (u) =>
+              site.pageUrl(u, 1).removeFragment() ==
+              site.pageUrl(url, 1).removeFragment(),
+        )
+        .toList();
+    final next = _paging(doc, url, 'next');
+    if (next != null) links.add(next);
+    final total = [
+      current,
+      ...links.map(site.pageNumber),
+      ...doc
+          .querySelectorAll(
+            '.pageNavSimple-el--current[data-last],.js-pageJump[data-last]',
+          )
+          .map((n) => int.tryParse(n.attributes['data-last'] ?? ''))
+          .nonNulls
+          .where((n) => n > 0 && n <= 99999),
+    ].reduce((a, b) => a > b ? a : b);
     return ForumPage(
       url: url,
       title: title.isEmpty ? 'Forums' : title,
@@ -137,18 +206,44 @@ class SimpParser {
       entries: [...forums, ...threads],
       posts: posts,
       previous: _paging(doc, url, 'prev'),
-      next: _paging(doc, url, 'next'),
-      pageNumber:
-          int.tryParse(_text(doc.querySelector('.pageNav-page--current'))) ?? 1,
+      next: next ?? (current < total ? site.pageUrl(url, current + 1) : null),
+      pageNumber: current,
+      totalPages: total,
+      lastPage: total > current ? site.pageUrl(url, total) : null,
       loggedIn: doc.documentElement?.attributes['data-logged-in'] == 'true',
     );
   }
 
   Uri? _paging(Document doc, Uri url, String direction) {
     final link =
-        doc.querySelector('.pageNav-jump--$direction') ??
+        doc.querySelector(
+          '.pageNav-jump--$direction,.pageNavSimple-el--$direction',
+        ) ??
         doc.querySelector('link[rel="$direction"]');
     return site.resolve(link?.attributes['href'], url, internal: true);
+  }
+
+  Uri? _thumbnail(Element row, Uri url) {
+    for (final image in row.querySelectorAll(
+      '.structItem-cell--icon .dcThumbnail img,.contentRow-figure img',
+    )) {
+      final style = image.attributes['style'] ?? '';
+      final background = RegExp(r'''url\(["']?([^\)"']+)''')
+          .firstMatch(style)?[1];
+      for (final raw in [
+        background,
+        image.attributes['data-src'],
+        image.attributes['src'],
+      ]) {
+        final value = site.resolve(raw, url);
+        if (value != null) {
+          return value.scheme == 'http'
+              ? value.replace(scheme: 'https')
+              : value;
+        }
+      }
+    }
+    return null;
   }
 
   double? _aspectRatio(Element node) {
@@ -198,6 +293,14 @@ class SimpParser {
       }
       if (node is! Element) return;
       final tag = node.localName;
+      if (site.module == Module.south) {
+        final offer = PurchaseOffer.parse(node, page);
+        if (offer != null) {
+          flush();
+          blocks.add(BodyBlock(BlockKind.purchase, offer: offer));
+          return;
+        }
+      }
       if (const {
         'script',
         'style',
@@ -261,6 +364,18 @@ class SimpParser {
               BlockKind.image,
               url: link,
               label: alt.isEmpty ? 'Image' : alt,
+              originalUrl: site.resolve(
+                node.attributes['data-url'] ??
+                    node.attributes['data-original'] ??
+                    (href != null &&
+                            RegExp(
+                              r'\.(jpe?g|png|gif|webp|avif)(\?|$)',
+                              caseSensitive: false,
+                            ).hasMatch('$href')
+                        ? '$href'
+                        : null),
+                page,
+              ),
               aspectRatio: _aspectRatio(node),
             ),
           );

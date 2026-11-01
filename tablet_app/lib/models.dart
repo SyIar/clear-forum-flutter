@@ -1,3 +1,6 @@
+import 'south_purchase.dart';
+import 'south_poll.dart';
+
 enum PageKind { forums, threads, posts }
 
 enum FailureKind {
@@ -24,6 +27,8 @@ class ForumEntry {
     this.date = '',
     this.tags = const [],
     this.authorID = '',
+    this.thumbnail,
+    this.totalPosts,
   });
   final String title;
   final Uri url;
@@ -31,6 +36,20 @@ class ForumEntry {
   final bool pinned;
   final String date, authorID;
   final List<String> tags;
+  final Uri? thumbnail;
+  final int? totalPosts;
+  ForumEntry copyWith({String? title, Uri? url, String? subtitle}) =>
+      ForumEntry(
+        title: title ?? this.title,
+        url: url ?? this.url,
+        subtitle: subtitle ?? this.subtitle,
+        pinned: pinned,
+        date: date,
+        tags: tags,
+        authorID: authorID,
+        thumbnail: thumbnail,
+        totalPosts: totalPosts,
+      );
   Map<String, dynamic> toJson() => {
     'title': title,
     'url': '$url',
@@ -38,6 +57,9 @@ class ForumEntry {
     'date': date,
     'tags': tags,
     'authorID': authorID,
+    'pinned': pinned,
+    'thumbnail': thumbnail?.toString(),
+    'totalPosts': totalPosts,
   };
   factory ForumEntry.fromJson(Map<String, dynamic> data) => ForumEntry(
     title: data['title'] as String,
@@ -46,6 +68,11 @@ class ForumEntry {
     date: data['date'] as String? ?? '',
     tags: List<String>.from(data['tags'] as List? ?? []),
     authorID: data['authorID'] as String? ?? '',
+    pinned: data['pinned'] as bool? ?? false,
+    thumbnail: data['thumbnail'] is String
+        ? Uri.tryParse(data['thumbnail'] as String)
+        : null,
+    totalPosts: data['totalPosts'] as int?,
   );
 }
 
@@ -57,7 +84,16 @@ class TextRun {
   final Uri? url;
 }
 
-enum BlockKind { paragraph, quote, spoiler, code, image, link, embeddedMedia }
+enum BlockKind {
+  paragraph,
+  quote,
+  spoiler,
+  code,
+  image,
+  link,
+  embeddedMedia,
+  purchase,
+}
 
 class BodyBlock {
   const BodyBlock(
@@ -67,6 +103,8 @@ class BodyBlock {
     this.label = '',
     this.url,
     this.posterUrl,
+    this.originalUrl,
+    this.offer,
     this.aspectRatio,
     this.directMedia = false,
   });
@@ -76,6 +114,8 @@ class BodyBlock {
   final String label;
   final Uri? url;
   final Uri? posterUrl;
+  final Uri? originalUrl;
+  final PurchaseOffer? offer;
   final double? aspectRatio;
   final bool directMedia;
 }
@@ -97,6 +137,8 @@ class ForumPost {
   final String number;
   final Uri? avatar;
   final String authorID;
+  int? get floor =>
+      int.tryParse(number.replaceAll('#', '').replaceAll(',', ''));
 }
 
 class ForumPage {
@@ -104,14 +146,21 @@ class ForumPage {
     required this.url,
     required this.title,
     required this.kind,
+    this.poll,
     this.entries = const [],
     this.posts = const [],
     this.previous,
     this.next,
     this.pageNumber = 1,
     this.loggedIn = false,
+    this.lastPage,
+    this.totalPages = 1,
+    this.originalPosterID,
+    this.terminalConfirmed = true,
+    this.pageCountConfirmed = false,
   });
   final Uri url;
+  final SouthPoll? poll;
   final String title;
   final PageKind kind;
   final List<ForumEntry> entries;
@@ -120,4 +169,16 @@ class ForumPage {
   final Uri? next;
   final int pageNumber;
   final bool loggedIn;
+  final Uri? lastPage;
+  final int totalPages;
+  final String? originalPosterID;
+  final bool terminalConfirmed;
+  final bool pageCountConfirmed;
+  int? get maximumPostNumber =>
+      terminalConfirmed && next == null && totalPages <= pageNumber
+      ? posts
+            .map((p) => p.floor)
+            .nonNulls
+            .fold<int?>(null, (n, f) => n == null || f > n ? f : n)
+      : null;
 }

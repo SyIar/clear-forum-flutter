@@ -7,12 +7,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:html/parser.dart' as html;
 
 import 'models.dart';
+import 'diagnostics.dart';
+import 'forum_search.dart';
 import 'account.dart';
 import 'downloads.dart';
 import 'parsers.dart';
 import 'site.dart';
+import 'south_purchase.dart';
 import 'strings.dart';
 
 class PageCapture {
@@ -26,6 +30,14 @@ class ForumSession {
   ForumSession(this.site);
   final ForumSite site;
   final account = ValueNotifier(const ForumAccount(AccountStatus.unknown));
+  final diagnostics = ValueNotifier<List<PageDiagnostic>>([]);
+  void _diagnostic(Uri url, String state, String source) {
+    diagnostics.value = [
+      PageDiagnostic(url, state, source),
+      ...diagnostics.value.where((d) => d.url != url).take(5),
+    ];
+  }
+
   int _accountRevision = 0;
   void authenticationBoundary() {
     _accountRevision++;
@@ -86,12 +98,66 @@ class ForumSession {
     }
   }
 
-  Future<PageCapture> _capture(Uri url) async {
+  Future<PageCapture> search(SearchQuery query) async {
+    final prior = _tail, done = Completer<void>();
+    _tail = done.future;
+    await prior;
+    try {
+      final capture = await _capture(ForumSearch.formUrl(site), search: query);
+      PageParser(site).parse(capture.html, capture.url);
+      await save(capture);
+      return capture;
+    } finally {
+      done.complete();
+    }
+  }
+
+  Future<void> submitPurchase(PurchaseOffer offer, Uri page) async {
+    if (site.module != Module.south || !offer.valid(page)) {
+      throw const ReaderFailure(FailureKind.unsupported);
+    }
+    final prior = _tail, done = Completer<void>();
+    _tail = done.future;
+    await prior;
+    HeadlessInAppWebView? browser;
+    final response = Completer<void>();
+    try {
+      browser = HeadlessInAppWebView(
+        initialSettings: settings,
+        initialUrlRequest: URLRequest(
+          url: WebUri('${offer.action}'),
+          headers: {'Referer': '$page'},
+        ),
+        onLoadStop: (_, _) {
+          if (!response.isCompleted) response.complete();
+        },
+        onReceivedError: (_, request, _) {
+          if (request.isForMainFrame == true && !response.isCompleted) {
+            response.completeError(const ReaderFailure(FailureKind.network));
+          }
+        },
+        shouldOverrideUrlLoading: (_, action) async {
+          final target = Uri.tryParse('${action.request.url}');
+          return target != null && site.sameOrigin(target)
+              ? NavigationActionPolicy.ALLOW
+              : NavigationActionPolicy.CANCEL;
+        },
+      );
+      await browser.run();
+      await response.future.timeout(const Duration(seconds: 25));
+    } finally {
+      await browser?.dispose();
+      done.complete();
+    }
+  }
+
+  Future<PageCapture> _capture(Uri url, {SearchQuery? search}) async {
     if (kIsWeb) throw const ReaderFailure(FailureKind.network);
     final result = Completer<PageCapture>();
     final accountRevision = _accountRevision;
     InAppWebViewController? controller;
     bool reading = false;
+    bool submitted = false;
     var lastFailure = const ReaderFailure(FailureKind.network);
     Future<void> inspect() async {
       if (reading || controller == null || result.isCompleted) return;
@@ -113,19 +179,54 @@ class ForumSession {
         );
         observeAccount(document.url, content, revision: accountRevision);
         if (site.isLogin(document.url)) {
+          _diagnostic(document.url, 'Login required', content);
           result.completeError(const ReaderFailure(FailureKind.login));
           return;
         }
+        if (search != null && !submitted) {
+          try {
+            final submission = ForumSearch.submission(
+              site,
+              content,
+              document.url,
+              search,
+            );
+            // Set before navigation: polling must never submit the POST twice.
+            submitted = true;
+            await controller!.evaluateJavascript(source: submission.script);
+          } on ReaderFailure catch (failure) {
+            lastFailure = failure;
+            _diagnostic(
+              document.url,
+              'Search form: ${failure.kind.name}',
+              content,
+            );
+          } on SearchNotice catch (notice) {
+            if (!result.isCompleted) result.completeError(notice);
+          }
+          return;
+        }
         try {
+          if (search != null) {
+            ForumSearch.validate(html.parse(content), site, document.url);
+          }
           PageParser(site).parse(content, document.url);
         } on ReaderFailure catch (failure) {
           lastFailure = failure;
+          _diagnostic(document.url, failure.kind.name, content);
           if (failure.kind == FailureKind.login && !result.isCompleted) {
             result.completeError(failure);
           }
           return;
+        } on SearchNotice catch (notice) {
+          _diagnostic(document.url, 'Search notice', content);
+          if (!result.isCompleted) result.completeError(notice);
+          return;
         }
-        if (!result.isCompleted) result.complete(document);
+        if (!result.isCompleted) {
+          _diagnostic(document.url, 'Parsed live page', content);
+          result.complete(document);
+        }
       } catch (_) {
         /* Navigation can replace the JavaScript context. */
       } finally {
@@ -176,7 +277,8 @@ class ForumSession {
     final directory = await getApplicationSupportDirectory();
     final folder = Directory('${directory.path}/pages');
     await folder.create(recursive: true);
-    return File('${folder.path}/${sha256.convert(utf8.encode('$url'))}.json');
+    final key = site.canonical(url).removeFragment();
+    return File('${folder.path}/${sha256.convert(utf8.encode('$key'))}.json');
   }
 
   Future<void> save(PageCapture capture) async {

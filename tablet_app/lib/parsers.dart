@@ -5,8 +5,11 @@ import 'package:html/parser.dart' as html;
 
 import 'body_parser.dart';
 import 'models.dart';
+import 'forum_identity.dart';
+import 'forum_search.dart';
 import 'site.dart';
 import 'strings.dart';
+import 'south_poll.dart';
 
 String textOf(Element? e) =>
     e?.text.replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
@@ -29,6 +32,9 @@ class PageParser {
       throw const ReaderFailure(FailureKind.unsupported);
     }
     if (site.module == Module.simp) return SimpParser(site).parse(source, url);
+    if (site.module == Module.south && url.path == '/search.php') {
+      return ForumSearch.southResult(site, source, url);
+    }
     if (site.module == Module.bookhouse && source.trimLeft().startsWith('[')) {
       return _bookRows(jsonDecode(source) as List, url);
     }
@@ -231,9 +237,17 @@ class PageParser {
       }
       posts.add(
         ForumPost(
-          id: container.id.isNotEmpty ? container.id : 'post-${posts.length}',
+          id: body.id.isNotEmpty
+              ? body.id
+              : container.id.isNotEmpty
+              ? container.id
+              : '${site.pageNumber(url)}-post-${posts.length}',
           author: textOf(name),
-          number: '#${floor ?? (body.id == 'read_tpc' ? 0 : posts.length)}',
+          number: floor != null
+              ? '#$floor'
+              : body.id == 'read_tpc'
+              ? '#0'
+              : '',
           authorID:
               RegExp(r'uid[=-](\d+)')
                   .firstMatch(name?.attributes['href'] ?? '')?[1] ??
@@ -256,11 +270,28 @@ class PageParser {
     }
     final entries = <ForumEntry>[];
     final seen = <String>{};
+    final topicID =
+        url.path == '/u.php' && site.parameters(url)['action'] == 'topic'
+        ? site.parameters(url)['uid']
+        : null;
+    if (topicID != null &&
+        doc.querySelector('#u-contentmain .u-table') == null) {
+      throw const ReaderFailure(FailureKind.unsupported);
+    }
     final list =
-        doc.querySelector('#ajaxtable,#threadlist,.thread-list') ?? doc.body!;
-    for (final a in list.querySelectorAll(
+        doc.querySelector(
+          topicID != null
+              ? '#u-contentmain'
+              : '#ajaxtable,#threadlist,.thread-list',
+        ) ??
+        doc.body!;
+    final preferred = list.querySelectorAll(
       'h3 a[href],.subject a[href],a.subject[href],a[id^="a_ajax_"],.thread-title a[href],h2 a[href]',
-    )) {
+    );
+    for (final a in [
+      ...preferred,
+      if (topicID != null) ...list.querySelectorAll('a[href]'),
+    ]) {
       final link = site.resolve(a.attributes['href'], url, internal: true);
       if (link == null ||
           !const ['/read.php', '/thread.php'].contains(link.path) ||
@@ -275,16 +306,30 @@ class PageParser {
         ForumEntry(
           title: textOf(a),
           url: link,
-          subtitle: textOf(author),
+          subtitle: topicID != null
+              ? textOf(doc.querySelector('#u-top .u-h1'))
+              : textOf(author),
           date: textOf(row.querySelector('.f10,.gray,time')),
           authorID:
+              topicID ??
               RegExp(r'uid[=-](\d+)')
                   .firstMatch(author?.attributes['href'] ?? '')?[1] ??
               '',
+          pinned:
+              row.classes.contains('sticky') ||
+              row.classes.contains('pinned') ||
+              row.querySelector('img[src*="headtopic"],[data-sticky="true"]') !=
+                  null,
+          totalPosts:
+              int.tryParse(row.attributes['data-post-count'] ?? '') ??
+              ((int.tryParse(row.attributes['data-reply-count'] ?? '') ?? -1) >=
+                      0
+                  ? int.parse(row.attributes['data-reply-count']!) + 1
+                  : null),
         ),
       );
     }
-    if (posts.isEmpty && entries.isEmpty) {
+    if (posts.isEmpty && entries.isEmpty && topicID == null) {
       if (doc.querySelector(
             'form[action*="login"] input[type="password"],form input[name="pwpwd"]',
           ) !=
@@ -296,20 +341,68 @@ class PageParser {
     final current = site.pageNumber(url);
     final paging = doc
         .querySelectorAll(
-          '.pages a[href],.pagination a[href],.page-nav a[href]',
+          '.pages a[href],.pagination a[href],.page-nav a[href],a[rel=last],link[rel=last]',
+        )
+        .where(
+          (a) => !a.parents.any(
+            (p) =>
+                p.classes.contains('tpc_content') ||
+                p.classes.contains('js-post') ||
+                p.localName == 'blockquote',
+          ),
         )
         .map((a) => site.resolve(a.attributes['href'], url, internal: true))
         .nonNulls
         .where(
           (u) =>
               u.path == url.path &&
-              site.pageUrl(u, 1).replace(fragment: '') ==
-                  site.pageUrl(url, 1).replace(fragment: ''),
+              site.pageUrl(u, 1).removeFragment() ==
+                  site.pageUrl(url, 1).removeFragment(),
         )
         .toList();
-    final next = paging
-        .where((u) => site.pageNumber(u) == current + 1)
-        .firstOrNull;
+    final totals = <int>[];
+    for (final node in doc.querySelectorAll('.pagesone')) {
+      if (node.parents.any(
+        (p) =>
+            p.classes.contains('js-post') ||
+            p.classes.contains('tpc_content') ||
+            p.localName == 'blockquote',
+      )) {
+        continue;
+      }
+      final match = RegExp(
+        r'^Pages:\s*(\d+)/(\d+)(?:\s+Go)?$',
+        caseSensitive: false,
+      ).firstMatch(textOf(node));
+      if (int.tryParse(match?[1] ?? '') == current) {
+        final n = int.tryParse(match?[2] ?? '');
+        if (n != null && n >= current && n <= 99999) totals.add(n);
+      }
+    }
+    for (final node in doc.querySelectorAll(
+      '.pages[data-total-pages],.pages input[max],.pagination[data-total-pages]',
+    )) {
+      if (node.parents.any(
+        (p) =>
+            p.classes.contains('js-post') ||
+            p.classes.contains('tpc_content') ||
+            p.localName == 'blockquote',
+      )) {
+        continue;
+      }
+      final n = int.tryParse(
+        node.attributes['data-total-pages'] ?? node.attributes['max'] ?? '',
+      );
+      if (n != null && n >= current && n <= 99999) totals.add(n);
+    }
+    final total = [
+      current,
+      ...totals,
+      ...paging.map(site.pageNumber),
+    ].reduce((a, b) => a > b ? a : b);
+    final next =
+        paging.where((u) => site.pageNumber(u) == current + 1).firstOrNull ??
+        (total > current ? site.pageUrl(url, current + 1) : null);
     return ForumPage(
       url: url,
       title:
@@ -318,7 +411,7 @@ class PageParser {
           : textOf(doc.querySelector('title')),
       kind: posts.isNotEmpty
           ? PageKind.posts
-          : entries.every((e) => e.url.path == '/thread.php')
+          : topicID == null && entries.every((e) => e.url.path == '/thread.php')
           ? PageKind.forums
           : PageKind.threads,
       entries: entries,
@@ -326,6 +419,25 @@ class PageParser {
       pageNumber: current,
       previous: current > 1 ? site.pageUrl(url, current - 1) : null,
       next: next,
+      totalPages: total,
+      lastPage: total > current ? site.pageUrl(url, total) : null,
+      terminalConfirmed:
+          totals.contains(current) ||
+          doc
+              .querySelectorAll('[rel=last][href]')
+              .any((n) => site.resolve(n.attributes['href'], url) == url),
+      pageCountConfirmed:
+          totals.isNotEmpty ||
+          paging.any(
+            (u) => doc
+                .querySelectorAll('[rel=last][href]')
+                .any((n) => site.resolve(n.attributes['href'], url) == u),
+          ),
+      originalPosterID: posts
+          .where((p) => p.floor == 0 && p.authorID.isNotEmpty)
+          .firstOrNull
+          ?.authorID,
+      poll: posts.isEmpty ? null : SouthPoll.parse(doc, url),
     );
   }
 }

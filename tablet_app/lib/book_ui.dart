@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'adaptive.dart';
 import 'books.dart';
+import 'forum_identity.dart';
 import 'models.dart';
 import 'strings.dart';
 
@@ -99,7 +100,9 @@ class BookShelf extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: FilledButton.icon(
-                  onPressed: library.checking ? null : library.updateAll,
+                  onPressed: library.checking
+                      ? null
+                      : () => library.updateAll(manual: true),
                   icon: const Icon(Icons.refresh),
                   label: Text(tr('Check updates')),
                 ),
@@ -160,7 +163,7 @@ class BookShelf extends StatelessWidget {
               ],
             ),
             subtitle: Text(
-              '${tr('Read to')} ${book.current?.first ?? 0}  |  ${tr('Latest')} ${book.latest}',
+              '${tr('Read to')} ${book.readChapter ?? book.current?.first ?? 0}  |  ${tr('Latest')} ${book.latest}',
               style: Theme.of(context).textTheme.labelSmall,
             ),
             onTap: () {
@@ -231,9 +234,17 @@ class _ChapterSheetState extends State<ChapterSheet> {
     listenable: widget.library,
     builder: (context, _) {
       final book = widget.book;
-      final current = book.chapters
-          .indexWhere((c) => c.entry.url == book.position)
-          .clamp(0, (book.chapters.length - 1).clamp(0, 100000));
+      final extraCount = book.chapters
+          .where((c) => c.extra)
+          .fold(0, (n, c) => c.last > n ? c.last : n);
+      final count = (book.latest + extraCount).clamp(1, 200000);
+      final current =
+          ((book.readChapter ?? book.current?.first ?? 1) +
+                  (book.current?.extra == true ? book.latest : 0))
+              .clamp(1, count);
+      final selected = (_index ?? current.toDouble()).round().clamp(1, count);
+      final extra = selected > book.latest;
+      final number = extra ? selected - book.latest : selected;
       return Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
@@ -283,25 +294,32 @@ class _ChapterSheetState extends State<ChapterSheet> {
                 child: Column(
                   children: [
                     Text(
-                      book
-                          .chapters[(_index ?? current.toDouble()).round()]
-                          .entry
-                          .title,
+                      '${tr(extra ? 'Extra' : 'Chapter')} $number',
                       maxLines: 2,
                     ),
                     Slider(
-                      value: _index ?? current.toDouble(),
-                      max: (book.chapters.length - 1)
-                          .clamp(1, 100000)
-                          .toDouble(),
-                      divisions: book.chapters.length > 1
-                          ? book.chapters.length - 1
-                          : null,
-                      onChanged: book.chapters.length <= 1
+                      value: selected.toDouble(),
+                      min: 1,
+                      max: count > 1 ? count.toDouble() : 2,
+                      divisions: count > 1 ? count - 1 : null,
+                      onChanged: count <= 1
                           ? null
                           : (v) => setState(() => _index = v),
-                      onChangeEnd: (v) =>
-                          _open(book.chapters[v.round()].entry.url),
+                      onChangeEnd: (v) {
+                        final isExtra = v.round() > book.latest;
+                        final url = widget.library.jumpTo(
+                          book,
+                          isExtra ? v.round() - book.latest : v.round(),
+                          extra: isExtra,
+                        );
+                        if (url != null) {
+                          _open(url);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(tr('Chapter not found'))),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -317,7 +335,10 @@ class _ChapterSheetState extends State<ChapterSheet> {
                       : book.chapters[i].entry;
                   return ListTile(
                     leading: const Icon(Icons.menu_book_outlined),
-                    selected: entry.url == book.position,
+                    selected: widget.library.session.site.sameThread(
+                      entry.url,
+                      book.position ?? Uri(),
+                    ),
                     title: Text(entry.title),
                     subtitle: _searching
                         ? Text(

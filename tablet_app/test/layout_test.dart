@@ -126,8 +126,11 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       SharedPreferences.setMockInitialValues({});
-      final store = LibraryStore(await SharedPreferences.getInstance());
       final site = ForumSite(module);
+      final store = LibraryStore(
+        await SharedPreferences.getInstance(),
+        site: site,
+      );
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('zh'),
@@ -140,6 +143,8 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(tr('Browse forums')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Open fixture'));
       await tester.pumpAndSettle();

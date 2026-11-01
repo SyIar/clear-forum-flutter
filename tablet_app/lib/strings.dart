@@ -12,6 +12,8 @@ class AppStrings {
 
   static String text(String key) => _values[key] as String? ?? key;
   static RegExp pattern(String key) => RegExp(text(key), caseSensitive: false);
+  static Map<String, int> numbers(String key) =>
+      Map<String, int>.from(_values[key] as Map? ?? {});
 }
 
 String tr(String key) => AppStrings.text(key);
